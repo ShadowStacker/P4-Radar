@@ -110,9 +110,9 @@ The first build downloads LVGL 9.4, the Waveshare BSP, `esp_hosted` and
 `esp_wifi_remote` through the IDF Component Manager. If you change
 `sdkconfig.defaults`, delete `sdkconfig` so the new defaults take effect.
 
-LVGL is pinned to 9.4.x. The LVGL adapter that Waveshare's BSP uses needs at
-least 9.4, and with 9.5 or 9.6 the firmware runs out of internal RAM at link
-time.
+LVGL needs to be 9.4 or newer, because the LVGL adapter that Waveshare's BSP
+uses depends on it. `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM` stays off: turning
+it on overflows the P4's internal RAM at link time.
 
 ### Flashing a prebuilt image
 
