@@ -1,0 +1,8 @@
+build/
+build-*/
+managed_components/
+dependencies.lock
+sdkconfig
+sdkconfig.old
+sim_out/
+__pycache__/

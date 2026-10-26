@@ -1,0 +1,5 @@
+# Overlay for the 4" 720x720 board (ESP32-P4-WIFI6-Touch-LCD-4C):
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch" build
+# The UI scales itself to the panel resolution.
+CONFIG_BSP_LCD_TYPE_720_720_4_INCH=y
+# CONFIG_BSP_LCD_TYPE_800_800_3_4_INCH is not set

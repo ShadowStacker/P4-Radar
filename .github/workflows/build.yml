@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - name: 3.4in-800x800
+            defaults: sdkconfig.defaults
+          - name: 4in-720x720
+            defaults: sdkconfig.defaults;sdkconfig.defaults.4inch
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.1
+          target: esp32p4
+          command: idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}" build && idf.py merge-bin -o plane-radar-merged.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plane-radar-${{ matrix.board.name }}
+          path: |
+            build/plane_radar_p4.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/flasher_args.json
+            build/plane-radar-merged.bin
+
+  simulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build simulator and tests
+        run: |
+          cmake -S sim -B build-sim
+          cmake --build build-sim -j
+      - name: Core unit tests
+        run: ./build-sim/core_tests
+      - name: Render screenshots
+        run: |
+          ./build-sim/plane_radar_sim sim_out
+          ./build-sim/plane_radar_sim sim_out --size 720
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshots
+          path: sim_out

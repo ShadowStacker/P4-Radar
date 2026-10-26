@@ -1,0 +1,10 @@
+dependencies:
+  idf: ">=5.5"
+  # Board support: MIPI-DSI JD9365 panel, GT911 touch, ES8311 audio, backlight.
+  # The same BSP drives the 3.4" (800x800) and 4" (720x720) round boards.
+  waveshare/esp32_p4_wifi6_touch_lcd_xc: "^3"
+  lvgl/lvgl: ">=9.2,<10"
+  espressif/esp_lcd_touch: ">=1.2,<2"
+  # Wi-Fi 6 lives on the on-board ESP32-C6, reached over SDIO via ESP-Hosted.
+  espressif/esp_wifi_remote: ">=0.10"
+  espressif/esp_hosted: ">=2"
