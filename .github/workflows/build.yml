@@ -23,7 +23,16 @@ jobs:
         with:
           esp_idf_version: v5.5.1
           target: esp32p4
-          command: idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}" build && idf.py merge-bin -o plane-radar-merged.bin
+          command: >-
+            idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}" build 2>&1 | tee build.log;
+            test "${PIPESTATUS[0]}" -eq 0 && idf.py merge-bin -o plane-radar-merged.bin
+      - name: Report build errors
+        if: failure()
+        run: |
+          # Surface the first errors as annotations so they show up without opening logs.
+          grep -E "error:|Error:|ERROR|undefined reference|overflowed|discards section" build.log \
+            | sort -u | head -20 | sed 's/^/::error::/' || true
+          cat dependencies.lock 2>/dev/null | grep -E "^  [a-z]|version:" | paste - - | sed 's/^/::notice::/' | head -30 || true
       - uses: actions/upload-artifact@v4
         with:
           name: plane-radar-${{ matrix.board.name }}
