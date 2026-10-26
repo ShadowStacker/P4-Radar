@@ -16,7 +16,7 @@ endif()
 
 set(LVGL_DIR "" CACHE PATH "Local LVGL 9.x checkout (optional)")
 set(CJSON_DIR "" CACHE PATH "Local cJSON checkout (optional)")
-set(LVGL_TAG "v9.2.2" CACHE STRING "LVGL tag to fetch")
+set(LVGL_TAG "v9.4.0" CACHE STRING "LVGL tag to fetch")
 
 include(FetchContent)
 if(NOT LVGL_DIR)

@@ -135,7 +135,7 @@ void switchRow(const char* text, bool* value, Callback extra = nullptr) {
   growLabel(r, text, p.text);
   lv_obj_t* sw = lv_switch_create(r);
   lv_obj_set_size(sw, sc(92), sc(48));
-  lv_obj_set_style_bg_color(sw, p.accent, LV_PART_INDICATOR | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(sw, p.accent, static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
   if (*value) lv_obj_add_state(sw, LV_STATE_CHECKED);
   onEvent(sw, LV_EVENT_VALUE_CHANGED, [sw, value, extra] {
     *value = lv_obj_has_state(sw, LV_STATE_CHECKED);
@@ -221,8 +221,8 @@ void choiceRow(const char* text, const char* const* map, int current, std::funct
   lv_obj_set_style_bg_color(bm, p.bg, LV_PART_ITEMS);
   lv_obj_set_style_text_color(bm, p.text, LV_PART_ITEMS);
   lv_obj_set_style_radius(bm, sc(14), LV_PART_ITEMS);
-  lv_obj_set_style_bg_color(bm, p.accent, LV_PART_ITEMS | LV_STATE_CHECKED);
-  lv_obj_set_style_text_color(bm, lv_color_black(), LV_PART_ITEMS | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(bm, p.accent, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
+  lv_obj_set_style_text_color(bm, lv_color_black(), static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
   onEvent(bm, LV_EVENT_VALUE_CHANGED, [bm, set] {
     const uint32_t sel = lv_buttonmatrix_get_selected_button(bm);
     if (sel == LV_BUTTONMATRIX_BUTTON_NONE) return;

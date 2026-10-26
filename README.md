@@ -106,9 +106,25 @@ idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch" set-t
 idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch" build flash monitor
 ```
 
-The first build downloads LVGL 9, the Waveshare BSP, `esp_hosted` and
+The first build downloads LVGL 9.4, the Waveshare BSP, `esp_hosted` and
 `esp_wifi_remote` through the IDF Component Manager. If you change
 `sdkconfig.defaults`, delete `sdkconfig` so the new defaults take effect.
+
+LVGL is pinned to 9.4.x. The LVGL adapter that Waveshare's BSP uses needs at
+least 9.4, and with 9.5 or 9.6 the firmware runs out of internal RAM at link
+time.
+
+### Flashing a prebuilt image
+
+A merged image (bootloader + partition table + app) is written at offset `0x0`:
+
+```bash
+python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800.bin
+```
+
+The CI build artifacts include merged images for both boards. You can also
+flash them from a browser with
+[ESP Web Flasher / esptool-js](https://espressif.github.io/esptool-js/).
 
 GitHub Actions (`.github/workflows/build.yml`) builds firmware for both
 boards, runs the unit tests and renders simulator screenshots on every push.
@@ -141,8 +157,8 @@ cmake -S sim -B build-sim && cmake --build build-sim -j
 ```
 
 LVGL and cJSON are fetched automatically. To build offline, pass
-`-DLVGL_DIR=…` and `-DCJSON_DIR=…`. The simulator compiles against
-LVGL 9.2 through 9.6.
+`-DLVGL_DIR=…` and `-DCJSON_DIR=…`. The simulator uses LVGL 9.4 by
+default, and the UI code also compiles against 9.2 through 9.6.
 
 ## Project layout
 

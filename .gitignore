@@ -6,3 +6,4 @@ sdkconfig
 sdkconfig.old
 sim_out/
 __pycache__/
+dist/

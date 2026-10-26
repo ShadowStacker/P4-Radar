@@ -50,8 +50,7 @@ void settingsSave(const core::Settings& s) {
     ESP_LOGE(TAG, "nvs_open failed");
     return;
   }
-  Blob blob;
-  std::memset(&blob, 0, sizeof(blob));
+  Blob blob{};
   blob.version = core::Settings::kVersion;
   blob.size = sizeof(core::Settings);
   blob.settings = s;
