@@ -12,6 +12,7 @@
 
 #include "app/app.h"
 #include "core/adsb.h"
+#include "core/filter.h"
 #include "data/airports.h"
 #include "platform/platform.h"
 #include "ui/hud.h"
@@ -247,6 +248,7 @@ void pageMain() {
   navRow(LV_SYMBOL_IMAGE, "Display", "", Page::Display);
   navRow(LV_SYMBOL_VOLUME_MAX, "Sound", st.sound_enabled ? fmtStr("%d%%", st.volume) : "Off", Page::Sound);
   navRow(LV_SYMBOL_GPS, "Traffic & data", core::adsb::sourceName(st.source), Page::Traffic);
+  navRow(LV_SYMBOL_EYE_OPEN, "Filters", core::filtersActive(st) ? "On" : "All aircraft", Page::Filters);
   navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -372,11 +374,15 @@ const data::Airport* findAirport(const std::string& query) {
     if (c != ' ') q += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   }
   if (q.empty()) return nullptr;
+  // Exact ICAO/IATA/FAA code first; then US codes typed without the "K" (BDN -> KBDN).
+  const std::string kq = "K" + q;
+  const data::Airport* k_match = nullptr;
   for (size_t i = 0; i < data::kAirportCount; ++i) {
     const data::Airport& a = data::kAirports[i];
     if (q == a.ident || q == a.iata) return &a;
+    if (k_match == nullptr && kq == a.ident) k_match = &a;
   }
-  return nullptr;
+  return k_match;
 }
 
 void pageLocation() {
@@ -407,8 +413,8 @@ void pageLocation() {
                 });
     });
   }, pal().text);
-  actionRow(LV_SYMBOL_UPLOAD, "Use an airport (ICAO/IATA)", [] {
-    textInput("Airport code, e.g. KJFK or AMS", "", InputKind::Text, [](const std::string& q) {
+  actionRow(LV_SYMBOL_UPLOAD, "Use an airport (ICAO/IATA/FAA)", [] {
+    textInput("Airport code, e.g. KRDM, BDN or S39", "", InputKind::Text, [](const std::string& q) {
       const data::Airport* a = findAirport(q);
       if (a == nullptr) {
         toast(LV_SYMBOL_WARNING "  Airport not found");
@@ -459,6 +465,10 @@ void pageDisplay() {
   switchRow("Radar sweep", &st.sweep_enabled);
   sliderRow("Sweep speed", 4, 60, st.sweep_rpm, [](int v) { app::settings().sweep_rpm = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d rpm", v); });
+  sliderRow("Sweep trail", 0, 36, st.sweep_trail_deg / 5,
+            [](int v) { app::settings().sweep_trail_deg = static_cast<uint8_t>(v * 5); },
+            [](int v) { return v == 0 ? std::string("Clean bar") : fmtStr("%d" "\xC2\xB0", v * 5); });
+  switchRow("Smooth trail fade", &st.sweep_smooth);
   switchRow("Echoes fade after the beam", &st.sweep_reveal);
 
   section("POWER");
@@ -570,21 +580,97 @@ void pageFavorites() {
   }
 }
 
-void pageTraffic() {
-  auto& st = app::settings();
-  switchRow("Show aircraft on the ground", &st.show_ground, [] { app::requestRefresh(); });
-  switchRow("Military aircraft only", &st.military_only, [] {
-    // Drop what's on screen now instead of waiting for it to age out.
-    app::traffic().clear();
-    app::requestRefresh();
+/** Filters apply from the next fetch; clear the screen so the change shows at once. */
+void refilter() {
+  app::traffic().clear();
+  app::requestRefresh();
+}
+
+/** Switch bound to one bit of a mask. */
+void maskSwitchRow(const char* text, uint8_t* mask, uint8_t bit) {
+  const Palette& p = pal();
+  lv_obj_t* r = baseRow(s.list);
+  growLabel(r, text, p.text);
+  lv_obj_t* sw = lv_switch_create(r);
+  lv_obj_set_size(sw, sc(92), sc(48));
+  lv_obj_set_style_bg_color(sw, p.accent, static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
+  if (*mask & bit) lv_obj_add_state(sw, LV_STATE_CHECKED);
+  onEvent(sw, LV_EVENT_VALUE_CHANGED, [sw, mask, bit] {
+    if (lv_obj_has_state(sw, LV_STATE_CHECKED)) *mask |= bit;
+    else *mask &= static_cast<uint8_t>(~bit);
+    app::sound(core::Sound::Click);
+    changed();
+    refilter();
   });
+}
+
+void pageFilters() {
+  auto& st = app::settings();
+  label(s.list, "Favorites are always shown, whatever the filters.", font(FontSize::S), pal().text_dim);
+
+  section("AIRCRAFT KINDS");
+  for (int i = 0; i < core::kCategoryCount; ++i) {
+    const auto bit = static_cast<core::CategoryBit>(1 << i);
+    maskSwitchRow(core::categoryName(bit), &st.category_mask, bit);
+  }
+  switchRow("Military aircraft only", &st.military_only, [] { refilter(); });
+  switchRow("Aircraft on the ground", &st.show_ground, [] { refilter(); });
+
+  section("TYPE");
+  const std::string types = st.type_filter[0] ? st.type_filter : "All types";
+  lv_obj_t* tr = actionRow(LV_SYMBOL_KEYBOARD, ("Only types: " + types).c_str(), [] {
+    textInput("Types, e.g. B738, A32*, C17 (empty = all)", app::settings().type_filter, InputKind::Text,
+              [](const std::string& v) {
+                auto& st = app::settings();
+                std::string up;
+                for (char c : v) up += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                std::snprintf(st.type_filter, sizeof(st.type_filter), "%s", up.c_str());
+                changed();
+                refilter();
+                showPage(Page::Filters);
+              });
+  }, pal().text);
+  (void)tr;
+  label(s.list, "ICAO type codes; * matches a prefix (A32* = A320 family).", font(FontSize::S), pal().text_dim);
+
+  section("ALTITUDE");
   sliderRow("Hide below", 0, 80, st.min_alt_ft / 500, [](int v) { app::settings().min_alt_ft = v * 500; },
             [](int v) { return v == 0 ? std::string("No limit") : fmtStr("%d ft", v * 500); },
-            [] { app::requestRefresh(); });
+            [] { refilter(); });
   sliderRow("Hide above", 2, 120, st.max_alt_ft / 500, [](int v) { app::settings().max_alt_ft = v * 500; },
             [](int v) { return v >= 120 ? std::string("No limit") : fmtStr("%d ft", v * 500); },
-            [] { app::requestRefresh(); });
+            [] { refilter(); });
 
+  section("GROUND SPEED");
+  sliderRow("Slower than", 0, 60, st.min_speed_kt / 10,
+            [](int v) { app::settings().min_speed_kt = static_cast<uint16_t>(v * 10); },
+            [](int v) { return v == 0 ? std::string("Show all") : fmtStr("hide < %d kt", v * 10); },
+            [] { refilter(); });
+  sliderRow("Faster than", 5, 100, std::min<int>(st.max_speed_kt, core::kSpeedNoLimit) / 10,
+            [](int v) { app::settings().max_speed_kt = static_cast<uint16_t>(v * 10); },
+            [](int v) { return v * 10 >= core::kSpeedNoLimit ? std::string("Show all") : fmtStr("hide > %d kt", v * 10); },
+            [] { refilter(); });
+
+  section("");
+  actionRow(LV_SYMBOL_REFRESH, "Reset all filters", [] {
+    auto& st = app::settings();
+    const core::Settings d;
+    st.category_mask = d.category_mask;
+    st.military_only = d.military_only;
+    st.show_ground = d.show_ground;
+    st.min_alt_ft = d.min_alt_ft;
+    st.max_alt_ft = d.max_alt_ft;
+    st.min_speed_kt = d.min_speed_kt;
+    st.max_speed_kt = d.max_speed_kt;
+    st.type_filter[0] = '\0';
+    changed();
+    refilter();
+    showPage(Page::Filters);
+  }, pal().warn);
+}
+
+void pageTraffic() {
+  auto& st = app::settings();
   section("DATA SOURCE");
   static const char* const kSources[] = {"adsb.fi", "airplanes.live", "adsb.lol", ""};
   choiceRow("ADS-B feed", kSources, static_cast<int>(st.source), [](int v) {
@@ -597,6 +683,7 @@ void pageTraffic() {
   label(s.list,
         "Free community feeds. Please keep the interval\nat 5 s or more for everyday use.",
         font(FontSize::S), pal().text_dim);
+  actionRow(LV_SYMBOL_LIST, "Filters...", [] { showPage(Page::Filters); }, pal().accent);
 }
 
 void pageAbout() {
@@ -646,6 +733,7 @@ const char* pageTitle(Page p) {
     case Page::Display: return "Display";
     case Page::Sound: return "Sound";
     case Page::Traffic: return "Traffic & data";
+    case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
     case Page::About: return "About";
     default: return "Settings";
@@ -667,6 +755,7 @@ void showPage(Page page) {
     case Page::Display: pageDisplay(); break;
     case Page::Sound: pageSound(); break;
     case Page::Traffic: pageTraffic(); break;
+    case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
     case Page::About: pageAbout(); break;
     default: pageMain(); break;
@@ -696,22 +785,26 @@ lv_obj_t* create(Page page) {
     if (s.page == Page::Main) closeSettings();
     else showPage(Page::Main);
   });
-  lv_obj_align(back, LV_ALIGN_CENTER, -sc(206), -sc(312));
+  lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));
   lv_obj_t* close = iconButton(s.screen, LV_SYMBOL_CLOSE, sc(72), [] { closeSettings(); });
-  lv_obj_align(close, LV_ALIGN_CENTER, sc(206), -sc(312));
+  lv_obj_align(close, LV_ALIGN_CENTER, sc(196), -sc(286));
 
   // Scrolling list; generous bottom padding lets the last rows scroll up into
   // the wide middle band of the round panel.
   s.list = lv_obj_create(s.screen);
   lv_obj_remove_style_all(s.list);
-  lv_obj_set_size(s.list, sc(600), screenH() - sc(140));
-  lv_obj_align(s.list, LV_ALIGN_TOP_MID, 0, sc(132));
+  lv_obj_set_size(s.list, sc(600), screenH() - sc(160));
+  lv_obj_align(s.list, LV_ALIGN_TOP_MID, 0, sc(156));
   lv_obj_set_flex_flow(s.list, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_row(s.list, sc(12), 0);
   lv_obj_set_style_pad_top(s.list, sc(8), 0);
   lv_obj_set_style_pad_bottom(s.list, sc(220), 0);
   lv_obj_set_scrollbar_mode(s.list, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_scroll_dir(s.list, LV_DIR_VER);
+
+  // The buttons sit inside the round edge, just above the list; keep them on top.
+  lv_obj_move_foreground(back);
+  lv_obj_move_foreground(close);
 
   s.timer = lv_timer_create(onTimer, 500, nullptr);
   showPage(page);

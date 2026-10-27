@@ -45,7 +45,8 @@ struct FeedStatus {
   bool last_ok = false;
   uint32_t last_ok_ms = 0;
   int last_http = 0;
-  int last_count = 0;
+  int last_count = 0;   // aircraft shown (after filters)
+  int last_total = 0;   // aircraft in the feed's response
   char error[48] = "";
 };
 FeedStatus feedStatus();

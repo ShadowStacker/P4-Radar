@@ -20,7 +20,8 @@ struct Settings {
   // where a saved blob's fields end; bump it whenever fields are added.
   //   1: up to poll_interval_s (v1.0.x) or autohide_buttons (v1.1.0)
   //   2: up to favorite_near_radius_km (v1.2.0)
-  static constexpr uint16_t kVersion = 2;
+  //   3: up to type_filter (v1.3.0)
+  static constexpr uint16_t kVersion = 3;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -79,6 +80,14 @@ struct Settings {
   bool sound_favorite_seen = true;     // a favorite comes into range
   bool sound_favorite_near = true;     // a favorite comes within favorite_near_radius_km
   float favorite_near_radius_km = 15.0f;
+
+  // v1.3.0
+  uint8_t sweep_trail_deg = 70;     // length of the fading trail behind the beam; 0 = clean bar
+  bool sweep_smooth = false;        // finer gradient (more slices) for the trail
+  uint8_t category_mask = 0xFF;     // core::CategoryBit flags of aircraft kinds to show
+  uint16_t min_speed_kt = 0;
+  uint16_t max_speed_kt = 1000;     // >= kSpeedNoLimit means no upper limit
+  char type_filter[24] = "";        // e.g. "B738, A32*, C17" (empty = all types)
 };
 
 }  // namespace core

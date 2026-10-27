@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "app/app.h"
+#include "core/filter.h"
 #include "core/traffic.h"
 #include "fake_traffic.h"
 #include "lvgl.h"
@@ -188,6 +189,17 @@ void pinch(int cx, int cy, int d0, int d1, int steps) {
 }
 
 int S(int px_at_800) { return px_at_800 * g_size / 800; }
+
+/** The settings screen's scrolling list: its tallest child. */
+lv_obj_t* settingsList() {
+  lv_obj_t* scr = lv_screen_active();
+  lv_obj_t* best = scr;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(scr); ++i) {
+    lv_obj_t* c = lv_obj_get_child(scr, static_cast<int32_t>(i));
+    if (lv_obj_get_height(c) > lv_obj_get_height(best) || best == scr) best = c;
+  }
+  return best;
+}
 
 /** Screen position of the first visible airborne aircraft near the middle. */
 bool findAircraftOnScreen(int* x, int* y) {
@@ -383,11 +395,56 @@ int main(int argc, char** argv) {
   run(300);
   ui::openSettings(ui::Page::Sound);
   run(400);
-  lv_obj_scroll_to_y(lv_obj_get_child(lv_screen_active(), -1), ui::sc(760), LV_ANIM_OFF);
+  lv_obj_scroll_to_y(settingsList(), ui::sc(760), LV_ANIM_OFF);
   run(300);
   shot((p + "27_settings_sound_favorites").c_str());
   ui::closeSettings();
   run(300);
+
+  // Filters page (top, then scrolled).
+  ui::openSettings(ui::Page::Filters);
+  run(500);
+  shot((p + "28_settings_filters").c_str());
+  lv_obj_scroll_to_y(settingsList(), ui::sc(900), LV_ANIM_OFF);
+  run(300);
+  shot((p + "29_settings_filters_more").c_str());
+  ui::closeSettings();
+  run(300);
+
+  // Helicopters only.
+  app::settings().category_mask = core::kCatRotor;
+  app::traffic().clear();
+  g_next_fetch = 0;
+  run(2000);
+  shot((p + "30_filter_helicopters").c_str());
+  app::settings().category_mask = 0xFF;
+  app::traffic().clear();
+  g_next_fetch = 0;
+  run(2000);
+
+  // Sweep variants.
+  app::settings().sweep_trail_deg = 0;
+  run(400);
+  shot((p + "31_sweep_clean_bar").c_str());
+  app::settings().sweep_trail_deg = 160;
+  app::settings().sweep_smooth = true;
+  run(400);
+  shot((p + "32_sweep_smooth_long").c_str());
+  app::settings().sweep_trail_deg = 70;
+  app::settings().sweep_smooth = false;
+
+  // Central Oregon: home at Redmond, zoomed in to show the small fields.
+  app::settings().home_lat = 44.2541;
+  app::settings().home_lon = -121.1500;
+  app::settings().home_radius_km = 30;
+  ui::RadarView::get().goHome(false);
+  ui::RadarView::get().markStaticDirty();
+  run(800);
+  shot((p + "33_central_oregon_30km").c_str());
+  app::settings().home_radius_km = 12;
+  ui::RadarView::get().goHome(false);
+  run(800);
+  shot((p + "34_central_oregon_12km").c_str());
 
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,
               g_render_ms_total / std::max(1, g_render_count));

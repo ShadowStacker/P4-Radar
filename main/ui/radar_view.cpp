@@ -19,8 +19,10 @@ namespace {
 
 constexpr uint32_t kFastFrameMs = 33;   // ~30 fps while animating
 constexpr uint32_t kSlowFrameMs = 100;  // 10 fps is plenty for dead-reckoned motion
-constexpr float kSweepTailDeg = 70.0f;
-constexpr int kSweepSlices = 20;
+// Sweep trail: one translucent triangle per slice. Standard mode uses ~3.5 deg
+// slices; smooth mode 1 deg slices with a softer curve and less seam overlap.
+constexpr float kSliceDegStandard = 3.5f;
+constexpr float kSliceDegSmooth = 1.0f;
 
 /** Night theme stays monochrome red to preserve night vision. */
 bool useAltitudeColors(const core::Settings& st) {
@@ -399,36 +401,55 @@ void RadarView::renderStatic(bool with_trails) {
   }
 
   // --- Runways and airport labels -----------------------------------------
+  // Detail grows as you zoom in: large airports from 250 km (codes from
+  // 150 km), medium below 70 km, small strips below 35 km.
   const double rkm = vp_.radiusKm();
   if (st.show_runways && rkm < 250.0) {
     const double lat_span = rkm * 1.2 / core::kKmPerDegLat;
     const double lon_span = lat_span / std::max(0.05, std::cos(core::degToRad(vp_.center().lat)));
-    const bool medium_ok = rkm < 70.0;
+    const int max_cls = rkm < 35.0 ? data::kSmall : (rkm < 70.0 ? data::kMedium : data::kLarge);
     const float rw_w = std::clamp(static_cast<float>(0.05 / vp_.kmPerPx()), 2.0f, static_cast<float>(sc(16)));
-    for (size_t i = 0; i < data::kRunwayCount; ++i) {
-      const data::Runway& rw = data::kRunways[i];
-      const data::Airport& ap = data::kAirports[rw.airport_idx];
-      if (ap.cls == 1 && !medium_ok) continue;
-      const double alat = ap.lat_e7 * 1e-7, alon = ap.lon_e7 * 1e-7;
-      if (std::fabs(alat - vp_.center().lat) > lat_span) continue;
-      if (std::fabs(core::wrapLon(alon - vp_.center().lon)) > lon_span) continue;
-      const core::PointF a = vp_.project({rw.le_lat_e7 * 1e-7, rw.le_lon_e7 * 1e-7});
-      const core::PointF b = vp_.project({rw.he_lat_e7 * 1e-7, rw.he_lon_e7 * 1e-7});
-      drawLine(&layer, a.x, a.y, b.x, b.y, p.runway, static_cast<int32_t>(rw_w), LV_OPA_COVER);
+    const float rw_thin = std::max(1.0f, rw_w * 0.6f);
+
+    // Airports are sorted by latitude: binary-search the visible band.
+    const int32_t lat_lo = static_cast<int32_t>((vp_.center().lat - lat_span) * 1e7);
+    const int32_t lat_hi = static_cast<int32_t>((vp_.center().lat + lat_span) * 1e7);
+    const data::Airport* ap_begin = std::lower_bound(
+        data::kAirports, data::kAirports + data::kAirportCount, lat_lo,
+        [](const data::Airport& ap, int32_t v) { return ap.lat_e7 < v; });
+    const data::Airport* ap_end = std::upper_bound(
+        ap_begin, data::kAirports + data::kAirportCount, lat_hi,
+        [](int32_t v, const data::Airport& ap) { return v < ap.lat_e7; });
+    const uint16_t idx_lo = static_cast<uint16_t>(ap_begin - data::kAirports);
+    const uint16_t idx_hi = static_cast<uint16_t>(ap_end - data::kAirports);
+    auto inBand = [&](const data::Airport& ap) {
+      return ap.cls <= max_cls &&
+             std::fabs(core::wrapLon(ap.lon_e7 * 1e-7 - vp_.center().lon)) <= lon_span;
+    };
+
+    // Runways are sorted by airport, so the same band is one contiguous range.
+    const data::Runway* rw_begin = std::lower_bound(
+        data::kRunways, data::kRunways + data::kRunwayCount, idx_lo,
+        [](const data::Runway& r, uint16_t v) { return r.airport_idx < v; });
+    for (const data::Runway* rw = rw_begin; rw != data::kRunways + data::kRunwayCount && rw->airport_idx < idx_hi;
+         ++rw) {
+      if (!inBand(data::kAirports[rw->airport_idx])) continue;
+      const core::PointF a = vp_.project({rw->le_lat_e7 * 1e-7, rw->le_lon_e7 * 1e-7});
+      const core::PointF b = vp_.project({rw->he_lat_e7 * 1e-7, rw->he_lon_e7 * 1e-7});
+      // Unpaved and approximately placed strips are drawn thinner and fainter.
+      const bool solid = (rw->flags & data::kRunwayPaved) && !(rw->flags & data::kRunwayApprox);
+      drawLine(&layer, a.x, a.y, b.x, b.y, p.runway, static_cast<int32_t>(solid ? rw_w : rw_thin),
+               solid ? LV_OPA_COVER : 150);
     }
 
     if (st.show_airport_labels && rkm < 150.0) {
       std::vector<core::PointF> placed;
       const lv_font_t* f = font(FontSize::S);
-      for (int pass = 0; pass < 2; ++pass) {  // large airports claim space first
-        if (pass == 1 && !(rkm < 45.0)) break;
-        for (size_t i = 0; i < data::kAirportCount; ++i) {
-          const data::Airport& ap = data::kAirports[i];
-          if (ap.cls != pass) continue;
-          const double alat = ap.lat_e7 * 1e-7, alon = ap.lon_e7 * 1e-7;
-          if (std::fabs(alat - vp_.center().lat) > lat_span) continue;
-          if (std::fabs(core::wrapLon(alon - vp_.center().lon)) > lon_span) continue;
-          const core::PointF a = vp_.project({alat, alon});
+      const int max_label_cls = rkm < 35.0 ? data::kSmall : (rkm < 70.0 ? data::kMedium : data::kLarge);
+      for (int pass = 0; pass <= max_label_cls; ++pass) {  // bigger airports claim space first
+        for (const data::Airport* ap = ap_begin; ap != ap_end; ++ap) {
+          if (ap->cls != pass || ap->ident[0] == '\0' || !inBand(*ap)) continue;
+          const core::PointF a = vp_.project({ap->lat_e7 * 1e-7, ap->lon_e7 * 1e-7});
           if (distPx(a.x, a.y, cx, cy) > R - sc(70)) continue;
           bool crowded = false;
           for (const auto& q : placed) {
@@ -439,7 +460,7 @@ void RadarView::renderStatic(bool with_trails) {
           }
           if (crowded) continue;
           placed.push_back(a);
-          drawTextCentered(&layer, ap.ident, a.x, a.y + sc(22), f, p.runway_label, 230);
+          drawTextCentered(&layer, ap->ident, a.x, a.y + sc(22), f, p.runway_label, pass == data::kSmall ? 170 : 230);
         }
       }
     }
@@ -678,19 +699,28 @@ void RadarView::drawSweep(lv_layer_t* layer) {
   const float big = distPx(sx, sy, vp_.cx(), vp_.cy()) + vp_.radiusPx() + 20.0f;
   const lv_area_t& clip = layerClip(layer);
 
+  const auto& st = app::settings();
+  const float tail = st.sweep_trail_deg;  // 0 = clean bar, just the beam
+  const bool smooth = st.sweep_smooth;
+  const int slices = tail <= 0 ? 0 : std::max(2, static_cast<int>(std::lround(tail / (smooth ? kSliceDegSmooth : kSliceDegStandard))));
+  // Neighbouring slices overlap slightly so antialiased edges don't show gaps.
+  const float overlap = smooth ? 0.12f : 0.3f;
+
   lv_draw_triangle_dsc_t tri;
   lv_draw_triangle_dsc_init(&tri);
-  const float slice = kSweepTailDeg / kSweepSlices;
-  for (int i = 0; i < kSweepSlices; ++i) {
-    const float a0 = static_cast<float>(core::degToRad(sweep_deg_ - kSweepTailDeg + i * slice));
-    const float a1 = static_cast<float>(core::degToRad(sweep_deg_ - kSweepTailDeg + (i + 1) * slice + 0.3f));
+  const float slice = slices > 0 ? tail / slices : 0;
+  for (int i = 0; i < slices; ++i) {
+    const float a0 = static_cast<float>(core::degToRad(sweep_deg_ - tail + i * slice));
+    const float a1 = static_cast<float>(core::degToRad(sweep_deg_ - tail + (i + 1) * slice + overlap));
     const float x0 = sx + std::sin(a0) * big, y0 = sy - std::cos(a0) * big;
     const float x1 = sx + std::sin(a1) * big, y1 = sy - std::cos(a1) * big;
     const lv_area_t box = {static_cast<int32_t>(std::min({sx, x0, x1})), static_cast<int32_t>(std::min({sy, y0, y1})),
                            static_cast<int32_t>(std::max({sx, x0, x1})), static_cast<int32_t>(std::max({sy, y0, y1}))};
     if (!areasOverlap(box, clip)) continue;
-    const float k = static_cast<float>(i + 1) / kSweepSlices;
-    triangleDscSetColor(&tri, p.sweep, static_cast<lv_opa_t>(k * k * 90));
+    const float k = static_cast<float>(i + 1) / slices;
+    // Brightest at the beam. Smooth mode fades more gradually over the whole trail.
+    const float w = smooth ? std::pow(k, 1.6f) : k * k;
+    triangleDscSetColor(&tri, p.sweep, static_cast<lv_opa_t>(w * 90));
     tri.p[0].x = sx;
     tri.p[0].y = sy;
     tri.p[1].x = x0;

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/adsb.h"
+#include "core/filter.h"
 #include "core/geo.h"
 #include "core/sound_synth.h"
 #include "core/traffic.h"
@@ -330,6 +331,61 @@ void testFavorites() {
   CHECK(core::containsHex(favs, "fff111") && !core::containsHex(favs, "fff112"));
 }
 
+void testFilters() {
+  CHECK(core::categoryOf("A7") == core::kCatRotor);
+  CHECK(core::categoryOf("A5") == core::kCatHeavy && core::categoryOf("A4") == core::kCatHeavy);
+  CHECK(core::categoryOf("B4") == core::kCatLight && core::categoryOf("B1") == core::kCatOther);
+  CHECK(core::categoryOf("") == core::kCatUnknown && core::categoryOf("A0") == core::kCatUnknown);
+
+  CHECK(core::typeMatches("B738", ""));
+  CHECK(core::typeMatches("B738", "b738"));
+  CHECK(core::typeMatches("A321", "B738, A32*"));
+  CHECK(core::typeMatches("C17", "B738,C17"));
+  CHECK(!core::typeMatches("A332", "B738, A32*"));
+  CHECK(!core::typeMatches("B7", "B738"));
+
+  core::Settings st;  // defaults: everything airborne shown
+  core::Aircraft heli = mk("h", 52, 5, 1500);
+  std::snprintf(heli.category, sizeof(heli.category), "A7");
+  std::snprintf(heli.type, sizeof(heli.type), "EC35");
+  heli.gs_kt = 110;
+  core::Aircraft jet = mk("j", 52, 5, 36000);
+  std::snprintf(jet.category, sizeof(jet.category), "A3");
+  std::snprintf(jet.type, sizeof(jet.type), "A320");
+  jet.gs_kt = 460;
+  CHECK(core::passesFilters(heli, st) && core::passesFilters(jet, st));
+  CHECK(!core::filtersActive(st));
+
+  st.category_mask = core::kCatRotor;  // helicopters only
+  CHECK(core::passesFilters(heli, st) && !core::passesFilters(jet, st));
+  CHECK(core::filtersActive(st));
+  st.category_mask = 0xFF;
+
+  st.min_speed_kt = 200;
+  CHECK(!core::passesFilters(heli, st) && core::passesFilters(jet, st));
+  st.min_speed_kt = 0;
+  st.max_speed_kt = 300;
+  CHECK(core::passesFilters(heli, st) && !core::passesFilters(jet, st));
+  st.max_speed_kt = core::kSpeedNoLimit;
+
+  st.max_alt_ft = 10000;
+  CHECK(core::passesFilters(heli, st) && !core::passesFilters(jet, st));
+  st.max_alt_ft = 60000;
+  st.min_alt_ft = 5000;
+  CHECK(!core::passesFilters(heli, st) && core::passesFilters(jet, st));
+  st.min_alt_ft = 0;
+
+  std::snprintf(st.type_filter, sizeof(st.type_filter), "A32*");
+  CHECK(!core::passesFilters(heli, st) && core::passesFilters(jet, st));
+  st.type_filter[0] = '\0';
+
+  core::Aircraft ground = jet;
+  ground.on_ground = true;
+  CHECK(!core::passesFilters(ground, st));
+  st.show_ground = true;
+  CHECK(core::passesFilters(ground, st));
+}
+
 void testSounds() {
   for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) {
     const auto pcm = core::synthesize(static_cast<core::Sound>(i), 22050);
@@ -349,6 +405,7 @@ int main() {
   testAdsbParse();
   testTraffic();
   testFavorites();
+  testFilters();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

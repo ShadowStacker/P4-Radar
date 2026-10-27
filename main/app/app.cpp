@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/adsb.h"
+#include "core/filter.h"
 #include "platform/platform.h"
 
 namespace app {
@@ -45,12 +46,22 @@ void applyHardware() {
 }
 
 void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed) {
+  // Parse everything, then apply the display filters here so favorites can
+  // bypass them (a saved aircraft is never hidden, and still raises alerts).
   core::adsb::ParseOptions opt;
-  opt.include_ground = s_settings.show_ground;
-  opt.military_only = s_settings.military_only;
-  opt.min_alt_ft = s_settings.min_alt_ft > 0 ? s_settings.min_alt_ft : -2000;
-  opt.max_alt_ft = s_settings.max_alt_ft >= 60000 ? 1000000 : s_settings.max_alt_ft;
+  opt.include_ground = true;
+  opt.min_alt_ft = -100000;
+  opt.max_alt_ft = 1000000;
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
+  const int total = ok ? static_cast<int>(parsed->size()) : 0;
+  if (ok) {
+    const std::vector<core::Favorite> favs = favorites();
+    parsed->erase(std::remove_if(parsed->begin(), parsed->end(),
+                                 [&](const core::Aircraft& a) {
+                                   return !core::passesFilters(a, s_settings) && !core::containsHex(favs, a.hex);
+                                 }),
+                  parsed->end());
+  }
 
   {
     std::lock_guard<std::mutex> lock(s_mu);
@@ -60,6 +71,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       s_feed.ever_ok = true;
       s_feed.last_ok_ms = plat::millis();
       s_feed.last_count = static_cast<int>(parsed->size());
+      s_feed.last_total = total;
       s_feed.error[0] = '\0';
     } else if (code == 200) {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "Bad data from %s",

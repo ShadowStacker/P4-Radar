@@ -29,7 +29,8 @@ size_t validPrefix(uint16_t version) {
       // v1.0.x and v1.1.0 blobs are the same size. In v1.0.x the byte that is
       // now military_only was zero-filled padding, which reads as its default.
       return offsetof(core::Settings, autohide_buttons);
-    case 2: return sizeof(core::Settings);
+    case 2: return offsetof(core::Settings, sweep_trail_deg);
+    case 3: return sizeof(core::Settings);
     default: return 0;
   }
 }

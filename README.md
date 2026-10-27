@@ -25,8 +25,11 @@ higher-resolution, touch-driven take on
   the aircraft type. Labels avoid each other and other aircraft.
 - Trails covering the last few minutes, plus one-minute speed vectors. Motion
   is dead-reckoned between updates, so it stays smooth.
-- Runways and ICAO codes for about 5,300 large and medium airports, all built
-  into the firmware.
+- Runways and codes for about 48,000 airports worldwide (large, medium and
+  small fields from OurAirports), built into the firmware. Detail grows as you
+  zoom in, and small strips appear below about 35 km. Unpaved and
+  approximately placed runways (strips with no surveyed ends) are drawn thinner
+  and fainter.
 - Aircraft outside the visible area show as direction dots on the rim.
 - Emergency squawks (7500/7600/7700) get a pulsing red ring.
 - Military aircraft (flagged by the feed's aircraft database) get a **MIL**
@@ -48,8 +51,9 @@ higher-resolution, touch-driven take on
 - Long-press anywhere on the map to make that spot your home.
 
 **Animations and sound**
-- Rotating radar sweep with a fading beam. The speed is adjustable, and you
-  can turn it on or off from the radar screen.
+- Rotating radar sweep. Speed and trail length are adjustable (trail length 0
+  gives a clean bar with no trail), and there's a smooth-fade option. You can
+  turn it on or off from the radar screen.
 - Optional "echo" mode: aircraft fade after the beam passes and light up
   again on the next sweep.
 - Smooth fly-to when going home, zooming or following.
@@ -75,8 +79,12 @@ higher-resolution, touch-driven take on
   radius and altitude, favorite "nearby" radius, and test buttons.
 - **Favorites**: your saved aircraft, whether each is in range and how far,
   and a remove button.
-- **Traffic & data**: show ground traffic, a military-only filter, altitude
-  filters, the feed
+- **Filters**: aircraft kinds (light, small/business, airliners, heavies,
+  fast jets, helicopters, gliders/balloons/drones, unknown), military only,
+  ground traffic, ICAO type codes with wildcards (`B738, A32*`), altitude band
+  and ground-speed band. Favorites are never filtered out. The status pill
+  shows how many aircraft the filters are hiding.
+- **Traffic & data**: the feed
   (adsb.fi, airplanes.live or adsb.lol) and the update interval.
 - **About**: firmware version, IP address and signal strength, feed status,
   free memory, restart and factory reset.

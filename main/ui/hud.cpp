@@ -7,6 +7,7 @@
 
 #include "app/app.h"
 #include "core/adsb.h"
+#include "core/filter.h"
 #include "platform/platform.h"
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
@@ -97,7 +98,13 @@ void updateStatus() {
     } else {
       char r[20];
       app::formatDistance(RadarView::get().viewport().radiusKm(), r, sizeof(r));
-      std::snprintf(txt, sizeof(txt), "%u aircraft   " LV_SYMBOL_GPS " %s", static_cast<unsigned>(n), r);
+      const int hidden = fs.last_total - fs.last_count;
+      if (core::filtersActive(app::settings()) && hidden > 0) {
+        std::snprintf(txt, sizeof(txt), "%u aircraft  (%d filtered)   " LV_SYMBOL_GPS " %s",
+                      static_cast<unsigned>(n), hidden, r);
+      } else {
+        std::snprintf(txt, sizeof(txt), "%u aircraft   " LV_SYMBOL_GPS " %s", static_cast<unsigned>(n), r);
+      }
     }
   }
   lv_label_set_text(h.status_label, txt);
