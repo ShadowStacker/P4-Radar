@@ -157,9 +157,11 @@ boards, runs the unit tests and renders simulator screenshots on every push.
   ships the C6 with slave firmware. If the versions don't match, update the C6
   by following the ESP-Hosted docs ("Co-processor OTA" or flashing the C6
   directly).
-- **Black screen, USB keeps disconnecting**: almost always the wrong chip
-  revision image (see *Chip revision* above). The serial log will say
-  `Image requires chip rev ...`.
+- **Black screen, USB keeps disconnecting**: check the serial log (115200 baud).
+  - `invalid header: 0xffffffff`: the image went to the wrong address. Merged
+    images go at `0x0`; esptool-js defaults to `0x1000`.
+  - `Image requires chip rev ...`: wrong chip-revision image. A first line of
+    `ESP-ROM:esp32p4-eco2-...` means a v1.x chip, so use the `chip-v1` file.
 - **Boot screen says "Wi-Fi module not responding"**: the P4 can't talk to the
   ESP32-C6. The radar UI still starts, but stays offline.
 - **Touch is mirrored or rotated**: set `touch_cfg.touch_flags` in
