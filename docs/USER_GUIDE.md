@@ -412,5 +412,6 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
 | Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
+| Freezes while rotated (v1.4.0–v1.5.0) | Fixed in v1.5.1; flash it. Your rotation setting is kept. |
 | Touch is mirrored or rotated (picture is right) | Report it with your board model and rotation setting. |
 | Card says "no history" | The feed doesn't have this aircraft's history (common for aircraft that just appeared, or TIS-B/MLAT-only targets), or its history files are unreachable. Try another **ADS-B feed**. |

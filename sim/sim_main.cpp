@@ -18,6 +18,7 @@
 #include "fake_traffic.h"
 #include "lvgl.h"
 #include "sim_state.h"
+#include "ui/display_rotation.h"
 #include "ui/hud.h"
 #include "ui/keyboard.h"
 #include "ui/radar_view.h"
@@ -34,6 +35,8 @@ sim::FakeTraffic* g_traffic = nullptr;
 uint32_t g_next_fetch = 0;
 double g_render_ms_total = 0;
 int g_render_count = 0;
+
+int g_rotate = 0;  // quarter turns, from --rotate 90|180|270
 
 uint32_t tickCb() { return sim::g_ms; }
 
@@ -226,11 +229,13 @@ bool findAircraftOnScreen(int* x, int* y) {
 int main(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--size") == 0 && i + 1 < argc) g_size = std::atoi(argv[++i]);
+    else if (std::strcmp(argv[i], "--rotate") == 0 && i + 1 < argc) g_rotate = std::atoi(argv[++i]) / 90;
     else sim::g_out_dir = argv[i];
   }
   std::string mk = "mkdir -p '" + sim::g_out_dir + "'";
   if (std::system(mk.c_str()) != 0) return 1;
-  const std::string p = g_size == 800 ? "" : std::to_string(g_size) + "_";
+  std::string p = g_size == 800 ? "" : std::to_string(g_size) + "_";
+  if (g_rotate) p = "rot" + std::to_string(g_rotate * 90) + "_" + p;
 
   g_fb.assign(g_size * g_size, 0);
   lv_init();
@@ -242,6 +247,8 @@ int main(int argc, char** argv) {
   lv_display_set_buffers(g_disp, buf.data(), nullptr, static_cast<uint32_t>(buf.size()),
                          LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(g_disp, flushCb);
+  // Screenshots then show the panel as mounted (taps stay in UI coordinates).
+  ui::installDisplayRotation(g_disp, g_rotate);
 
   lv_indev_t* indev = lv_indev_create();
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);

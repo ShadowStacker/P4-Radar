@@ -565,6 +565,29 @@ void testRotation() {
   CHECK(px == W - 1 && py == H - 1);
   core::uiToPanel(0, 0, 3, W, H, &px, &py);
   CHECK(px == 0 && py == H - 1);
+
+  // Pixels of a stripe land where uiToPanel() puts their coordinates, so the
+  // picture and touch always agree. Odd sizes and a padded source stride.
+  const int sx = 13, sy = 41, sw = 37, sh = 9, stride = 40;
+  std::vector<uint16_t> src(stride * sh), dst(sw * sh);
+  for (int y = 0; y < sh; ++y) {
+    for (int x = 0; x < sw; ++x) src[y * stride + x] = static_cast<uint16_t>(y * 1000 + x);
+  }
+  for (int q = 0; q < 4; ++q) {
+    core::rotatePixels(src.data(), sw, sh, stride, dst.data(), q);
+    const core::Rect r = core::uiRectToPanel({sx, sy, sx + sw - 1, sy + sh - 1}, q, W, H);
+    const int dw = r.x2 - r.x1 + 1;
+    CHECK(dw == ((q & 1) ? sh : sw) && r.y2 - r.y1 + 1 == ((q & 1) ? sw : sh));
+    int bad = 0;
+    for (int y = 0; y < sh; ++y) {
+      for (int x = 0; x < sw; ++x) {
+        int ppx, ppy;
+        core::uiToPanel(sx + x, sy + y, q, W, H, &ppx, &ppy);
+        if (dst[(ppy - r.y1) * dw + (ppx - r.x1)] != src[y * stride + x]) ++bad;
+      }
+    }
+    CHECK(bad == 0);
+  }
 }
 
 }  // namespace

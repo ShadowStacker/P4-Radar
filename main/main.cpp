@@ -15,6 +15,7 @@
 #include "nvs_flash.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
+#include "ui/display_rotation.h"
 #include "ui/ui.h"
 
 namespace {
@@ -43,6 +44,10 @@ extern "C" void app_main(void) {
   core::Settings boot_settings;
   plat::settingsLoad(&boot_settings);
   lv_display_t* disp = plat::esp::displayStart(boot_settings.rotation);
+  if (plat::esp::lvglLock()) {
+    ui::installDisplayRotation(disp, boot_settings.rotation);
+    plat::esp::lvglUnlock();
+  }
   plat::esp::bootScreen("Starting audio...");
   plat::esp::audioStart();
   plat::esp::bootScreen("Starting Wi-Fi module...");

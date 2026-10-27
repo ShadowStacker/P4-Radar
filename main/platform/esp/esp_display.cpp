@@ -89,9 +89,9 @@ lv_display_t* displayStart(int quarter_turns) {
   disp_cfg.panel = panel;
   disp_cfg.panel_io = io;
   disp_cfg.profile.interface = ESP_LV_ADAPTER_PANEL_IF_MIPI_DSI;
-  static const esp_lv_adapter_rotation_t kRotations[] = {ESP_LV_ADAPTER_ROTATE_0, ESP_LV_ADAPTER_ROTATE_90,
-                                                         ESP_LV_ADAPTER_ROTATE_180, ESP_LV_ADAPTER_ROTATE_270};
-  disp_cfg.profile.rotation = kRotations[s_rotation];
+  // Always native orientation: rotation is done before the flush by
+  // ui::installDisplayRotation(), not by the adapter (see display_rotation.cpp).
+  disp_cfg.profile.rotation = ESP_LV_ADAPTER_ROTATE_0;
   disp_cfg.profile.hor_res = BSP_LCD_H_RES;
   disp_cfg.profile.ver_res = BSP_LCD_V_RES;
   disp_cfg.profile.buffer_height = 100;  // 100-line stripes in internal RAM

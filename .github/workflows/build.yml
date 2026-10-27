@@ -81,6 +81,7 @@ jobs:
         run: |
           ./build-sim/plane_radar_sim sim_out
           ./build-sim/plane_radar_sim sim_out --size 720
+          ./build-sim/plane_radar_sim sim_out --size 720 --rotate 90
       - uses: actions/upload-artifact@v4
         with:
           name: simulator-screenshots

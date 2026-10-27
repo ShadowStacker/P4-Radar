@@ -10,6 +10,15 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.5.1] - 2026-10-27
+
+### Fixed
+- **Freeze with the screen rotated** (90°, 180° or 270°), for example when
+  opening Display settings. The display driver's built-in rotation hung on
+  busy screens. The firmware now rotates the picture itself and runs the
+  driver unrotated, the same way it runs at 0°. Your rotation setting is
+  kept, so after flashing the board starts up rotated and no longer freezes.
+
 ## [v1.5.0] - 2026-10-27
 
 ### Added
@@ -63,7 +72,8 @@ entry below says otherwise.
 ### Notes
 - Rotation is done by the display driver while copying each frame, which
   costs a little speed at 90°, 180° and 270°. If animation feels slow
-  rotated, shorten the sweep trail.
+  rotated, shorten the sweep trail. (v1.5.1 replaced this with the
+  firmware's own rotation after it froze on some screens.)
 
 ### Documentation
 - New [user guide](docs/USER_GUIDE.md) covering every screen, gesture and
@@ -188,6 +198,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.5.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.3.0

@@ -6,8 +6,9 @@
 namespace plat::esp {
 
 /**
- * Panel, backlight, LVGL adapter task and multi-touch input. The UI is
- * rotated by `quarter_turns` x 90 deg clockwise (fixed until the next boot).
+ * Panel, backlight, LVGL adapter task and multi-touch input. Touch is mapped
+ * for a UI rotated by `quarter_turns` x 90 deg clockwise; the picture itself
+ * is rotated by ui::installDisplayRotation(). Fixed until the next boot.
  */
 lv_display_t* displayStart(int quarter_turns);
 /** ES8311 codec + speaker amp; pre-renders the sound effects. */
