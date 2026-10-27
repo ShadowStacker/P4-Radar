@@ -13,6 +13,30 @@ higher-resolution, touch-driven take on
 > Screenshots come from the desktop simulator in `sim/`. It runs the same UI
 > code against synthetic traffic.
 
+## Documentation
+
+| | |
+|---|---|
+| 📖 **[User guide](docs/USER_GUIDE.md)** | Every screen, gesture and setting explained, plus alerts, flashing and troubleshooting |
+| 📝 **[Changelog](CHANGELOG.md)** | What changed in each version |
+| ⬇️ **[Releases](https://github.com/ShadowStacker/P4-Radar/releases)** | Ready-to-flash firmware for both boards |
+
+## Quick start
+
+1. **Find your chip revision.** Connect the board to
+   [esptool-js](https://espressif.github.io/esptool-js/) and read
+   `Chip is ESP32-P4 (revision vX.Y)`.
+2. **Download** the image for your board and chip from the
+   [latest release](https://github.com/ShadowStacker/P4-Radar/releases/latest),
+   e.g. `plane-radar-4in-720x720-chip-v1-….bin` for a 4" board with a v1.x chip.
+3. **Flash it at address `0x0`.** In esptool-js, change the default `0x1000`.
+   With esptool:
+   `python -m esptool --chip esp32p4 write_flash 0x0 <file>.bin`
+4. **Set up on the touchscreen.** The device walks you through Wi-Fi, then your
+   home location.
+
+Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware).
+
 ## Features
 
 **Radar**
@@ -94,10 +118,12 @@ phone or captive portal is needed.
 
 | | | |
 |:-:|:-:|:-:|
-| ![](docs/images/01_first_boot_wifi.png) | ![](docs/images/02_wifi_password.png) | ![](docs/images/08_settings.png) |
-| ![](docs/images/09_settings_display.png) | ![](docs/images/10_settings_sound.png) | ![](docs/images/11_settings_location.png) |
-| ![](docs/images/05_pinch_zoom.png) | ![](docs/images/17_pick_home.png) | ![](docs/images/18_emergency.png) |
-| ![](docs/images/14_theme_amber.png) | ![](docs/images/15_theme_ocean.png) | ![](docs/images/16_theme_night.png) |
+| ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
+| ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
+| ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |
+| ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/21_buttons_hidden.png)<br>Buttons auto-hidden |
+| ![](docs/images/09_settings_display.png)<br>Display settings | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
+| ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
 
 ## Hardware
 
@@ -171,24 +197,25 @@ flash them from a browser with
 GitHub Actions (`.github/workflows/build.yml`) builds firmware for both
 boards, runs the unit tests and renders simulator screenshots on every push.
 
+### Making a release
+
+1. Add a `## [vX.Y.Z] - date` section to [CHANGELOG.md](CHANGELOG.md), and
+   bump `CONFIG_APP_PROJECT_VER` in `sdkconfig.defaults`.
+2. Push, then either push a `vX.Y.Z` tag, or run the **Build** workflow from the
+   Actions tab with *release_version* set to `vX.Y.Z`.
+3. CI builds all four images and publishes the release. Its notes start with
+   that version's changelog section.
+
 ### If something doesn't work
 
-- **No Wi-Fi networks found / Wi-Fi init fails**: the ESP-Hosted firmware on
-  the C6 has to be compatible with the `esp_hosted` version on the P4. Waveshare
-  ships the C6 with slave firmware. If the versions don't match, update the C6
-  by following the ESP-Hosted docs ("Co-processor OTA" or flashing the C6
-  directly).
-- **Black screen, USB keeps disconnecting**: check the serial log (115200 baud).
-  - `invalid header: 0xffffffff`: the image went to the wrong address. Merged
-    images go at `0x0`; esptool-js defaults to `0x1000`.
-  - `Image requires chip rev ...`: wrong chip-revision image. A first line of
-    `ESP-ROM:esp32p4-eco2-...` means a v1.x chip, so use the `chip-v1` file.
-- **Boot screen says "Wi-Fi module not responding"**: the P4 can't talk to the
-  ESP32-C6. The radar UI still starts, but stays offline.
-- **Touch is mirrored or rotated**: set `touch_cfg.touch_flags` in
-  `main/platform/esp/esp_display.cpp`.
-- **Animation is sluggish**: lower the sweep speed or turn off the sweep or
-  trails in Display settings. A 30 fps sweep at 800×800 is the heaviest load.
+See [Troubleshooting](docs/USER_GUIDE.md#troubleshooting) in the user guide.
+The two most common problems:
+
+- **Black screen, USB keeps reconnecting**: the image is at the wrong address
+  (flash at `0x0`), or it's for the wrong chip revision (`chip-v1` vs
+  `chip-v3`).
+- **Crash after "Loading..."**: capture the serial log at 115200 baud and open
+  an issue. Releases include `symbols-*.elf` files for decoding backtraces.
 
 ## Desktop simulator and tests
 

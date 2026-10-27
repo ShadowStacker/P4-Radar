@@ -1,0 +1,144 @@
+# Changelog
+
+All notable changes to Plane Radar P4. Versions match the
+[GitHub releases](https://github.com/ShadowStacker/P4-Radar/releases).
+
+**Which file do I flash?** Each release has four firmware images. Pick the one
+for your board size **and** your ESP32-P4 chip revision. See
+[Flashing](docs/USER_GUIDE.md#flashing-the-firmware) in the user guide.
+
+Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
+entry below says otherwise.
+
+## [Unreleased]
+
+### Documentation
+- New [user guide](docs/USER_GUIDE.md) covering every screen, gesture and
+  setting, with defaults, plus how alerts work, flashing and troubleshooting.
+- This changelog. Release notes now start with the version's changelog
+  section.
+- README: quick start, documentation links, updated screenshots.
+
+## [v1.3.0] - 2026-10-27
+
+### Added
+- **Filters page** (Settings → Filters) for choosing which aircraft are shown:
+  - Aircraft kinds: light aircraft, small & business, airliners, heavies
+    (757/widebody), fast jets, helicopters, gliders/balloons/drones, and
+    aircraft with no category. Each has its own switch.
+  - Type codes with wildcards, e.g. `B738, A32*, C17`.
+  - Altitude band and ground-speed band.
+  - Military only and ground traffic (moved here from Traffic & data).
+  - **Reset all filters**.
+- Favorites are never hidden by filters, so their alerts always work.
+- The status pill shows how many aircraft the filters are hiding, e.g.
+  "3 aircraft (11 filtered)".
+- **Sweep trail** slider (Display → Animation): 0 gives a clean bar with no
+  trail, up to 180°. The default is 70°, as before.
+- **Smooth trail fade** option: a finer, softer gradient with no banding.
+- About **43,000 small airports**, for roughly 48,000 airports in total. In
+  Central Oregon that adds Bend (KBDN), Prineville (S39), Madras (KS33),
+  Sunriver (KS21), Sisters (K6K5) and local strips.
+  - Small fields appear below about 35 km of zoom.
+  - Unpaved runways, and strips without surveyed coordinates (drawn on their
+    runway-number heading through the airport), are drawn thinner and fainter.
+- "Use an airport" accepts FAA codes, and US codes without the K (`RDM`,
+  `BDN`, `S39`).
+
+### Changed
+- The Back and Close buttons on settings pages moved inward so the round
+  display doesn't clip them.
+- Traffic & data now only holds the feed and update interval, plus a link to
+  Filters.
+
+### Notes
+- The firmware image is about 5.8 MB, up from 2.6 MB, because of the airport
+  data.
+
+## [v1.2.0] - 2026-10-27
+
+### Added
+- **Favorites**: tap the star on an aircraft's info card to save it (up to
+  32).
+  - Saved aircraft get a gold ring, a star badge and an always-on gold label.
+    When off-screen they show as a gold dot on the rim.
+  - Matching uses the airframe's ICAO address, so a favorite is still
+    recognized under a different flight number.
+- **Settings → Favorites** page: lists saved aircraft, whether each is in
+  range and how far away, with a remove button.
+- **Favorite detected** alert: a fanfare when a saved aircraft comes into
+  range.
+- **Favorite nearby** alert: a two-tone chime when a saved aircraft comes
+  within an adjustable **Nearby radius** of home (1–100, default 15 km).
+- Both favorite alerts also show an on-screen notice, even with sound off.
+- Test buttons for the new sounds.
+
+### Changed
+- The **proximity alert** (any aircraft inside the alert radius) has its own
+  switch and is **off by default**.
+- The old "Alerts & emergencies" switch is now **Emergency squawks**.
+- **Auto-hide buttons** is now on by default. Boards upgrading from older
+  versions switch to the new default once.
+
+## [v1.1.0] - 2026-10-27
+
+### Added
+- **Military aircraft only** filter. Military aircraft are identified from the
+  feed's aircraft database.
+- A **MIL** badge on the info card of military aircraft.
+- **Auto-hide buttons after 10 s** (Display): the radar's round buttons fade
+  out when idle, and any touch brings them back.
+
+### Fixed
+- Upgrading firmware no longer resets settings to defaults when new settings
+  are added.
+
+## [v1.0.3] - 2026-10-27
+
+### Fixed
+- **Crash and reboot right after "Loading..."**. The aircraft images used up
+  the chip's internal RAM; they now live in PSRAM. First firmware confirmed
+  working on real hardware.
+
+### Added
+- A free-memory report in the boot log.
+
+## [v1.0.2] - 2026-10-27
+
+### Added
+- Releases include `symbols-*.elf` files, so crash backtraces can be decoded.
+  No firmware changes.
+
+## [v1.0.1] - 2026-10-27
+
+### Fixed
+- **Boot loop on current boards (chip revision v3.x)**: black screen and USB
+  reconnecting over and over. The firmware is now built with ESP-IDF v5.5.6,
+  and releases ship separate images for v3.x and v1.x chips.
+- The board no longer reboots in a loop if the Wi-Fi co-processor (ESP32-C6)
+  doesn't respond. The radar runs offline and says so.
+
+### Added
+- A boot screen showing each startup step.
+- CI checks each image's chip-revision range.
+
+## [v1.0.0] - 2026-10-27
+
+First release.
+
+- ADS-B radar for the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C (800×800) and
+  -4C (720×720), using adsb.fi, airplanes.live or adsb.lol.
+- Touch controls: pan, pinch-zoom, double-tap zoom, Home button, aircraft info
+  card with Follow, and long-press to set home.
+- Radar sweep animation and synthesized sound effects.
+- Full touch settings: Wi-Fi with on-screen keyboard, location, display,
+  sound, traffic and about.
+- Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
+
+[v1.3.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.3.0
+[v1.2.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.2.0
+[v1.1.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.1.0
+[v1.0.3]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.0.3
+[v1.0.2]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.0.2
+[v1.0.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.0.1
+[v1.0.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.0.0
