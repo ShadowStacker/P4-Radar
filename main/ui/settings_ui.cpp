@@ -436,6 +436,8 @@ void pageDisplay() {
   choiceRow("Distance units", kUnits, static_cast<int>(st.units),
             [](int v) { app::settings().units = static_cast<core::Units>(v); });
 
+  switchRow("Auto-hide buttons after 10 s", &st.autohide_buttons);
+
   section("AIRCRAFT");
   static const char* const kLabels[] = {"Off", "Callsign", "Full", ""};
   choiceRow("Labels", kLabels, static_cast<int>(st.labels),
@@ -500,6 +502,11 @@ void pageSound() {
 void pageTraffic() {
   auto& st = app::settings();
   switchRow("Show aircraft on the ground", &st.show_ground, [] { app::requestRefresh(); });
+  switchRow("Military aircraft only", &st.military_only, [] {
+    // Drop what's on screen now instead of waiting for it to age out.
+    app::traffic().clear();
+    app::requestRefresh();
+  });
   sliderRow("Hide below", 0, 80, st.min_alt_ft / 500, [](int v) { app::settings().min_alt_ft = v * 500; },
             [](int v) { return v == 0 ? std::string("No limit") : fmtStr("%d ft", v * 500); },
             [] { app::requestRefresh(); });

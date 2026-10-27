@@ -29,6 +29,8 @@ higher-resolution, touch-driven take on
   into the firmware.
 - Aircraft outside the visible area show as direction dots on the rim.
 - Emergency squawks (7500/7600/7700) get a pulsing red ring.
+- Military aircraft (flagged by the feed's aircraft database) get a **MIL**
+  badge on their info card, and there's a military-only filter.
 
 **Touch**
 - One finger pans, with momentum. Two fingers pinch-zoom around the midpoint
@@ -58,12 +60,14 @@ higher-resolution, touch-driven take on
   an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
   button returns to.
 - **Display**: four themes (Green phosphor, Amber, Blue, red Night mode),
-  brightness, units, label detail, color mode, and toggles for trails,
+  brightness, units, auto-hiding the radar buttons after 10 s idle, label
+  detail, color mode, and toggles for trails,
   vectors, rings, runways and airport codes. Sweep settings and dim-when-idle
   live here too.
 - **Sound**: master switch, volume, a switch for each sound, alert radius and
   altitude, and test buttons.
-- **Traffic & data**: show ground traffic, altitude filters, the feed
+- **Traffic & data**: show ground traffic, a military-only filter, altitude
+  filters, the feed
   (adsb.fi, airplanes.live or adsb.lol) and the update interval.
 - **About**: firmware version, IP address and signal strength, feed status,
   free memory, restart and factory reset.

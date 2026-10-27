@@ -12,10 +12,12 @@ enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2 };
 
 /**
  * Everything the user can change from the touch menu. Persisted to NVS as a
- * versioned blob (bump kVersion whenever the layout changes) plus separate
- * Wi-Fi credential keys so a firmware update never loses the network.
+ * versioned blob plus separate Wi-Fi credential keys, so a firmware update
+ * never loses the network.
  */
 struct Settings {
+  // Bump only for incompatible changes (reordering/removing fields). New
+  // fields are appended instead; see the end of the struct.
   static constexpr uint16_t kVersion = 1;
 
   // Wi-Fi (stored separately; see platform settings store)
@@ -63,6 +65,12 @@ struct Settings {
   // Data
   DataSource source = DataSource::AdsbFi;
   uint8_t poll_interval_s = 5;
+
+  // ---- Added after v1.0.3. Only append below this line: saved settings from
+  // older firmware are loaded by copying the prefix they contain, and anything
+  // past it keeps the defaults here.
+  bool military_only = false;
+  bool autohide_buttons = false;  // fade the radar's buttons after 10 s idle
 };
 
 }  // namespace core

@@ -18,6 +18,9 @@ namespace {
 
 struct Hud {
   lv_obj_t* root = nullptr;
+  lv_obj_t* controls = nullptr;  // holds the round buttons so they can fade together
+  bool controls_hidden = false;
+  uint32_t hide_done_ms = 0;     // when the fade-out finishes (then the layer is hidden)
   lv_obj_t* status = nullptr;
   lv_obj_t* status_label = nullptr;
   lv_obj_t* gear = nullptr;
@@ -38,6 +41,7 @@ struct Hud {
   lv_obj_t* pick_hint = nullptr;
 
   lv_timer_t* timer = nullptr;
+  lv_timer_t* autohide_timer = nullptr;
 };
 
 Hud h;
@@ -122,7 +126,9 @@ void updateCard() {
 
   const core::Aircraft& a = t->ac;
   lv_label_set_text(h.card_title, a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
-  lv_label_set_text(h.card_type, a.type[0] ? a.type : "?");
+  char badge[16];
+  std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
+  lv_label_set_text(h.card_type, badge);
 
   char sub[64];
   std::snprintf(sub, sizeof(sub), "%s%s%s  %s%s", a.reg, a.reg[0] ? "  -  " : "", a.hex,
@@ -163,6 +169,36 @@ void updateCard() {
 void onTimer(lv_timer_t*) {
   updateStatus();
   updateCard();
+}
+
+constexpr uint32_t kAutoHideIdleMs = 10000;
+constexpr uint32_t kFadeMs = 400;
+
+/** Fades the buttons out after 10 s without touches; any touch brings them back. */
+void onAutoHideTimer(lv_timer_t*) {
+  const uint32_t idle = lv_display_get_inactive_time(nullptr);
+  const uint32_t now = plat::millis();
+  RadarView& rv = RadarView::get();
+  // Keep them while an aircraft card or the home picker is open.
+  const bool may_hide = app::settings().autohide_buttons && rv.selected() == nullptr && !rv.pickMode();
+
+  if (h.controls_hidden) {
+    if (idle < 200 || !may_hide) {
+      h.controls_hidden = false;
+      h.hide_done_ms = 0;
+      lv_anim_delete(h.controls, nullptr);
+      lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_fade_in(h.controls, kFadeMs / 2, 0);
+    } else if (h.hide_done_ms != 0 && static_cast<int32_t>(now - h.hide_done_ms) >= 0) {
+      // Fully transparent: hide it so invisible buttons can't be pressed.
+      lv_obj_add_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
+      h.hide_done_ms = 0;
+    }
+  } else if (may_hide && idle >= kAutoHideIdleMs) {
+    h.controls_hidden = true;
+    h.hide_done_ms = now + kFadeMs;
+    lv_obj_fade_out(h.controls, kFadeMs, 0);
+  }
 }
 
 void buildCard(lv_obj_t* parent) {
@@ -303,11 +339,18 @@ void create(lv_obj_t* parent) {
     openSettings(ws.state == plat::WifiState::Connected ? Page::About : Page::Wifi);
   });
 
+  // Full-screen, non-clickable layer: taps between buttons fall through to the map.
+  h.controls = lv_obj_create(parent);
+  lv_obj_remove_style_all(h.controls);
+  lv_obj_set_size(h.controls, screenW(), screenH());
+  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_SCROLLABLE);
+
   const int32_t d = sc(76);
-  h.gear = iconButton(parent, LV_SYMBOL_SETTINGS, d, [] { openSettings(Page::Main); });
+  h.gear = iconButton(h.controls, LV_SYMBOL_SETTINGS, d, [] { openSettings(Page::Main); });
   placePolar(h.gear, 45, 0.80f);
 
-  h.sweep = iconButton(parent, LV_SYMBOL_LOOP, d, [] {
+  h.sweep = iconButton(h.controls, LV_SYMBOL_LOOP, d, [] {
     auto& st = app::settings();
     st.sweep_enabled = !st.sweep_enabled;
     app::settingsChanged();
@@ -315,12 +358,12 @@ void create(lv_obj_t* parent) {
   });
   placePolar(h.sweep, -45, 0.80f);
 
-  h.zoom_in = iconButton(parent, LV_SYMBOL_PLUS, d, [] { RadarView::get().zoomBy(2.0); });
+  h.zoom_in = iconButton(h.controls, LV_SYMBOL_PLUS, d, [] { RadarView::get().zoomBy(2.0); });
   placePolar(h.zoom_in, 135, 0.80f);
-  h.zoom_out = iconButton(parent, LV_SYMBOL_MINUS, d, [] { RadarView::get().zoomBy(0.5); });
+  h.zoom_out = iconButton(h.controls, LV_SYMBOL_MINUS, d, [] { RadarView::get().zoomBy(0.5); });
   placePolar(h.zoom_out, 225, 0.80f);
 
-  h.home = iconButton(parent, LV_SYMBOL_HOME, sc(84), [] { RadarView::get().goHome(); });
+  h.home = iconButton(h.controls, LV_SYMBOL_HOME, sc(84), [] { RadarView::get().goHome(); });
   placePolar(h.home, 180, 0.82f);
 
   buildCard(parent);
@@ -344,11 +387,13 @@ void create(lv_obj_t* parent) {
   };
 
   h.timer = lv_timer_create(onTimer, 500, nullptr);
+  h.autohide_timer = lv_timer_create(onAutoHideTimer, 100, nullptr);
   onTimer(nullptr);
 }
 
 void destroy() {
   if (h.timer) lv_timer_delete(h.timer);
+  if (h.autohide_timer) lv_timer_delete(h.autohide_timer);
   h = Hud{};
 }
 

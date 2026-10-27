@@ -28,6 +28,7 @@ struct Aircraft {
   bool alt_valid = false;
   bool on_ground = false;
   bool emergency = false;
+  bool military = false;  // readsb "dbFlags" bit 0, from the feed's aircraft database
 };
 
 struct TrailPoint {

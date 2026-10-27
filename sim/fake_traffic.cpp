@@ -27,6 +27,19 @@ FakeTraffic::FakeTraffic(core::LatLon home, uint32_t seed) : home_(home), rng_(s
   planes_.resize(46);
   for (size_t i = 0; i < planes_.size(); ++i) spawn(planes_[i], i < 12);
 
+  // A handful of military aircraft (dbFlags bit 0 in the feed).
+  const char* kMil[][3] = {{"RCH471", "C17", "A5"}, {"NATO05", "E3TF", "A5"}, {"DUKE21", "H60", "A7"},
+                           {"VIPER1", "F16", "A2"}};
+  for (int i = 0; i < 4; ++i) {
+    Plane& p = planes_[20 + i];
+    p.flight = kMil[i][0];
+    p.type = kMil[i][1];
+    p.category = kMil[i][2];
+    p.reg = "";
+    p.military = true;
+    p.pos = core::destination(home_, 60.0 + i * 80.0, 12.0 + i * 6.0);
+  }
+
   // A few arrivals lined up on a north-south final near home.
   for (int i = 0; i < 3; ++i) {
     Plane& p = planes_[i];
@@ -45,6 +58,7 @@ void FakeTraffic::spawn(Plane& p, bool near_home) {
   char buf[16];
   std::snprintf(buf, sizeof(buf), "%06x", static_cast<unsigned>(rng_() & 0xFFFFFF));
   p.hex = buf;
+  p.military = false;
   const TypeInfo& t = kTypes[rng_() % (sizeof(kTypes) / sizeof(kTypes[0]))];
   p.type = t.type;
   p.category = t.category;
@@ -85,6 +99,15 @@ void FakeTraffic::advance(double dt_s) {
   }
 }
 
+void FakeTraffic::recallMilitary() {
+  int i = 0;
+  for (Plane& p : planes_) {
+    if (!p.military) continue;
+    p.pos = core::destination(home_, 40.0 + i * 95.0, 8.0 + i * 3.0);
+    ++i;
+  }
+}
+
 void FakeTraffic::setEmergency(bool on) {
   if (planes_.size() <= 5) return;
   Plane& p = planes_[5];
@@ -105,11 +128,12 @@ std::string FakeTraffic::json(const core::LatLon& center, double radius_km) cons
     std::snprintf(buf, sizeof(buf),
                   "%s{\"hex\":\"%s\",\"type\":\"adsb_icao\",\"flight\":\"%-8s\",\"r\":\"%s\",\"t\":\"%s\","
                   "\"alt_baro\":%d,\"alt_geom\":%d,\"gs\":%.1f,\"track\":%.1f,\"baro_rate\":%d,"
-                  "\"squawk\":\"%s\",\"emergency\":\"none\",\"category\":\"%s\",\"lat\":%.6f,\"lon\":%.6f,"
+                  "\"squawk\":\"%s\",\"emergency\":\"none\",\"category\":\"%s\",\"dbFlags\":%d,\"lat\":%.6f,\"lon\":%.6f,"
                   "\"seen_pos\":0.4,\"seen\":0.2,\"rssi\":-21.5}",
                   first ? "" : ",", p.hex.c_str(), p.flight.c_str(), p.reg.c_str(), p.type.c_str(),
                   static_cast<int>(p.alt), static_cast<int>(p.alt + 150), p.gs, p.track,
-                  static_cast<int>(p.vrate), p.squawk.c_str(), p.category.c_str(), p.pos.lat, p.pos.lon);
+                  static_cast<int>(p.vrate), p.squawk.c_str(), p.category.c_str(), p.military ? 1 : 0,
+                  p.pos.lat, p.pos.lon);
     out += buf;
     first = false;
   }

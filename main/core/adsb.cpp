@@ -139,6 +139,10 @@ bool parse(const char* json, size_t len, const ParseOptions& opt, std::vector<Ai
     a.emergency = isEmergencySquawk(a.squawk) ||
                   (emergency[0] != '\0' && std::strcmp(emergency, "none") != 0);
 
+    // dbFlags: 1 = military, 2 = interesting, 4 = PIA, 8 = LADD (readsb convention).
+    if (getNum(p, "dbFlags", &v)) a.military = (static_cast<int>(v) & 1) != 0;
+    if (opt.military_only && !a.military) continue;
+
     if (a.hex[0] == '\0') continue;  // can't track it across fetches
     out->push_back(a);
   }

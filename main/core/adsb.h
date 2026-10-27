@@ -19,6 +19,7 @@ const char* sourceName(DataSource src);
 
 struct ParseOptions {
   bool include_ground = false;
+  bool military_only = false;
   int32_t min_alt_ft = -2000;
   int32_t max_alt_ft = 100000;
 };

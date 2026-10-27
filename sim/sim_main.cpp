@@ -331,6 +331,34 @@ int main(int argc, char** argv) {
   run(6000);
   shot((p + "18_emergency").c_str());
 
+  traffic.setEmergency(false);
+
+  // Military-only filter.
+  app::settings().military_only = true;
+  traffic.recallMilitary();
+  app::traffic().clear();
+  g_next_fetch = 0;
+  run(12000);
+  shot((p + "19_military_only").c_str());
+  if (findAircraftOnScreen(&ax, &ay)) {
+    tap(ax, ay);
+    run(600);
+    shot((p + "20_military_selected").c_str());
+  }
+  ui::RadarView::get().clearSelection();
+  app::settings().military_only = false;
+  app::traffic().clear();
+  g_next_fetch = 0;
+
+  // Auto-hide: buttons fade after 10 s idle, any touch brings them back.
+  app::settings().autohide_buttons = true;
+  run(11500);
+  shot((p + "21_buttons_hidden").c_str());
+  tap(S(400), S(300));
+  run(800);
+  shot((p + "22_buttons_back").c_str());
+  app::settings().autohide_buttons = false;
+
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,
               g_render_ms_total / std::max(1, g_render_count));
   return 0;

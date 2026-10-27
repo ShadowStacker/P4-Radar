@@ -41,6 +41,7 @@ void applyHardware() {
 void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed) {
   core::adsb::ParseOptions opt;
   opt.include_ground = s_settings.show_ground;
+  opt.military_only = s_settings.military_only;
   opt.min_alt_ft = s_settings.min_alt_ft > 0 ? s_settings.min_alt_ft : -2000;
   opt.max_alt_ft = s_settings.max_alt_ft >= 60000 ? 1000000 : s_settings.max_alt_ft;
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);

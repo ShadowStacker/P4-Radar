@@ -18,12 +18,15 @@ class FakeTraffic {
   /** readsb/adsb.fi style response for aircraft within radius of center. */
   std::string json(const core::LatLon& center, double radius_km) const;
   void setEmergency(bool on);
+  /** Moves the military aircraft back near home (for screenshots). */
+  void recallMilitary();
 
  private:
   struct Plane {
     std::string hex, flight, reg, type, category, squawk;
     core::LatLon pos;
     double track, gs, alt, vrate, turn;
+    bool military = false;
   };
   void spawn(Plane& p, bool near_home);
 

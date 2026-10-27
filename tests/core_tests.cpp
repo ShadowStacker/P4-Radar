@@ -183,6 +183,22 @@ void testAdsbParse() {
   CHECK(core::adsb::parse(kSampleJson, std::strlen(kSampleJson), opt, &out));
   CHECK(out.size() == 1);
 
+  // Military flag (readsb dbFlags bit 0) and the military-only filter.
+  const char* mil = R"({"ac":[
+    {"hex":"ae1234","flight":"RCH123","t":"C17","dbFlags":1,"alt_baro":24000,"lat":52.1,"lon":5.1},
+    {"hex":"ae5678","flight":"DUKE01","t":"H60","dbFlags":3,"alt_baro":1500,"lat":52.2,"lon":5.2},
+    {"hex":"484506","flight":"KLM1","t":"B738","dbFlags":2,"alt_baro":9000,"lat":52.3,"lon":5.3},
+    {"hex":"484507","flight":"KLM2","t":"B738","alt_baro":9000,"lat":52.4,"lon":5.4}
+  ]})";
+  core::adsb::ParseOptions mopt;
+  CHECK(core::adsb::parse(mil, std::strlen(mil), mopt, &out));
+  CHECK(out.size() == 4);
+  if (out.size() == 4) CHECK(out[0].military && out[1].military && !out[2].military && !out[3].military);
+  mopt.military_only = true;
+  CHECK(core::adsb::parse(mil, std::strlen(mil), mopt, &out));
+  CHECK(out.size() == 2);
+  for (const auto& a : out) CHECK(a.military);
+
   const char* empty = R"({"ac":null,"msg":"No error"})";
   CHECK(core::adsb::parse(empty, std::strlen(empty), {}, &out));
   CHECK(out.empty());
