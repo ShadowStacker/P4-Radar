@@ -10,7 +10,29 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
-## [Unreleased]
+## [v1.4.0] - 2026-10-27
+
+### Added
+- **Flight history**: tap an aircraft and its whole current flight is
+  downloaded and drawn behind it as a thicker line, colored by altitude, with
+  a ring where it took off. Zoom out to see the route.
+  - The info card shows the status: *loading history...*, *history 1h 42m*,
+    or *no history*.
+  - Only the current leg is drawn (earlier flights that day are left out),
+    at most 14 hours of it. It refreshes every 2 minutes while selected.
+  - Comes from the selected feed's globe map, with the other two feeds as
+    backups. These files aren't an official API, so if a feed stops serving
+    them the card says *no history* and everything else keeps working.
+  - Switch: Display → **Flight history on tap** (on by default).
+- **Screen rotation** (Display → Screen rotation): 0°, 90°, 180° or 270°
+  clockwise, for boards mounted another way round. Touch rotates with the
+  picture. It's applied on restart, and the radar offers to restart right
+  away.
+
+### Notes
+- Rotation is done by the display driver while copying each frame, which
+  costs a little speed at 90°, 180° and 270°. If animation feels slow
+  rotated, shorten the sweep trail.
 
 ### Documentation
 - New [user guide](docs/USER_GUIDE.md) covering every screen, gesture and
@@ -135,6 +157,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.4.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.2.0
 [v1.1.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.1.0

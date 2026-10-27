@@ -18,6 +18,12 @@ class FakeTraffic {
   /** readsb/adsb.fi style response for aircraft within radius of center. */
   std::string json(const core::LatLon& center, double radius_km) const;
   void setEmergency(bool on);
+  /**
+   * readsb trace_full JSON for one aircraft: an earlier leg plus the current
+   * flight, a climbing, turning path ending at its present position.
+   * Empty if the aircraft is unknown.
+   */
+  std::string traceJson(const std::string& hex) const;
   /** Moves the military aircraft back near home (for screenshots). */
   void recallMilitary();
 

@@ -269,6 +269,8 @@ void RadarView::frame() {
     }
   }
 
+  syncTrace();
+
   // Lazy follow: re-center only when the aircraft drifts away from the middle,
   // so the static layer does not have to re-render every frame.
   if (follow_ && !busy) {
@@ -307,6 +309,18 @@ void RadarView::frame() {
 
   const uint32_t period = (st.sweep_enabled || busy || interacting_) ? kFastFrameMs : kSlowFrameMs;
   lv_timer_set_period(timer_, period);
+}
+
+void RadarView::syncTrace() {
+  const std::string want = app::settings().extended_trail ? selected_hex_ : std::string();
+  if (want != trace_req_hex_) {
+    trace_req_hex_ = want;
+    app::requestTrace(want.c_str());
+  }
+  if (app::traceInfo().version != trace_version_) {
+    trace_version_ = app::traceCopy(&trace_);
+    static_dirty_ = true;
+  }
 }
 
 void RadarView::updateQueryArea(bool refresh) {
@@ -466,6 +480,9 @@ void RadarView::renderStatic(bool with_trails) {
     }
   }
 
+  // --- Flight history of the selected aircraft --------------------------------
+  drawHistory(&layer, with_trails);
+
   // --- Trails ----------------------------------------------------------------
   if (with_trails) {
     const int32_t w = sc(2) > 1 ? sc(2) : 1;
@@ -524,6 +541,55 @@ void RadarView::renderStatic(bool with_trails) {
 
   lv_canvas_finish_layer(canvas_, &layer);
   lv_obj_invalidate(canvas_);
+}
+
+/**
+ * The downloaded trace, drawn under the live trails: thicker than a normal
+ * trail, with a ring where the flight started.
+ * `fine` is false during gestures, where a coarser line keeps frames fast.
+ */
+void RadarView::drawHistory(lv_layer_t* layer, bool fine) {
+  if (trace_.points.size() < 2 || trace_req_hex_.empty() || trace_req_hex_ != selected_hex_) return;
+  const Palette& p = pal();
+  const auto& st = app::settings();
+  const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
+  const float min_step = fine ? 4.0f : 8.0f;
+  const int32_t w = sc(3) > 2 ? sc(3) : 2;
+  const size_t n = trace_.points.size();
+
+  auto inView = [&](const core::PointF& a, const core::PointF& b) {
+    // Segment-to-center distance against the radar circle, so long jumps
+    // that cross the screen are kept.
+    const float dx = b.x - a.x, dy = b.y - a.y;
+    const float len2 = dx * dx + dy * dy;
+    float t = len2 > 0 ? ((cx - a.x) * dx + (cy - a.y) * dy) / len2 : 0;
+    t = std::max(0.0f, std::min(1.0f, t));
+    return distPx(a.x + t * dx, a.y + t * dy, cx, cy) < R + 20;
+  };
+
+  core::PointF prev = vp_.project({trace_.points[0].lat, trace_.points[0].lon});
+  const core::PointF start = prev;
+  for (size_t i = 1; i < n; ++i) {
+    const core::trace::Point& tp = trace_.points[i];
+    const core::PointF cur = vp_.project({tp.lat, tp.lon});
+    if (tp.flags & core::trace::kGapBefore) {
+      prev = cur;
+      continue;
+    }
+    if (distPx(prev.x, prev.y, cur.x, cur.y) < min_step && i != n - 1) continue;
+    if (inView(prev, cur)) {
+      const lv_color_t c = useAltitudeColors(st)
+                               ? altitudeColor(tp.alt_ft, (tp.flags & core::trace::kGround) != 0)
+                               : p.select;
+      // Opaque, square-ended segments: translucent round caps overlap into beads.
+      (void)n;
+      drawLine(layer, prev.x, prev.y, cur.x, cur.y, c, w, LV_OPA_COVER, false);
+    }
+    prev = cur;
+  }
+  if (distPx(start.x, start.y, cx, cy) < R) {
+    drawCircle(layer, start.x, start.y, sc(7), p.select, 230, sc(2));
+  }
 }
 
 // ---------------------------------------------------------------------------

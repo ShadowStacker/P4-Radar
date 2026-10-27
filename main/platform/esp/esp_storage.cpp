@@ -30,7 +30,8 @@ size_t validPrefix(uint16_t version) {
       // now military_only was zero-filled padding, which reads as its default.
       return offsetof(core::Settings, autohide_buttons);
     case 2: return offsetof(core::Settings, sweep_trail_deg);
-    case 3: return sizeof(core::Settings);
+    case 3: return offsetof(core::Settings, rotation);
+    case 4: return sizeof(core::Settings);
     default: return 0;
   }
 }

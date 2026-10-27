@@ -60,9 +60,11 @@ bool wifiScanResults(std::vector<WifiNetwork>* out);
 // --- HTTP ----------------------------------------------------------------------
 /**
  * Blocking HTTPS GET; returns the HTTP status (or <0 on transport error) and
- * appends the body to `body`. Must NOT be called from the LVGL task.
+ * appends the body to `body` as received (a gzip-encoded body stays
+ * compressed). `headers` is an optional nullptr-terminated list of
+ * name/value pairs. Must NOT be called from the LVGL task.
  */
-int httpGet(const char* url, std::string* body, int timeout_ms);
+int httpGet(const char* url, std::string* body, int timeout_ms, const char* const* headers = nullptr);
 
 // --- Display -----------------------------------------------------------------
 void setBrightness(int percent);

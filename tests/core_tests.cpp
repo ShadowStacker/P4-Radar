@@ -1,5 +1,5 @@
 // Host unit tests for the platform-independent core (geo, viewport gestures,
-// ADS-B parsing, traffic store, sound synthesis). Built by sim/CMakeLists.txt.
+// ADS-B parsing, traffic store, traces, sound synthesis). Built by sim/CMakeLists.txt.
 
 #include <cmath>
 #include <cstdio>
@@ -8,10 +8,15 @@
 #include <string>
 #include <vector>
 
+#include <zlib.h>
+
 #include "core/adsb.h"
 #include "core/filter.h"
 #include "core/geo.h"
+#include "core/inflate.h"
+#include "core/rotation.h"
 #include "core/sound_synth.h"
+#include "core/trace.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 
@@ -397,6 +402,128 @@ void testSounds() {
   }
 }
 
+std::string zlibCompress(const std::string& in, int window_bits, int level) {
+  z_stream zs{};
+  deflateInit2(&zs, level, Z_DEFLATED, window_bits, 8, Z_DEFAULT_STRATEGY);
+  std::string out(deflateBound(&zs, in.size()) + 32, '\0');
+  zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(in.data()));
+  zs.avail_in = static_cast<uInt>(in.size());
+  zs.next_out = reinterpret_cast<Bytef*>(&out[0]);
+  zs.avail_out = static_cast<uInt>(out.size());
+  deflate(&zs, Z_FINISH);
+  out.resize(zs.total_out);
+  deflateEnd(&zs);
+  return out;
+}
+
+void testInflate() {
+  // Text-like data (dynamic Huffman blocks), random bytes (stored blocks)
+  // and a short string (fixed Huffman).
+  std::string text;
+  for (int i = 0; i < 4000; ++i) text += "[" + std::to_string(i * 7) + ",52.1234,4.5678,\"ground\",null],";
+  std::string noise;
+  uint32_t x = 12345;
+  for (int i = 0; i < 70000; ++i) {
+    x = x * 1103515245u + 12345u;
+    noise.push_back(static_cast<char>(x >> 24));
+  }
+  for (const std::string* in : {&text, &noise}) {
+    for (int level : {0, 1, 6, 9}) {
+      const std::string gz = zlibCompress(*in, 15 + 16, level);
+      CHECK(core::isGzip(gz.data(), gz.size()));
+      std::string out;
+      CHECK(core::gunzip(gz.data(), gz.size(), &out, 1 << 24));
+      CHECK(out == *in);
+    }
+  }
+  const std::string small = "hello hello hello";
+  const std::string raw = zlibCompress(small, -15, 9);
+  std::string out;
+  CHECK(core::inflateRaw(raw.data(), raw.size(), &out, 1000) && out == small);
+
+  // Output limit and corrupt input fail cleanly.
+  const std::string gz = zlibCompress(text, 15 + 16, 6);
+  CHECK(!core::gunzip(gz.data(), gz.size(), &out, 1000));
+  std::string bad = gz;
+  for (size_t i = 20; i < bad.size(); i += 7) bad[i] = static_cast<char>(bad[i] ^ 0x5A);
+  core::gunzip(bad.data(), bad.size(), &out, 1 << 24);  // must not crash; result irrelevant
+  CHECK(!core::gunzip(gz.data(), 10, &out, 1 << 24));
+  CHECK(!core::isGzip("{}", 2));
+}
+
+void testTrace() {
+  // Earlier leg (must be dropped), then a new leg from the ground up, with a
+  // coverage gap, an aircraft-details object and a point without position.
+  const char* json =
+      "{\"icao\":\"4ca7b5\",\"r\":\"EI-ABC\",\"t\":\"B738\",\"dbFlags\":0,\"desc\":\"BOEING 737-800\","
+      "\"timestamp\": 1700000000.5, \"trace\": ["
+      "[0,50.0,4.0,30000,450,90,0,0,null,\"adsb_icao\",30100,0,null,null],"
+      "[60,50.0,4.2,30000,450,90,0,0,null,\"adsb_icao\",30100,0,null,null],"
+      "[5000,52.3,4.76,\"ground\",12,180,2,null,{\"type\":\"adsb_icao\",\"flight\":\"RYR12  \",\"nav_qnh\":1013.2},\"adsb_icao\",null,null,null,null],"
+      "[5060,52.32,4.76,1200,160,10.5,1,1800,null,\"adsb_icao\",1250,1900,170,-2.5],"
+      "[5070,null,null,1300,160,10.5,0,1800,null,null,null,null,null,null],"
+      "[8000,53.0,5.0,24000,430,45,5,-64,null,\"mlat\",24100,0,300,0.0],"
+      "[8030,53.05,5.05,24500,430,45,0,0,null,\"mlat\",null,null,null,null]"
+      "]}";
+  core::trace::Trace t;
+  CHECK(core::trace::parse(json, std::strlen(json), &t));
+  CHECK_NEAR(t.timestamp, 1700000000.5, 1e-3);
+  CHECK(t.points.size() == 4);
+  if (t.points.size() == 4) {
+    CHECK((t.points[0].flags & core::trace::kGround) && t.points[0].alt_ft == 0);
+    CHECK_NEAR(t.points[0].lat, 52.3, 1e-5);
+    CHECK(t.points[1].alt_ft == 1200);
+    CHECK(t.points[2].flags & core::trace::kGapBefore);  // ~49 min of silence
+    CHECK(!(t.points[3].flags & core::trace::kGapBefore));
+    CHECK_NEAR(t.durationS(), 3030, 0.1);
+  }
+
+  // Thinning keeps the newest point and stays under the cap.
+  std::string big = "{\"timestamp\":0,\"trace\":[";
+  for (int i = 0; i < 5000; ++i) {
+    char buf[96];
+    std::snprintf(buf, sizeof(buf), "%s[%d,%.5f,4.0,%d,300,0,0,0,null]", i ? "," : "", i * 5, 50.0 + i * 0.001,
+                  10000);
+    big += buf;
+  }
+  big += "]}";
+  CHECK(core::trace::parse(big.data(), big.size(), &t));
+  CHECK(t.points.size() <= core::trace::kMaxPoints && t.points.size() > core::trace::kMaxPoints / 2);
+  CHECK_NEAR(t.points.back().lat, 50.0 + 4999 * 0.001, 1e-4);
+
+  CHECK(!core::trace::parse("{\"trace\":[]}", 12, &t));
+  CHECK(!core::trace::parse("{\"timestamp\":1}", 15, &t));
+  CHECK(!core::trace::parse("<html>", 6, &t));
+  CHECK(!core::trace::parse(json, std::strlen(json) / 2, &t));  // truncated
+
+  const auto hosts = core::trace::hostsFor(core::DataSource::AdsbLol);
+  CHECK(hosts.size() == 3 && hosts[0] == "adsb.lol");
+  CHECK(core::trace::buildUrl("globe.adsb.fi", "4ca7b5") ==
+        "https://globe.adsb.fi/data/traces/b5/trace_full_4ca7b5.json");
+}
+
+void testRotation() {
+  const int W = 720, H = 720;
+  for (int q = 0; q < 4; ++q) {
+    for (int i = 0; i < 50; ++i) {
+      const int ux = (i * 37) % W, uy = (i * 91) % H;
+      int px, py, bx, by;
+      core::uiToPanel(ux, uy, q, W, H, &px, &py);
+      CHECK(px >= 0 && px < W && py >= 0 && py < H);
+      core::panelToUi(px, py, q, W, H, &bx, &by);
+      CHECK(bx == ux && by == uy);
+    }
+  }
+  // 90 deg clockwise: the UI's top-left corner sits at the panel's top-right.
+  int px, py;
+  core::uiToPanel(0, 0, 1, W, H, &px, &py);
+  CHECK(px == W - 1 && py == 0);
+  core::uiToPanel(0, 0, 2, W, H, &px, &py);
+  CHECK(px == W - 1 && py == H - 1);
+  core::uiToPanel(0, 0, 3, W, H, &px, &py);
+  CHECK(px == 0 && py == H - 1);
+}
+
 }  // namespace
 
 int main() {
@@ -406,6 +533,9 @@ int main() {
   testTraffic();
   testFavorites();
   testFilters();
+  testInflate();
+  testTrace();
+  testRotation();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

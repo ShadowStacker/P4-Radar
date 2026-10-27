@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "core/trace.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "lvgl.h"
@@ -86,6 +87,8 @@ class RadarView {
   void prepareBlips(uint32_t now);
   void placeLabels();
   void renderStatic(bool with_trails);
+  void drawHistory(lv_layer_t* layer, bool fine);
+  void syncTrace();
   void drawOverlay(lv_layer_t* layer);
   void drawSweep(lv_layer_t* layer);
   void updateQueryArea(bool force_refresh);
@@ -117,6 +120,10 @@ class RadarView {
 
   // Selection / follow
   std::string selected_hex_;
+  // Downloaded flight history of the selected aircraft
+  std::string trace_req_hex_;
+  core::trace::Trace trace_;
+  uint32_t trace_version_ = 0;
   bool follow_ = false;
   bool pick_mode_ = false;
 

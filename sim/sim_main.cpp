@@ -125,6 +125,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     sim::g_ms += step;
     g_traffic->advance(step / 1000.0);
     feedTraffic();
+    app::serviceTrace();
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -249,6 +250,7 @@ int main(int argc, char** argv) {
   app::init();
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
+  sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
 
   ui::init(g_disp);
   run(600);
@@ -280,6 +282,12 @@ int main(int argc, char** argv) {
     tap(ax, ay);
     run(600);
     shot((p + "04_aircraft_selected").c_str());
+    // Zoom out to see the whole downloaded flight history.
+    ui::RadarView::get().zoomBy(0.15);
+    run(1500);
+    shot((p + "35_flight_history").c_str());
+    ui::RadarView::get().zoomBy(1.0 / 0.15);
+    run(1500);
   }
   ui::RadarView::get().clearSelection();
   run(600);

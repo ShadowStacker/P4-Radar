@@ -39,7 +39,10 @@ extern "C" void app_main(void) {
   }
   ESP_ERROR_CHECK(err);
 
-  lv_display_t* disp = plat::esp::displayStart();
+  // The orientation is fixed when the display starts, so peek at it first.
+  core::Settings boot_settings;
+  plat::settingsLoad(&boot_settings);
+  lv_display_t* disp = plat::esp::displayStart(boot_settings.rotation);
   plat::esp::bootScreen("Starting audio...");
   plat::esp::audioStart();
   plat::esp::bootScreen("Starting Wi-Fi module...");

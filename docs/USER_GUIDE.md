@@ -12,6 +12,7 @@ troubleshooting. For what changed in each version, see the
   - [Touch gestures](#touch-gestures)
   - [Buttons](#buttons)
   - [The aircraft info card](#the-aircraft-info-card)
+  - [Flight history](#flight-history)
 - [Settings reference](#settings-reference)
   - [Wi-Fi](#wi-fi) · [Location](#location) · [Display](#display) ·
     [Sound](#sound) · [Traffic & data](#traffic--data) · [Filters](#filters) ·
@@ -95,7 +96,7 @@ visible while an info card is open.
 | Field | Meaning |
 |---|---|
 | Callsign + type badge | Flight number (or registration) and ICAO type code, e.g. `B738`. **MIL** = military. |
-| Second line | Registration, ICAO hex address, and emitter category (e.g. `cat A3`) |
+| Second line | Registration, ICAO hex address, emitter category (e.g. `cat A3`), and the [flight history](#flight-history) status |
 | ALT | Barometric altitude in feet (or "Ground") |
 | V/S | Vertical speed in ft/min (+ climbing, − descending) |
 | SPEED | Ground speed in knots |
@@ -108,6 +109,25 @@ Card buttons:
 - ➤ **Follow**: keep this aircraft on screen. The map re-centers whenever it
   drifts away from the middle. Panning or pinching stops following.
 - ✕ **Close**: close the card.
+
+### Flight history
+
+When you tap an aircraft, the radar downloads its **flight history** and
+draws it as a thicker line behind the aircraft, colored by altitude like the
+trails. A small ring marks where the flight started (its takeoff, if the
+feed saw it). Zoom out to see the whole route.
+
+- The card's second line shows the progress: *loading history...*, then
+  *history 1h 42m* (how much of the flight is shown), or *no history*.
+- Only the current flight is shown. If the aircraft landed and took off again
+  today, the earlier legs are left out. At most the last 14 hours are drawn.
+- The history refreshes every 2 minutes while the card is open, so it stays
+  joined to the live trail.
+- The history comes from the globe map of the selected **ADS-B feed** (with
+  the other two feeds as backups). These history files aren't an official
+  API, so a feed may stop serving them; the card then says *no history* and
+  the normal trail still works.
+- Turn it off with **Display → Flight history on tap**.
 
 ---
 
@@ -150,10 +170,12 @@ proximity and favorite alerts.
 | Theme | **Green** (classic phosphor), **Amber**, **Blue**, **Night** (dim red to preserve night vision; aircraft colors stay red) | Green |
 | Brightness | Backlight level, 5–100 % | 80 % |
 | Distance units | km, statute miles (mi) or nautical miles (nm), for rings, the zoom readout and distances | km |
+| Screen rotation (clockwise) | Turn the whole picture by 0°, 90°, 180° or 270°, e.g. when the board is mounted with its USB port on another side. North stays at the top of the rotated screen and touch follows the rotation. Asks to restart, which applies it. If you skip the restart, it applies at the next power-up. | 0° |
 | Auto-hide buttons after 10 s | Fade the radar buttons out when idle; touch to show them again | On |
 | Labels | **Off**: no labels, except the selected aircraft, emergencies and favorites. **Callsign**: one line. **Full**: callsign + altitude/climb/type. | Full |
 | Aircraft colors | **Theme**: one color. **By altitude**: color gradient by altitude. | By altitude |
-| Trails | Show where aircraft have been | On |
+| Trails | Show where aircraft have been (the last few minutes) | On |
+| Flight history on tap | Download and draw the whole current flight of the aircraft you tap. See [Flight history](#flight-history). | On |
 | Speed vectors (1 min) | Line showing each aircraft's position one minute ahead | On |
 | Range rings | Distance rings and crosshair around home | On |
 | Runways | Draw airport runways | On |
@@ -345,4 +367,6 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | No aircraft, but everything else works | Check **Filters** (the status pill says "filtered"). Also zoom out; there may simply be no traffic nearby. |
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
 | Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
-| Touch is mirrored or rotated | Report it; there's a build setting for it (`touch_flags` in `esp_display.cpp`). |
+| Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
+| Touch is mirrored or rotated (picture is right) | Report it with your board model and rotation setting. |
+| Card says "no history" | The feed doesn't have this aircraft's history (common for aircraft that just appeared, or TIS-B/MLAT-only targets), or its history files are unreachable. Try another **ADS-B feed**. |

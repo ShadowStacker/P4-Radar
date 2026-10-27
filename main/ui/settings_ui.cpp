@@ -444,6 +444,17 @@ void pageDisplay() {
   choiceRow("Distance units", kUnits, static_cast<int>(st.units),
             [](int v) { app::settings().units = static_cast<core::Units>(v); });
 
+  static const char* const kRotations[] = {"0" "\xC2\xB0", "90" "\xC2\xB0", "180" "\xC2\xB0", "270" "\xC2\xB0", ""};
+  choiceRow("Screen rotation (clockwise)", kRotations, st.rotation & 3, [](int v) {
+    if (app::settings().rotation == v) return;
+    app::settings().rotation = static_cast<uint8_t>(v);
+    app::settingsChanged();
+    app::settingsFlush();
+    confirm("Restart to rotate?",
+            "The new orientation takes effect when the radar restarts. It takes about 5 seconds.",
+            LV_SYMBOL_REFRESH " Restart now", [] { plat::restart(); });
+  });
+
   switchRow("Auto-hide buttons after 10 s", &st.autohide_buttons);
 
   section("AIRCRAFT");
@@ -454,6 +465,7 @@ void pageDisplay() {
   choiceRow("Aircraft colors", kColors, static_cast<int>(st.color_mode),
             [](int v) { app::settings().color_mode = static_cast<core::ColorMode>(v); });
   switchRow("Trails", &st.show_trails);
+  switchRow("Flight history on tap", &st.extended_trail);
   switchRow("Speed vectors (1 min)", &st.show_speed_vectors);
 
   section("MAP");

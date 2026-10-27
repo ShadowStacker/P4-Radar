@@ -21,7 +21,8 @@ struct Settings {
   //   1: up to poll_interval_s (v1.0.x) or autohide_buttons (v1.1.0)
   //   2: up to favorite_near_radius_km (v1.2.0)
   //   3: up to type_filter (v1.3.0)
-  static constexpr uint16_t kVersion = 3;
+  //   4: up to extended_trail (v1.4.0)
+  static constexpr uint16_t kVersion = 4;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -88,6 +89,10 @@ struct Settings {
   uint16_t min_speed_kt = 0;
   uint16_t max_speed_kt = 1000;     // >= kSpeedNoLimit means no upper limit
   char type_filter[24] = "";        // e.g. "B738, A32*, C17" (empty = all types)
+
+  // v1.4.0
+  uint8_t rotation = 0;             // screen orientation in quarter turns clockwise (0-3); applied at boot
+  bool extended_trail = true;       // download the flight history of the tapped aircraft
 };
 
 }  // namespace core

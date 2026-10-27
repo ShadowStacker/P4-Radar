@@ -5,8 +5,11 @@
 /** Device bring-up steps, called in order from app_main(). */
 namespace plat::esp {
 
-/** Panel, backlight, LVGL adapter task and multi-touch input. */
-lv_display_t* displayStart();
+/**
+ * Panel, backlight, LVGL adapter task and multi-touch input. The UI is
+ * rotated by `quarter_turns` x 90 deg clockwise (fixed until the next boot).
+ */
+lv_display_t* displayStart(int quarter_turns);
 /** ES8311 codec + speaker amp; pre-renders the sound effects. */
 void audioStart();
 /** Netif, event loop and Wi-Fi (ESP32-C6 via ESP-Hosted). False if the radio is unavailable. */

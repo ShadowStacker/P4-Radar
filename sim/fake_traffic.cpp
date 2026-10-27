@@ -119,6 +119,64 @@ void FakeTraffic::setEmergency(bool on) {
   }
 }
 
+std::string FakeTraffic::traceJson(const std::string& hex) const {
+  const Plane* plane = nullptr;
+  for (const Plane& p : planes_) {
+    if (p.hex == hex) plane = &p;
+  }
+  if (plane == nullptr) return "";
+
+  // Walk backwards from the current position, then emit oldest first.
+  struct Pt {
+    double t;
+    core::LatLon pos;
+    int alt;
+    int flags;
+  };
+  std::vector<Pt> pts;
+  const double kStep = 15.0, kMinutes = 28.0;
+  const int n = static_cast<int>(kMinutes * 60 / kStep);
+  core::LatLon pos = plane->pos;
+  double track = plane->track;
+  for (int i = 0; i <= n; ++i) {
+    const double t_ago = i * kStep;
+    const double frac = 1.0 - static_cast<double>(i) / n;  // 1 now, 0 at takeoff
+    pts.push_back({-t_ago, pos, static_cast<int>(plane->alt * std::min(1.0, frac * 1.6)), 0});
+    // Earlier in the flight the aircraft was turning onto its current course.
+    const double turn = i < n / 3 ? 0.0 : 0.22 * std::sin(i * 0.035);
+    track = std::fmod(track - turn * kStep + 360.0, 360.0);
+    const double gs = plane->gs * (0.55 + 0.45 * frac);
+    pos = core::destination(pos, track + 180.0, gs * core::kKmPerNm / 3600.0 * kStep);
+  }
+  pts.back().flags = 2;  // takeoff: start of the current leg
+  pts.back().alt = -1;   // on the ground
+  // An earlier leg somewhere else that must not be drawn.
+  const core::LatLon earlier = core::destination(pts.back().pos, 45.0, 300.0);
+  for (int i = 0; i < 20; ++i) {
+    pts.push_back({-(n * kStep) - 3600.0 - i * 30.0, core::destination(earlier, 90.0, i * 4.0), 20000, 0});
+  }
+
+  const double now = 1700000000.0;
+  const double start = now + pts.back().t;
+  std::string out;
+  char buf[160];
+  std::snprintf(buf, sizeof(buf), "{\"icao\":\"%s\",\"r\":\"%s\",\"t\":\"%s\",\"dbFlags\":0,\"timestamp\":%.3f,\"trace\":[",
+                plane->hex.c_str(), plane->reg.c_str(), plane->type.c_str(), start);
+  out = buf;
+  for (size_t k = pts.size(); k-- > 0;) {
+    const Pt& p = pts[k];
+    char alt[16];
+    if (p.alt < 0) std::snprintf(alt, sizeof(alt), "\"ground\"");
+    else std::snprintf(alt, sizeof(alt), "%d", p.alt);
+    std::snprintf(buf, sizeof(buf), "%s[%.2f,%.6f,%.6f,%s,%.1f,%.1f,%d,null,%s,\"adsb_icao\",null,null,null,null]",
+                  k == pts.size() - 1 ? "" : ",", p.t - pts.back().t, p.pos.lat, p.pos.lon, alt, plane->gs,
+                  plane->track, p.flags, k == 0 ? "{\"flight\":\"TEST\"}" : "null");
+    out += buf;
+  }
+  out += "]}";
+  return out;
+}
+
 std::string FakeTraffic::json(const core::LatLon& center, double radius_km) const {
   std::string out = "{\"now\":1700000000000,\"msg\":\"No error\",\"ac\":[";
   bool first = true;

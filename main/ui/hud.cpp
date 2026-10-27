@@ -141,9 +141,25 @@ void updateCard() {
   std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
   lv_label_set_text(h.card_type, badge);
 
-  char sub[64];
-  std::snprintf(sub, sizeof(sub), "%s%s%s  %s%s", a.reg, a.reg[0] ? "  -  " : "", a.hex,
-                a.category[0] ? "cat " : "", a.category);
+  // Flight history status, once the download was asked for.
+  char hist[32] = "";
+  const app::TraceInfo ti = app::traceInfo();
+  if (std::strcmp(ti.hex, a.hex) == 0) {
+    switch (ti.status) {
+      case app::TraceStatus::Loading: std::snprintf(hist, sizeof(hist), "  -  loading history..."); break;
+      case app::TraceStatus::Unavailable: std::snprintf(hist, sizeof(hist), "  -  no history"); break;
+      case app::TraceStatus::Ready: {
+        const int min = static_cast<int>(ti.duration_s / 60.0f + 0.5f);
+        if (min >= 60) std::snprintf(hist, sizeof(hist), "  -  history %dh %02dm", min / 60, min % 60);
+        else std::snprintf(hist, sizeof(hist), "  -  history %d min", min);
+        break;
+      }
+      default: break;
+    }
+  }
+  char sub[96];
+  std::snprintf(sub, sizeof(sub), "%s%s%s  %s%s%s", a.reg, a.reg[0] ? "  -  " : "", a.hex,
+                a.category[0] ? "cat " : "", a.category, hist);
   lv_label_set_text(h.card_sub, sub);
 
   char v[40];

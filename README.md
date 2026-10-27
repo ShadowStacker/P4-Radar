@@ -72,6 +72,9 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - Tap an aircraft to open an info card: altitude, vertical speed, speed,
   track, distance and bearing from home, squawk and registration. **Follow**
   keeps that aircraft on screen.
+- **Flight history**: tapping an aircraft also downloads its whole current
+  flight from the feed and draws it, colored by altitude, with a ring where it
+  took off.
 - Long-press anywhere on the map to make that spot your home.
 
 **Animations and sound**
@@ -94,9 +97,9 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
   button returns to.
 - **Display**: four themes (Green phosphor, Amber, Blue, red Night mode),
-  brightness, units, auto-hiding the radar buttons after 10 s idle (on by
+  brightness, units, screen rotation in 90° steps, auto-hiding the radar buttons after 10 s idle (on by
   default), label
-  detail, color mode, and toggles for trails,
+  detail, color mode, and toggles for trails, flight history,
   vectors, rings, runways and airport codes. Sweep settings and dim-when-idle
   live here too.
 - **Sound**: master switch, volume, a switch for each sound, proximity alert
@@ -119,10 +122,11 @@ phone or captive portal is needed.
 | | | |
 |:-:|:-:|:-:|
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
+| ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
 | ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
 | ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |
 | ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/21_buttons_hidden.png)<br>Buttons auto-hidden |
-| ![](docs/images/09_settings_display.png)<br>Display settings | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
+| ![](docs/images/11_settings_location.png)<br>Location | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
 | ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
 
 ## Hardware
@@ -239,7 +243,8 @@ default, and the UI code also compiles against 9.2 through 9.6.
 main/
   main.cpp              boot sequence
   core/                 pure C++, no LVGL/IDF: geo math, viewport (pan/pinch/fling/fly-to),
-                        traffic store with trails + alerts, ADS-B JSON parser, sound synth, settings
+                        traffic store with trails + alerts, ADS-B JSON parser, flight-history
+                        (trace) parser, gzip decoder, sound synth, settings
   app/                  app state: settings persistence glue, ADS-B polling loop, sound policy
   ui/                   LVGL UI: radar_view (static layer cache + per-frame overlay), hud,
                         settings_ui, keyboard, sprites, theme, widgets

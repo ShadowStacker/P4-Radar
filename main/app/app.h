@@ -9,6 +9,7 @@
 #include "core/geo.h"
 #include "core/settings.h"
 #include "core/sound_synth.h"
+#include "core/trace.h"
 #include "core/traffic.h"
 
 /**
@@ -59,6 +60,31 @@ bool toggleFavorite(const core::Aircraft& a);
 void removeFavorite(const char* hex);
 /** Next on-screen notice from the poller ("RCH471 detected"), if any. */
 bool popNotice(std::string* out);
+
+// --- Extended trail (flight history) of the selected aircraft ------------------
+enum class TraceStatus : uint8_t { None, Loading, Ready, Unavailable };
+
+struct TraceInfo {
+  TraceStatus status = TraceStatus::None;
+  char hex[8] = "";
+  uint32_t version = 0;   // changes whenever the points change
+  float duration_s = 0;   // time covered by the points
+};
+
+/**
+ * Asks the poller to download the flight history of `hex` (refreshed every
+ * couple of minutes while it stays requested). "" cancels. Does nothing when
+ * the extended trail is switched off.
+ */
+void requestTrace(const char* hex);
+TraceInfo traceInfo();
+/** Copies the trace points; returns their version. */
+uint32_t traceCopy(core::trace::Trace* out);
+/**
+ * Downloads a pending trace, if any. Called by the network task; returns
+ * true if it made a request.
+ */
+bool serviceTrace();
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);

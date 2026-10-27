@@ -57,5 +57,5 @@ target_compile_options(plane_radar_sim PRIVATE -Wall -Wextra -Wno-unused-paramet
 file(GLOB CORE_SOURCES ${ROOT}/main/core/*.cpp)
 add_executable(core_tests ${ROOT}/tests/core_tests.cpp ${CORE_SOURCES})
 target_include_directories(core_tests PRIVATE ${ROOT}/main)
-target_link_libraries(core_tests PRIVATE cjson m pthread)
+target_link_libraries(core_tests PRIVATE cjson ZLIB::ZLIB m pthread)
 target_compile_options(core_tests PRIVATE -Wall -Wextra)

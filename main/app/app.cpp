@@ -12,6 +12,8 @@
 
 #include "core/adsb.h"
 #include "core/filter.h"
+#include "core/inflate.h"
+#include "core/trace.h"
 #include "platform/platform.h"
 
 namespace app {
@@ -39,6 +41,48 @@ std::mutex s_favorites_mu;
 std::vector<core::Favorite> s_favorites;
 
 constexpr uint32_t kMinFetchSpacingMs = 1500;  // public APIs allow ~1 req/s
+
+// Extended trail. Guarded by s_trace_mu.
+std::mutex s_trace_mu;
+TraceInfo s_trace_info;
+core::trace::Trace s_trace;
+bool s_trace_pending = false;
+uint32_t s_trace_fetched_ms = 0;
+constexpr uint32_t kTraceRefreshMs = 120000;      // keep the history joined to the live trail
+constexpr uint32_t kTraceRetryMs = 300000;        // after "not available"
+constexpr size_t kMaxTraceJson = 8 * 1024 * 1024;  // decompressed
+
+/** Tries each trace host in turn; true once one returned a usable trace. */
+bool downloadTrace(const char* hex, core::trace::Trace* out) {
+  std::string body, json;
+  for (const std::string& host : core::trace::hostsFor(s_settings.source)) {
+    const std::string url = core::trace::buildUrl(host, hex);
+    const std::string referer = "https://" + host + "/";
+    const char* const headers[] = {"Accept-Encoding", "gzip", "Referer", referer.c_str(), nullptr};
+    body.clear();
+    const int code = plat::httpGet(url.c_str(), &body, 15000, headers);
+    if (code != 200 || body.empty()) {
+      std::printf("trace: %s -> HTTP %d\n", url.c_str(), code);
+      continue;
+    }
+    const std::string* src = &body;
+    if (core::isGzip(body.data(), body.size())) {
+      json.reserve(body.size() * 6);
+      if (!core::gunzip(body.data(), body.size(), &json, kMaxTraceJson)) {
+        std::printf("trace: %s -> bad gzip data\n", url.c_str());
+        continue;
+      }
+      src = &json;
+    }
+    if (core::trace::parse(src->data(), src->size(), out)) {
+      std::printf("trace: %s -> %u points, %.0f min\n", url.c_str(),
+                  static_cast<unsigned>(out->points.size()), out->durationS() / 60.0f);
+      return true;
+    }
+    std::printf("trace: %s -> no usable trace\n", url.c_str());
+  }
+  return false;
+}
 
 void applyHardware() {
   if (!s_dimmed) plat::setBrightness(s_settings.brightness);
@@ -135,7 +179,15 @@ void networkLoop() {
     const uint32_t interval = s_settings.poll_interval_s * 1000u;
     const bool due = first || now - last_fetch >= interval ||
                      (s_refresh_requested.load() && now - last_fetch >= kMinFetchSpacingMs);
-    if (!due || plat::wifiStatus().state != plat::WifiState::Connected) {
+    if (plat::wifiStatus().state != plat::WifiState::Connected) {
+      plat::sleepMs(100);
+      continue;
+    }
+    if (!first && now - last_fetch >= kMinFetchSpacingMs && serviceTrace()) {
+      last_fetch = plat::millis();
+      continue;
+    }
+    if (!due) {
       plat::sleepMs(100);
       continue;
     }
@@ -285,6 +337,65 @@ FeedStatus feedStatus() {
 void ingest(int http_code, const std::string& body) {
   std::vector<core::Aircraft> parsed;
   ingestImpl(http_code, body, &parsed);
+}
+
+void requestTrace(const char* hex) {
+  std::lock_guard<std::mutex> lock(s_trace_mu);
+  if (!s_settings.extended_trail) hex = "";
+  if (std::strcmp(hex, s_trace_info.hex) == 0) return;
+  std::snprintf(s_trace_info.hex, sizeof(s_trace_info.hex), "%s", hex);
+  s_trace.points.clear();
+  s_trace.points.shrink_to_fit();
+  s_trace_info.status = hex[0] ? TraceStatus::Loading : TraceStatus::None;
+  s_trace_info.duration_s = 0;
+  s_trace_info.version++;
+  s_trace_pending = hex[0] != '\0';
+}
+
+TraceInfo traceInfo() {
+  std::lock_guard<std::mutex> lock(s_trace_mu);
+  return s_trace_info;
+}
+
+uint32_t traceCopy(core::trace::Trace* out) {
+  std::lock_guard<std::mutex> lock(s_trace_mu);
+  *out = s_trace;
+  return s_trace_info.version;
+}
+
+bool serviceTrace() {
+  char hex[8];
+  {
+    std::lock_guard<std::mutex> lock(s_trace_mu);
+    const uint32_t age = plat::millis() - s_trace_fetched_ms;
+    if (s_trace_info.hex[0] != '\0' && !s_trace_pending) {
+      if ((s_trace_info.status == TraceStatus::Ready && age >= kTraceRefreshMs) ||
+          (s_trace_info.status == TraceStatus::Unavailable && age >= kTraceRetryMs)) {
+        s_trace_pending = true;
+      }
+    }
+    if (!s_trace_pending) return false;
+    s_trace_pending = false;
+    std::memcpy(hex, s_trace_info.hex, sizeof(hex));
+  }
+
+  core::trace::Trace fresh;
+  const bool ok = downloadTrace(hex, &fresh);
+
+  std::lock_guard<std::mutex> lock(s_trace_mu);
+  s_trace_fetched_ms = plat::millis();
+  if (std::strcmp(hex, s_trace_info.hex) != 0) return true;  // selection changed meanwhile
+  if (ok) {
+    s_trace = std::move(fresh);
+    s_trace_info.status = TraceStatus::Ready;
+    s_trace_info.duration_s = s_trace.durationS();
+    s_trace_info.version++;
+  } else if (s_trace_info.status != TraceStatus::Ready) {
+    // Keep showing an older copy if a refresh fails.
+    s_trace_info.status = TraceStatus::Unavailable;
+    s_trace_info.version++;
+  }
+  return true;
 }
 
 void startNetworkTask() { plat::startTask("adsb", networkLoop, 16 * 1024, 4); }

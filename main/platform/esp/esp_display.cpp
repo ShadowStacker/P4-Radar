@@ -12,6 +12,7 @@
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
 #include "esp_lv_adapter.h"
+#include "core/rotation.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
 
@@ -29,6 +30,7 @@ std::atomic<bool> s_backlight_ready{false};
 // Written and read only from the LVGL task (indev read + UI event handlers).
 TouchPoint s_points[kMaxPoints];
 int s_point_count = 0;
+int s_rotation = 0;  // quarter turns clockwise
 
 void touchRead(lv_indev_t* indev, lv_indev_data_t* data) {
   (void)indev;
@@ -39,11 +41,13 @@ void touchRead(lv_indev_t* indev, lv_indev_data_t* data) {
   }
   s_point_count = count;
   for (int i = 0; i < count; ++i) {
-    s_points[i] = {static_cast<int16_t>(pts[i].x), static_cast<int16_t>(pts[i].y)};
+    int x, y;
+    core::panelToUi(pts[i].x, pts[i].y, s_rotation, BSP_LCD_H_RES, BSP_LCD_V_RES, &x, &y);
+    s_points[i] = {static_cast<int16_t>(x), static_cast<int16_t>(y)};
   }
   if (count > 0) {
-    data->point.x = pts[0].x;
-    data->point.y = pts[0].y;
+    data->point.x = s_points[0].x;
+    data->point.y = s_points[0].y;
     data->state = LV_INDEV_STATE_PRESSED;
   } else {
     data->state = LV_INDEV_STATE_RELEASED;  // LVGL keeps the last point
@@ -65,7 +69,8 @@ void setBrightness(int percent) {
 
 namespace esp {
 
-lv_display_t* displayStart() {
+lv_display_t* displayStart(int quarter_turns) {
+  s_rotation = quarter_turns & 3;
   esp_lv_adapter_config_t adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG();
   adapter_cfg.task_stack_size = 24 * 1024;  // canvas rendering + label layout
   adapter_cfg.task_priority = 5;
@@ -84,7 +89,9 @@ lv_display_t* displayStart() {
   disp_cfg.panel = panel;
   disp_cfg.panel_io = io;
   disp_cfg.profile.interface = ESP_LV_ADAPTER_PANEL_IF_MIPI_DSI;
-  disp_cfg.profile.rotation = ESP_LV_ADAPTER_ROTATE_0;
+  static const esp_lv_adapter_rotation_t kRotations[] = {ESP_LV_ADAPTER_ROTATE_0, ESP_LV_ADAPTER_ROTATE_90,
+                                                         ESP_LV_ADAPTER_ROTATE_180, ESP_LV_ADAPTER_ROTATE_270};
+  disp_cfg.profile.rotation = kRotations[s_rotation];
   disp_cfg.profile.hor_res = BSP_LCD_H_RES;
   disp_cfg.profile.ver_res = BSP_LCD_V_RES;
   disp_cfg.profile.buffer_height = 100;  // 100-line stripes in internal RAM
@@ -110,7 +117,7 @@ lv_display_t* displayStart() {
   }
 
   ESP_ERROR_CHECK(esp_lv_adapter_start());
-  ESP_LOGI(TAG, "display %dx%d ready", BSP_LCD_H_RES, BSP_LCD_V_RES);
+  ESP_LOGI(TAG, "display %dx%d ready, rotated %d deg", BSP_LCD_H_RES, BSP_LCD_V_RES, s_rotation * 90);
   return disp;
 }
 

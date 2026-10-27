@@ -7,6 +7,8 @@
 #include <set>
 #include <thread>
 
+#include <zlib.h>
+
 #include "app/app.h"
 #include "platform/platform.h"
 #include "sim_state.h"
@@ -16,6 +18,7 @@ uint32_t g_ms = 1000;
 Touch g_touch;
 bool g_preset_wifi = true;
 std::string g_out_dir = "sim_out";
+std::function<std::string(const std::string&)> g_trace_server;
 }  // namespace sim
 
 namespace plat {
@@ -114,7 +117,29 @@ bool wifiScanResults(std::vector<WifiNetwork>* out) {
   return true;
 }
 
-int httpGet(const char*, std::string*, int) { return -1; }
+// Only the trace endpoint is simulated (traffic is fed directly). Bodies are
+// gzip-compressed like the real servers send them.
+int httpGet(const char* url, std::string* body, int, const char* const*) {
+  const char* name = std::strstr(url, "/trace_full_");
+  if (name == nullptr || !sim::g_trace_server) return -1;
+  std::string hex(name + std::strlen("/trace_full_"));
+  hex = hex.substr(0, hex.find('.'));
+  const std::string json = sim::g_trace_server(hex);
+  if (json.empty()) return 404;
+
+  z_stream zs{};
+  deflateInit2(&zs, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);  // +16: gzip wrapper
+  std::string gz(deflateBound(&zs, json.size()) + 32, '\0');
+  zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(json.data()));
+  zs.avail_in = static_cast<uInt>(json.size());
+  zs.next_out = reinterpret_cast<Bytef*>(&gz[0]);
+  zs.avail_out = static_cast<uInt>(gz.size());
+  deflate(&zs, Z_FINISH);
+  gz.resize(zs.total_out);
+  deflateEnd(&zs);
+  body->append(gz);
+  return 200;
+}
 
 void setBrightness(int) {}
 

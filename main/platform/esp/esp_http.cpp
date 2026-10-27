@@ -24,7 +24,7 @@ esp_err_t onHttpEvent(esp_http_client_event_t* ev) {
 
 }  // namespace
 
-int httpGet(const char* url, std::string* body, int timeout_ms) {
+int httpGet(const char* url, std::string* body, int timeout_ms, const char* const* headers) {
   esp_http_client_config_t cfg = {};
   cfg.url = url;
   cfg.timeout_ms = timeout_ms;
@@ -36,6 +36,9 @@ int httpGet(const char* url, std::string* body, int timeout_ms) {
 
   esp_http_client_handle_t client = esp_http_client_init(&cfg);
   if (client == nullptr) return -1;
+  for (const char* const* h = headers; h != nullptr && h[0] != nullptr && h[1] != nullptr; h += 2) {
+    esp_http_client_set_header(client, h[0], h[1]);
+  }
   body->reserve(64 * 1024);
   const esp_err_t err = esp_http_client_perform(client);
   int status = -1;
