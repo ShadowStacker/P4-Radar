@@ -122,7 +122,10 @@ A merged image (bootloader + partition table + app) is written at offset `0x0`:
 python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800.bin
 ```
 
-The CI build artifacts include merged images for both boards. You can also
+Ready-made images for both boards are on the
+[Releases](https://github.com/ShadowStacker/P4-Radar/releases) page. Pushing a
+`v*` tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) makes CI build and
+publish a new release. Every CI run also keeps the images as build artifacts. You can also
 flash them from a browser with
 [ESP Web Flasher / esptool-js](https://espressif.github.io/esptool-js/).
 

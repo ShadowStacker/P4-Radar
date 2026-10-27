@@ -64,3 +64,45 @@ jobs:
         with:
           name: simulator-screenshots
           path: sim_out
+
+  release:
+    # Tag a commit "vX.Y.Z" to publish a GitHub Release with flashable images.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [firmware, simulator]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect merged images
+        run: |
+          mkdir dist
+          for board in 3.4in-800x800 4in-720x720; do
+            cp "artifacts/plane-radar-$board/plane-radar-merged.bin" "dist/plane-radar-$board-${GITHUB_REF_NAME}.bin"
+          done
+          (cd dist && sha256sum *.bin > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'NOTES'
+          Flashable firmware for the Waveshare ESP32-P4 round touch displays.
+
+          | File | Board |
+          |---|---|
+          | `plane-radar-3.4in-800x800-*.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C (800x800) |
+          | `plane-radar-4in-720x720-*.bin` | ESP32-P4-WIFI6-Touch-LCD-4C (720x720) |
+
+          Each is a merged image (bootloader + partition table + app). Flash it at offset `0x0`:
+
+          ```
+          python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-<version>.bin
+          ```
+
+          Or use https://espressif.github.io/esptool-js/ from Chrome/Edge (offset 0x0).
+          If the board isn't detected: hold BOOT, tap RESET, release BOOT.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "Plane Radar P4 $GITHUB_REF_NAME" --notes-file notes.md
