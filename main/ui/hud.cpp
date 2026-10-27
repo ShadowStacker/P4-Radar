@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include "app/app.h"
 #include "core/adsb.h"
@@ -63,7 +64,10 @@ void updateStatus() {
   char txt[96];
   lv_color_t dot = p.accent;
 
-  if (app::settings().wifi_ssid[0] == '\0') {
+  if (ws.state == plat::WifiState::Failed && std::strstr(ws.reason, "module") != nullptr) {
+    std::snprintf(txt, sizeof(txt), LV_SYMBOL_WARNING "  %s", ws.reason);
+    dot = p.danger;
+  } else if (app::settings().wifi_ssid[0] == '\0') {
     std::snprintf(txt, sizeof(txt), LV_SYMBOL_WIFI "  Tap to set up Wi-Fi");
     dot = p.warn;
   } else if (ws.state == plat::WifiState::Connecting) {

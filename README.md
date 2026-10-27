@@ -94,7 +94,7 @@ so you don't need to wire anything.
 
 ## Building and flashing
 
-You need **ESP-IDF v5.5** or newer.
+You need **ESP-IDF v5.5.2** or newer (v5.5.6 recommended).
 
 ```bash
 # 3.4" 800x800 board (default)
@@ -114,12 +114,30 @@ LVGL needs to be 9.4 or newer, because the LVGL adapter that Waveshare's BSP
 uses depends on it. `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM` stays off: turning
 it on overflows the P4's internal RAM at link time.
 
+### Chip revision (important)
+
+ESP32-P4 chips come in two incompatible families. Newer boards have
+**revision v3.x**, older ones **v0.x/v1.x**, and an image built for one won't
+boot on the other: the screen stays black and USB keeps disconnecting as the
+board resets. Check yours with `python -m esptool --chip esp32p4 chip_id`, or
+connect in esptool-js and read "Chip is ESP32-P4 (revision vX.Y)".
+
+The default build targets v3.x. For a v1.x chip, add the overlay:
+
+```bash
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" build
+# 4" board + v1.x chip:
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch;sdkconfig.defaults.p4rev1" build
+```
+
+Revision v3 support needs ESP-IDF **v5.5.2 or newer** (CI uses v5.5.6).
+
 ### Flashing a prebuilt image
 
 A merged image (bootloader + partition table + app) is written at offset `0x0`:
 
 ```bash
-python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800.bin
+python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-chip-v3-v1.0.1.bin
 ```
 
 Ready-made images for both boards are on the
@@ -139,9 +157,11 @@ boards, runs the unit tests and renders simulator screenshots on every push.
   ships the C6 with slave firmware. If the versions don't match, update the C6
   by following the ESP-Hosted docs ("Co-processor OTA" or flashing the C6
   directly).
-- **Chip revision error at boot**: older boards use ESP32-P4 rev 1.x, newer
-  ones rev 3.x. Pick the matching option under *Component config → Hardware
-  Settings → Chip revision* in `idf.py menuconfig`.
+- **Black screen, USB keeps disconnecting**: almost always the wrong chip
+  revision image (see *Chip revision* above). The serial log will say
+  `Image requires chip rev ...`.
+- **Boot screen says "Wi-Fi module not responding"**: the P4 can't talk to the
+  ESP32-C6. The radar UI still starts, but stays offline.
 - **Touch is mirrored or rotated**: set `touch_cfg.touch_flags` in
   `main/platform/esp/esp_display.cpp`.
 - **Animation is sluggish**: lower the sweep speed or turn off the sweep or

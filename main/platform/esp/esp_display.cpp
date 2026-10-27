@@ -114,6 +114,30 @@ lv_display_t* displayStart() {
   return disp;
 }
 
+void bootScreen(const char* status) {
+  static lv_obj_t* s_label = nullptr;
+  if (!lvglLock()) return;
+  if (s_label == nullptr) {
+    lv_obj_t* scr = lv_screen_active();
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x020D06), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "PLANE RADAR");
+    lv_obj_set_style_text_color(title, lv_color_hex(0x40FF80), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_40, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
+    s_label = lv_label_create(scr);
+    lv_obj_set_style_text_color(s_label, lv_color_hex(0x8EA3AE), 0);
+    lv_obj_set_style_text_font(s_label, &lv_font_montserrat_22, 0);
+    lv_obj_align(s_label, LV_ALIGN_CENTER, 0, 30);
+  }
+  lv_label_set_text(s_label, status);
+  lvglUnlock();
+  // Light the panel as soon as there is something to show; a dark screen
+  // gives no clue where boot stopped.
+  if (bsp_display_brightness_get() == 0) bsp_display_brightness_set(60);
+}
+
 bool lvglLock() { return esp_lv_adapter_lock(-1) == ESP_OK; }
 void lvglUnlock() { esp_lv_adapter_unlock(); }
 

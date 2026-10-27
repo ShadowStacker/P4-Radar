@@ -1,5 +1,8 @@
 # ---- Target / flash --------------------------------------------------------
 CONFIG_IDF_TARGET="esp32p4"
+# Chip revision v3.x (current boards). For older v1.x chips add the
+# sdkconfig.defaults.p4rev1 overlay; one image can't support both.
+CONFIG_ESP32P4_REV_MIN_300=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
@@ -36,6 +39,10 @@ CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
 CONFIG_ESP_HOSTED_SDIO_SLOT_1=y
 CONFIG_ESP_HOSTED_HOST_SDIO_BUS_WIDTH_4=y
 CONFIG_LWIP_LOCAL_HOSTNAME="plane-radar"
+# If the C6 link fails, keep the radar running (offline) instead of rebooting
+# the whole board in a loop.
+# CONFIG_ESP_HOSTED_HOST_TRANSPORT_RESTART_ON_FAILURE is not set
+# CONFIG_ESP_HOSTED_TRANSPORT_RESTART_ON_FAILURE is not set
 
 # ---- Board (Waveshare BSP) ---------------------------------------------------
 # 3.4" 800x800 by default; see sdkconfig.defaults.4inch for the 720x720 board.

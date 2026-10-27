@@ -27,6 +27,7 @@ uint32_t s_retry_delay_ms = 2000;
 esp_timer_handle_t s_retry_timer = nullptr;
 esp_netif_t* s_netif = nullptr;
 uint32_t s_rssi_checked_ms = 0;
+bool s_radio_ok = true;
 
 bool s_scan_running = false;
 bool s_scan_done = false;
@@ -107,24 +108,38 @@ void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data) {
 
 namespace esp {
 
-void wifiStart() {
+bool wifiStart() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   s_netif = esp_netif_create_default_wifi_sta();
   esp_netif_set_hostname(s_netif, "plane-radar");
 
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, onWifiEvent, nullptr));
-  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, onWifiEvent, nullptr));
-  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));  // credentials live in our own NVS
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_start());
-
   esp_timer_create_args_t targs = {};
   targs.callback = retryNow;
   targs.name = "wifi_retry";
   ESP_ERROR_CHECK(esp_timer_create(&targs, &s_retry_timer));
+
+  // The radio is the ESP32-C6 co-processor. If it doesn't answer (missing or
+  // incompatible ESP-Hosted firmware), keep running without Wi-Fi so the UI
+  // can say so, instead of rebooting in a loop.
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  esp_err_t err = esp_wifi_init(&cfg);
+  if (err == ESP_OK) {
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, onWifiEvent, nullptr);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, onWifiEvent, nullptr);
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);  // credentials live in our own NVS
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    err = esp_wifi_start();
+  }
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Wi-Fi co-processor not available: %s", esp_err_to_name(err));
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_radio_ok = false;
+    s_status.state = WifiState::Failed;
+    std::snprintf(s_status.reason, sizeof(s_status.reason), "Wi-Fi module not responding");
+    return false;
+  }
+  return true;
 }
 
 }  // namespace esp
@@ -141,6 +156,7 @@ WifiStatus wifiStatus() {
 
 void wifiConnect(const char* ssid, const char* pass) {
   std::lock_guard<std::mutex> lock(s_mu);
+  if (!s_radio_ok) return;
   esp_timer_stop(s_retry_timer);
   s_want_connected = false;
   esp_wifi_disconnect();
@@ -165,6 +181,11 @@ void wifiConnect(const char* ssid, const char* pass) {
 
 void wifiScanStart() {
   std::lock_guard<std::mutex> lock(s_mu);
+  if (!s_radio_ok) {
+    s_scan_results.clear();
+    s_scan_done = true;
+    return;
+  }
   if (s_scan_running) return;
   s_scan_done = false;
   wifi_scan_config_t sc = {};

@@ -1,0 +1,7 @@
+# Overlay for boards with an older ESP32-P4 revision v1.x chip:
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" build
+# (combine with sdkconfig.defaults.4inch for the 4" board). Check your chip with
+#   python -m esptool --chip esp32p4 chip_id   ->  "Chip is ESP32-P4 (revision v1.3)"
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_1=y
+# CONFIG_ESP32P4_REV_MIN_300 is not set

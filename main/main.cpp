@@ -10,6 +10,8 @@
 #include "cJSON.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs_flash.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
@@ -38,12 +40,20 @@ extern "C" void app_main(void) {
   ESP_ERROR_CHECK(err);
 
   lv_display_t* disp = plat::esp::displayStart();
+  plat::esp::bootScreen("Starting audio...");
   plat::esp::audioStart();
-  plat::esp::wifiStart();
+  plat::esp::bootScreen("Starting Wi-Fi module...");
+  if (!plat::esp::wifiStart()) {
+    plat::esp::bootScreen("Wi-Fi module not responding");
+    vTaskDelay(pdMS_TO_TICKS(1500));  // let the message be read; the radar still runs
+  }
+  plat::esp::bootScreen("Loading...");
   app::init();  // loads settings, sets brightness/volume, starts connecting
 
   if (plat::esp::lvglLock()) {
+    lv_obj_t* boot = lv_screen_active();
     ui::init(disp);
+    if (boot != lv_screen_active()) lv_obj_delete(boot);
     plat::esp::lvglUnlock();
   }
   app::sound(core::Sound::Startup);

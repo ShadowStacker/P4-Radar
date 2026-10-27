@@ -21,16 +21,30 @@ jobs:
             defaults: sdkconfig.defaults
           - name: 4in-720x720
             defaults: sdkconfig.defaults;sdkconfig.defaults.4inch
+        chip:
+          # ESP32-P4 v3.x (current boards) and v1.x need separate images.
+          - name: chip-v3
+            defaults: ""
+          - name: chip-v1
+            defaults: ";sdkconfig.defaults.p4rev1"
     steps:
       - uses: actions/checkout@v4
       - name: Build with ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v5.5.1
+          esp_idf_version: v5.5.6
           target: esp32p4
           command: >-
-            idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}" build 2>&1 | tee build.log;
+            idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}${{ matrix.chip.defaults }}" build 2>&1 | tee build.log;
             test "${PIPESTATUS[0]}" -eq 0 && idf.py merge-bin -o plane-radar-merged.bin
+      - name: Check chip revision range
+        run: |
+          grep -E "^CONFIG_ESP32P4_REV_MIN_FULL|^CONFIG_ESP32P4_REV_MAX_FULL" sdkconfig
+          if [ "${{ matrix.chip.name }}" = chip-v3 ]; then
+            grep -q "^CONFIG_ESP32P4_REV_MAX_FULL=399" sdkconfig
+          else
+            grep -q "^CONFIG_ESP32P4_REV_MAX_FULL=199" sdkconfig
+          fi
       - name: Report build errors
         if: failure()
         run: |
@@ -43,7 +57,7 @@ jobs:
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: plane-radar-${{ matrix.board.name }}
+          name: plane-radar-${{ matrix.board.name }}-${{ matrix.chip.name }}
           path: |
             build/plane_radar_p4.bin
             build/bootloader/bootloader.bin
@@ -88,7 +102,9 @@ jobs:
         run: |
           mkdir dist
           for board in 3.4in-800x800 4in-720x720; do
-            cp "artifacts/plane-radar-$board/plane-radar-merged.bin" "dist/plane-radar-$board-${VERSION}.bin"
+            for chip in chip-v3 chip-v1; do
+              cp "artifacts/plane-radar-$board-$chip/plane-radar-merged.bin" "dist/plane-radar-$board-$chip-${VERSION}.bin"
+            done
           done
           (cd dist && sha256sum *.bin > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Publish release
@@ -98,15 +114,22 @@ jobs:
           cat > notes.md <<'NOTES'
           Flashable firmware for the Waveshare ESP32-P4 round touch displays.
 
-          | File | Board |
-          |---|---|
-          | `plane-radar-3.4in-800x800-*.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C (800x800) |
-          | `plane-radar-4in-720x720-*.bin` | ESP32-P4-WIFI6-Touch-LCD-4C (720x720) |
+          Pick the file for your board **and** your ESP32-P4 chip revision
+          (`chip-v3` for revision v3.x, `chip-v1` for v0.x/v1.x). The wrong revision
+          won't boot. To check yours, run `python -m esptool --chip esp32p4 chip_id`
+          or connect in esptool-js and look for "Chip is ESP32-P4 (revision vX.Y)".
+
+          | File | Board | Chip |
+          |---|---|---|
+          | `plane-radar-3.4in-800x800-chip-v3-*.bin` | 3.4C (800x800) | rev v3.x |
+          | `plane-radar-3.4in-800x800-chip-v1-*.bin` | 3.4C (800x800) | rev v0.x / v1.x |
+          | `plane-radar-4in-720x720-chip-v3-*.bin` | 4C (720x720) | rev v3.x |
+          | `plane-radar-4in-720x720-chip-v1-*.bin` | 4C (720x720) | rev v0.x / v1.x |
 
           Each is a merged image (bootloader + partition table + app). Flash it at offset `0x0`:
 
           ```
-          python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-<version>.bin
+          python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-chip-v3-<version>.bin
           ```
 
           Or use https://espressif.github.io/esptool-js/ from Chrome/Edge (offset 0x0).
