@@ -1,6 +1,8 @@
 #include "app/app.h"
 
+#include <algorithm>
 #include <atomic>
+#include <deque>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -30,6 +32,10 @@ core::LatLon s_query_center;
 double s_query_radius_km = 50;
 FeedStatus s_feed;
 std::atomic<bool> s_refresh_requested{false};
+std::deque<std::string> s_notices;  // guarded by s_mu
+
+std::mutex s_favorites_mu;
+std::vector<core::Favorite> s_favorites;
 
 constexpr uint32_t kMinFetchSpacingMs = 1500;  // public APIs allow ~1 req/s
 
@@ -72,11 +78,33 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   zone.center = {s_settings.home_lat, s_settings.home_lon};
   zone.radius_km = s_settings.alert_radius_km;
   zone.max_alt_ft = s_settings.alert_max_alt_ft;
-  const core::UpdateEvents ev = s_traffic.update(*parsed, plat::millis(), zone);
+  const std::vector<core::Favorite> favs = favorites();
+  core::FavoriteWatch watch;
+  watch.favorites = &favs;
+  watch.center = zone.center;
+  watch.near_radius_km = s_settings.favorite_near_radius_km;
+  const core::UpdateEvents ev = s_traffic.update(*parsed, plat::millis(), zone, watch);
 
+  // On-screen notices for favorites (shown by the UI task), whatever the sound settings.
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    for (const std::string& n : ev.favorites_near) s_notices.push_back(n + " is nearby");
+    for (const std::string& n : ev.favorites_seen) {
+      if (std::find(ev.favorites_near.begin(), ev.favorites_near.end(), n) == ev.favorites_near.end()) {
+        s_notices.push_back(n + " detected");
+      }
+    }
+    while (s_notices.size() > 4) s_notices.pop_front();
+  }
+
+  // One sound per fetch, most important first.
   if (ev.new_emergencies > 0) {
     sound(core::Sound::Emergency);
-  } else if (ev.new_close_approaches > 0) {
+  } else if (!ev.favorites_near.empty() && s_settings.sound_favorite_near) {
+    sound(core::Sound::FavoriteNear);
+  } else if (!ev.favorites_seen.empty() && s_settings.sound_favorite_seen) {
+    sound(core::Sound::FavoriteSeen);
+  } else if (ev.new_close_approaches > 0 && s_settings.sound_proximity) {
     sound(core::Sound::Alert);
   } else if (ev.new_aircraft > 0 && ev.new_aircraft <= 3) {
     // Bursts (first fetch after a big pan) would be noise, not information.
@@ -124,6 +152,7 @@ void networkLoop() {
 
 void init() {
   plat::settingsLoad(&s_settings);
+  plat::favoritesLoad(&s_favorites);
   s_query_center = {s_settings.home_lat, s_settings.home_lon};
   s_query_radius_km = s_settings.home_radius_km;
   s_last_activity = plat::millis();
@@ -181,6 +210,61 @@ void queryArea(core::LatLon* center, double* radius_km) {
 
 void requestRefresh() { s_refresh_requested = true; }
 
+std::vector<core::Favorite> favorites() {
+  std::lock_guard<std::mutex> lock(s_favorites_mu);
+  return s_favorites;
+}
+
+bool isFavorite(const char* hex) {
+  std::lock_guard<std::mutex> lock(s_favorites_mu);
+  return core::containsHex(s_favorites, hex);
+}
+
+bool toggleFavorite(const core::Aircraft& a) {
+  bool now_favorite;
+  std::vector<core::Favorite> copy;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    auto it = std::find_if(s_favorites.begin(), s_favorites.end(),
+                           [&](const core::Favorite& f) { return std::strcmp(f.hex, a.hex) == 0; });
+    if (it != s_favorites.end()) {
+      s_favorites.erase(it);
+      now_favorite = false;
+    } else {
+      if (s_favorites.size() >= core::kMaxFavorites) return false;
+      core::Favorite f;
+      std::snprintf(f.hex, sizeof(f.hex), "%s", a.hex);
+      std::snprintf(f.label, sizeof(f.label), "%s", a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+      std::snprintf(f.type, sizeof(f.type), "%s", a.type);
+      s_favorites.push_back(f);
+      now_favorite = true;
+    }
+    copy = s_favorites;
+  }
+  plat::favoritesSave(copy);
+  return now_favorite;
+}
+
+void removeFavorite(const char* hex) {
+  std::vector<core::Favorite> copy;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    s_favorites.erase(std::remove_if(s_favorites.begin(), s_favorites.end(),
+                                     [&](const core::Favorite& f) { return std::strcmp(f.hex, hex) == 0; }),
+                      s_favorites.end());
+    copy = s_favorites;
+  }
+  plat::favoritesSave(copy);
+}
+
+bool popNotice(std::string* out) {
+  std::lock_guard<std::mutex> lock(s_mu);
+  if (s_notices.empty()) return false;
+  *out = s_notices.front();
+  s_notices.pop_front();
+  return true;
+}
+
 FeedStatus feedStatus() {
   std::lock_guard<std::mutex> lock(s_mu);
   return s_feed;
@@ -200,8 +284,10 @@ void sound(core::Sound s) {
     case core::Sound::Click: if (!st.sound_touch) return; break;
     case core::Sound::Ping: if (!st.sound_sweep_ping) return; break;
     case core::Sound::NewAircraft: if (!st.sound_new_aircraft) return; break;
-    case core::Sound::Alert:
+    case core::Sound::Alert: if (!st.sound_proximity) return; break;
     case core::Sound::Emergency: if (!st.sound_alerts) return; break;
+    case core::Sound::FavoriteSeen: if (!st.sound_favorite_seen) return; break;
+    case core::Sound::FavoriteNear: if (!st.sound_favorite_near) return; break;
     default: break;
   }
   plat::playSound(s);

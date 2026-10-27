@@ -283,6 +283,53 @@ void testTraffic() {
   CHECK(snap[0].fix_ms == 16000);
 }
 
+void testFavorites() {
+  std::vector<core::Favorite> favs(1);
+  std::snprintf(favs[0].hex, sizeof(favs[0].hex), "fff111");
+  core::FavoriteWatch watch;
+  watch.favorites = &favs;
+  watch.center = {52.0, 5.0};
+  watch.near_radius_km = 10.0;
+
+  core::TrafficStore store;
+  core::Aircraft fav = mk("fff111", 52.5, 5.0);  // ~55 km from center
+  std::snprintf(fav.callsign, sizeof(fav.callsign), "RCH471");
+
+  // Detected even on the very first fetch; not yet nearby.
+  auto ev = store.update({fav, mk("aaa000", 52.6, 5.0)}, 1000, {}, watch);
+  CHECK(ev.favorites_seen.size() == 1 && ev.favorites_seen[0] == "RCH471");
+  CHECK(ev.favorites_near.empty());
+
+  // Still in range: no repeat "detected".
+  ev = store.update({fav}, 6000, {}, watch);
+  CHECK(ev.favorites_seen.empty());
+
+  // Enters the nearby radius once.
+  fav.lat = 52.05;  // ~5.6 km
+  ev = store.update({fav}, 11000, {}, watch);
+  CHECK(ev.favorites_near.size() == 1);
+  ev = store.update({fav}, 16000, {}, watch);
+  CHECK(ev.favorites_near.empty());
+
+  // Leaves and comes back: alerts again.
+  fav.lat = 52.3;
+  store.update({fav}, 21000, {}, watch);
+  fav.lat = 52.02;
+  ev = store.update({fav}, 26000, {}, watch);
+  CHECK(ev.favorites_near.size() == 1);
+
+  // Drops out of the feed, reappears later: "detected" again.
+  store.update({mk("aaa000", 52.6, 5.0)}, 26000 + core::TrafficStore::kDropAfterMs + 1, {}, watch);
+  ev = store.update({fav}, 26000 + core::TrafficStore::kDropAfterMs + 5000, {}, watch);
+  CHECK(ev.favorites_seen.size() == 1);
+
+  // Non-favorites never trigger favorite events.
+  core::TrafficStore other;
+  ev = other.update({mk("bbb222", 52.01, 5.0)}, 1000, {}, watch);
+  CHECK(ev.favorites_seen.empty() && ev.favorites_near.empty());
+  CHECK(core::containsHex(favs, "fff111") && !core::containsHex(favs, "fff112"));
+}
+
 void testSounds() {
   for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) {
     const auto pcm = core::synthesize(static_cast<core::Sound>(i), 22050);
@@ -301,6 +348,7 @@ int main() {
   testViewport();
   testAdsbParse();
   testTraffic();
+  testFavorites();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

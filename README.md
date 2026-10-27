@@ -31,6 +31,11 @@ higher-resolution, touch-driven take on
 - Emergency squawks (7500/7600/7700) get a pulsing red ring.
 - Military aircraft (flagged by the feed's aircraft database) get a **MIL**
   badge on their info card, and there's a military-only filter.
+- **Favorites**: tap the star on an aircraft's info card to save it (up to 32).
+  Saved aircraft get a gold ring, a star and an always-on label. A notice and
+  a sound tell you when one is detected, and a second sound plays when it comes
+  within an adjustable radius of home. Favorites are tracked by the airframe's
+  ICAO address, so they still match when the flight number changes.
 
 **Touch**
 - One finger pans, with momentum. Two fingers pinch-zoom around the midpoint
@@ -50,8 +55,9 @@ higher-resolution, touch-driven take on
 - Smooth fly-to when going home, zooming or following.
 - Sounds are generated on the device, so there are no audio files. You get a
   sonar ping on each sweep, a chime for new aircraft, a proximity alert when
-  something flies low inside your alert radius, an emergency siren, and touch
-  clicks. Each sound has its own switch, and there's a volume slider.
+  something flies low inside your alert radius (off by default), an emergency
+  siren, "favorite detected" and "favorite nearby" sounds, and touch clicks.
+  Each sound has its own switch, and there's a volume slider.
 
 **Settings (all on the touchscreen)**
 - **Wi-Fi**: scan, pick a network, enter the password on an on-screen
@@ -60,12 +66,15 @@ higher-resolution, touch-driven take on
   an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
   button returns to.
 - **Display**: four themes (Green phosphor, Amber, Blue, red Night mode),
-  brightness, units, auto-hiding the radar buttons after 10 s idle, label
+  brightness, units, auto-hiding the radar buttons after 10 s idle (on by
+  default), label
   detail, color mode, and toggles for trails,
   vectors, rings, runways and airport codes. Sweep settings and dim-when-idle
   live here too.
-- **Sound**: master switch, volume, a switch for each sound, alert radius and
-  altitude, and test buttons.
+- **Sound**: master switch, volume, a switch for each sound, proximity alert
+  radius and altitude, favorite "nearby" radius, and test buttons.
+- **Favorites**: your saved aircraft, whether each is in range and how far,
+  and a remove button.
 - **Traffic & data**: show ground traffic, a military-only filter, altitude
   filters, the feed
   (adsb.fi, airplanes.live or adsb.lol) and the update interval.

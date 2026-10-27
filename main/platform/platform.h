@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "core/favorites.h"
 #include "core/settings.h"
 #include "core/sound_synth.h"
 
@@ -27,6 +28,9 @@ void settingsLoad(core::Settings* s);
 void settingsSave(const core::Settings& s);
 /** Erases all stored settings including Wi-Fi. */
 void settingsErase();
+/** Saved aircraft, stored separately from settings. */
+void favoritesLoad(std::vector<core::Favorite>* out);
+void favoritesSave(const std::vector<core::Favorite>& favs);
 
 // --- Wi-Fi -------------------------------------------------------------------
 enum class WifiState : uint8_t { Idle, Connecting, Connected, Failed };

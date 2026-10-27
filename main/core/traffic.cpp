@@ -20,6 +20,12 @@ void pushTrail(Track& t, const Aircraft& a) {
   if (t.trail_count < kTrailLen) ++t.trail_count;
 }
 
+std::string displayName(const Aircraft& a) {
+  if (a.callsign[0]) return a.callsign;
+  if (a.reg[0]) return a.reg;
+  return a.hex;
+}
+
 bool inZone(const Aircraft& a, const AlertZone& z) {
   if (z.radius_km <= 0 || a.on_ground) return false;
   if (a.alt_valid && a.alt_ft > z.max_alt_ft) return false;
@@ -38,7 +44,7 @@ LatLon positionAt(const Track& t, uint32_t now_ms) {
 }
 
 UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t now_ms,
-                                  const AlertZone& zone) {
+                                  const AlertZone& zone, const FavoriteWatch& watch) {
   UpdateEvents ev;
   std::lock_guard<std::mutex> lock(mu_);
   const bool first = (version_ == 0);
@@ -58,6 +64,10 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       t->first_seen_ms = now_ms;
       if (!first) ++ev.new_aircraft;
       if (a.emergency) ++ev.new_emergencies;
+      // Favorites are worth announcing even on the very first fetch.
+      if (watch.favorites != nullptr && containsHex(*watch.favorites, a.hex)) {
+        ev.favorites_seen.push_back(displayName(a));
+      }
     } else if (a.emergency && !t->ac.emergency) {
       ++ev.new_emergencies;
     }
@@ -71,6 +81,12 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
     const bool close = inZone(a, zone);
     if (close && !t->close_alerted) ++ev.new_close_approaches;
     t->close_alerted = close;
+
+    if (watch.favorites != nullptr && watch.near_radius_km > 0 && containsHex(*watch.favorites, a.hex)) {
+      const bool near = distanceKm(watch.center, {a.lat, a.lon}) <= watch.near_radius_km;
+      if (near && !t->favorite_near_alerted) ev.favorites_near.push_back(displayName(a));
+      t->favorite_near_alerted = near;
+    }
   }
 
   // Forget aircraft that have not been reported for a while.

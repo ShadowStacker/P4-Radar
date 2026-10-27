@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <cstring>
+#include <utility>
+#include <vector>
 
 #include "ui/image_buf.h"
 #include "ui/lv_compat.h"
@@ -140,6 +142,51 @@ void init() {
     }
   }
   lv_obj_delete(canvas);
+
+  // Stars used by the radar badge and the favorite buttons. Pre-rendered here:
+  // rendering on first use could happen inside a draw pass.
+  star(starBadgeSize());
+  star(starButtonSize());
+}
+
+int32_t starBadgeSize() { return sc(18) | 1; }
+int32_t starButtonSize() { return sc(30) | 1; }
+
+const lv_draw_buf_t* star(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  // Fan of 10 triangles from the center: the star is star-shaped around it.
+  const float c = size / 2.0f, ro = size * 0.49f, ri = ro * 0.42f;
+  lv_draw_triangle_dsc_t d;
+  lv_draw_triangle_dsc_init(&d);
+  triangleDscSetColor(&d, lv_color_white(), LV_OPA_COVER);
+  for (int i = 0; i < 10; ++i) {
+    const float a0 = (i * 36.0f - 90.0f) * 3.14159265f / 180.0f;
+    const float a1 = ((i + 1) * 36.0f - 90.0f) * 3.14159265f / 180.0f;
+    const float r0 = (i % 2 == 0) ? ro : ri, r1 = (i % 2 == 0) ? ri : ro;
+    d.p[0].x = c;
+    d.p[0].y = c + size * 0.03f;  // optical center sits slightly low
+    d.p[1].x = c + std::cos(a0) * r0;
+    d.p[1].y = c + size * 0.03f + std::sin(a0) * r0;
+    d.p[2].x = c + std::cos(a1) * r1;
+    d.p[2].y = c + size * 0.03f + std::sin(a1) * r1;
+    lv_draw_triangle(&layer, &d);
+  }
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.push_back({size, buf});
+  return buf;
 }
 
 const lv_draw_buf_t* get(Kind kind, float heading_deg) {

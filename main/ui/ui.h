@@ -4,7 +4,7 @@
 
 namespace ui {
 
-enum class Page { Main, Wifi, Location, Display, Sound, Traffic, About };
+enum class Page { Main, Wifi, Location, Display, Sound, Traffic, Favorites, About };
 
 /** Builds the whole UI. Call with the LVGL lock held. */
 void init(lv_display_t* disp);

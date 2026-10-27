@@ -36,6 +36,8 @@ const char* soundName(core::Sound s) {
     case core::Sound::Emergency: return "emergency";
     case core::Sound::Startup: return "startup";
     case core::Sound::Home: return "home";
+    case core::Sound::FavoriteSeen: return "favorite_detected";
+    case core::Sound::FavoriteNear: return "favorite_nearby";
     default: return "unknown";
   }
 }
@@ -83,6 +85,12 @@ void settingsSave(const core::Settings& s) {
 }
 
 void settingsErase() { s_have_saved = false; }
+
+namespace {
+std::vector<core::Favorite> s_favorites;
+}
+void favoritesLoad(std::vector<core::Favorite>* out) { *out = s_favorites; }
+void favoritesSave(const std::vector<core::Favorite>& favs) { s_favorites = favs; }
 
 WifiStatus wifiStatus() {
   WifiStatus ws;

@@ -24,6 +24,7 @@ struct Palette {
   lv_color_t runway_label;
   lv_color_t home;
   lv_color_t select;
+  lv_color_t favorite;    // saved aircraft (ring, star, label)
   lv_color_t panel;       // HUD panels / settings rows
   lv_color_t panel_border;
   lv_color_t text;

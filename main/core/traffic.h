@@ -5,6 +5,9 @@
 #include <mutex>
 #include <vector>
 
+#include <string>
+
+#include "core/favorites.h"
 #include "core/geo.h"
 
 namespace core {
@@ -49,6 +52,7 @@ struct Track {
   uint8_t trail_count = 0;
   uint8_t trail_head = 0;      // index of the next write
   bool close_alerted = false;
+  bool favorite_near_alerted = false;
 
   /** i = 0 is the oldest retained point. */
   const TrailPoint& trailAt(int i) const {
@@ -65,10 +69,19 @@ struct AlertZone {
   int32_t max_alt_ft = 0;
 };
 
+/** Favorites to watch for, and the radius (around home) for "nearby". */
+struct FavoriteWatch {
+  const std::vector<Favorite>* favorites = nullptr;
+  LatLon center;
+  double near_radius_km = 0;
+};
+
 struct UpdateEvents {
   int new_aircraft = 0;
   int new_emergencies = 0;
   int new_close_approaches = 0;
+  std::vector<std::string> favorites_seen;  // display names, newly in range
+  std::vector<std::string> favorites_near;  // display names, newly within near_radius_km
 };
 
 /**
@@ -80,7 +93,8 @@ class TrafficStore {
   static constexpr uint32_t kDropAfterMs = 45000;
   static constexpr size_t kMaxTracks = 400;
 
-  UpdateEvents update(const std::vector<Aircraft>& fresh, uint32_t now_ms, const AlertZone& zone);
+  UpdateEvents update(const std::vector<Aircraft>& fresh, uint32_t now_ms, const AlertZone& zone,
+                      const FavoriteWatch& watch = {});
   /** Copies all tracks. Returns the version the copy corresponds to. */
   uint32_t snapshot(std::vector<Track>& out) const;
   uint32_t version() const;

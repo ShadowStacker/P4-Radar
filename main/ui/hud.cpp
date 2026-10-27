@@ -3,11 +3,13 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "app/app.h"
 #include "core/adsb.h"
 #include "platform/platform.h"
 #include "ui/radar_view.h"
+#include "ui/sprites.h"
 #include "ui/theme.h"
 #include "ui/ui.h"
 #include "ui/widgets.h"
@@ -36,6 +38,8 @@ struct Hud {
   lv_obj_t* stat_title[6] = {};
   lv_obj_t* stat_value[6] = {};
   lv_obj_t* follow_btn = nullptr;
+  lv_obj_t* fav_btn = nullptr;
+  lv_obj_t* fav_img = nullptr;
 
   lv_obj_t* pick_bar = nullptr;
   lv_obj_t* pick_hint = nullptr;
@@ -162,6 +166,10 @@ void updateCard() {
   setStat(5, "SQUAWK", a.squawk[0] ? a.squawk : "--");
   lv_obj_set_style_text_color(h.card_title, a.emergency ? pal().danger : pal().text, 0);
 
+  const bool fav = app::isFavorite(a.hex);
+  lv_obj_set_style_image_recolor(h.fav_img, fav ? pal().favorite : pal().text_dim, 0);
+  lv_obj_set_style_border_color(h.fav_btn, fav ? pal().favorite : pal().panel_border, 0);
+
   if (rv.following()) lv_obj_add_state(h.follow_btn, LV_STATE_CHECKED);
   else lv_obj_remove_state(h.follow_btn, LV_STATE_CHECKED);
 }
@@ -169,6 +177,8 @@ void updateCard() {
 void onTimer(lv_timer_t*) {
   updateStatus();
   updateCard();
+  std::string notice;
+  if (app::popNotice(&notice)) toast((std::string(LV_SYMBOL_BELL "  ") + notice).c_str(), 4000);
 }
 
 constexpr uint32_t kAutoHideIdleMs = 10000;
@@ -233,6 +243,22 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_remove_style_all(spacer);
   lv_obj_set_flex_grow(spacer, 1);
   lv_obj_set_height(spacer, 1);
+
+  // Favorite toggle: a round button holding the star image (no star glyph in the fonts).
+  h.fav_btn = iconButton(head, "", sc(56), [] {
+    const core::Track* t = RadarView::get().selected();
+    if (t == nullptr) return;
+    if (!app::isFavorite(t->ac.hex) && app::favorites().size() >= core::kMaxFavorites) {
+      toast(LV_SYMBOL_WARNING "  Favorites full (32) - remove one first");
+      return;
+    }
+    toast(app::toggleFavorite(t->ac) ? "Saved to favorites" : "Removed from favorites");
+    updateCard();
+  });
+  h.fav_img = lv_image_create(h.fav_btn);
+  lv_image_set_src(h.fav_img, sprites::star(sprites::starButtonSize()));
+  lv_obj_center(h.fav_img);
+  lv_obj_set_style_image_recolor_opa(h.fav_img, LV_OPA_COVER, 0);
 
   h.follow_btn = iconButton(head, LV_SYMBOL_GPS, sc(56), [] {
     RadarView& rv = RadarView::get();

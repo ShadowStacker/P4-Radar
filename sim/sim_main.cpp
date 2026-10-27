@@ -359,6 +359,36 @@ int main(int argc, char** argv) {
   shot((p + "22_buttons_back").c_str());
   app::settings().autohide_buttons = false;
 
+  // Favorites: save the aircraft nearest the middle, then see it come back into range.
+  if (findAircraftOnScreen(&ax, &ay)) {
+    tap(ax, ay);
+    run(400);
+    const core::Track* t = ui::RadarView::get().selected();
+    if (t != nullptr) app::toggleFavorite(t->ac);
+    run(700);
+    shot((p + "23_favorite_card").c_str());
+    ui::RadarView::get().clearSelection();
+    run(2500);
+    shot((p + "24_favorite_on_radar").c_str());
+    // Forget everything and refetch: the favorite is "detected" again.
+    app::traffic().clear();
+    g_next_fetch = 0;
+    run(1200);
+    shot((p + "25_favorite_detected_notice").c_str());
+  }
+  ui::openSettings(ui::Page::Favorites);
+  run(600);
+  shot((p + "26_settings_favorites").c_str());
+  ui::closeSettings();
+  run(300);
+  ui::openSettings(ui::Page::Sound);
+  run(400);
+  lv_obj_scroll_to_y(lv_obj_get_child(lv_screen_active(), -1), ui::sc(760), LV_ANIM_OFF);
+  run(300);
+  shot((p + "27_settings_sound_favorites").c_str());
+  ui::closeSettings();
+  run(300);
+
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,
               g_render_ms_total / std::max(1, g_render_count));
   return 0;

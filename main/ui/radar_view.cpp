@@ -256,6 +256,7 @@ void RadarView::frame() {
   const bool gesturing = gesture_ == Gesture::Drag || gesture_ == Gesture::Pinch;
   const bool busy = animating || gesturing;
 
+  favorites_ = app::favorites();
   if (app::traffic().version() != tracks_version_) {
     tracks_version_ = app::traffic().snapshot(tracks_);
     if (!selected_hex_.empty() && findSelected() < 0) {
@@ -530,6 +531,7 @@ void RadarView::prepareBlips(uint32_t now) {
     b.track_idx = static_cast<int>(i);
     b.selected = selected_hex_ == t.ac.hex;
     b.emergency = t.ac.emergency;
+    b.favorite = core::containsHex(favorites_, t.ac.hex);
     b.kind = static_cast<uint8_t>(sprites::kindFor(t.ac.category, t.ac.on_ground));
     b.heading = t.ac.heading_deg;
     b.color = useAltitudeColors(st) ? altitudeColor(t.ac.alt_ft, t.ac.on_ground)
@@ -544,6 +546,10 @@ void RadarView::prepareBlips(uint32_t now) {
       b.y = cy + (s.y - cy) * k;
       b.kind = 0xFF;  // rim marker
       b.opa = 170;
+      if (b.favorite) {
+        b.color = p.favorite;
+        b.opa = LV_OPA_COVER;
+      }
       blips_.push_back(b);
       continue;
     }
@@ -557,7 +563,7 @@ void RadarView::prepareBlips(uint32_t now) {
       float since = sweep_deg_ - brg;
       if (since < 0) since += 360.0f;
       b.opa = static_cast<lv_opa_t>(255 - 195 * (since / 360.0f));
-      if (b.selected || b.emergency) b.opa = LV_OPA_COVER;
+      if (b.selected || b.emergency || b.favorite) b.opa = LV_OPA_COVER;
     }
 
     if (st.show_speed_vectors && t.ac.gs_kt > 30 && !t.ac.on_ground) {
@@ -582,10 +588,10 @@ void RadarView::prepareBlips(uint32_t now) {
       }
     }
 
-    const bool want_label = b.selected || b.emergency || st.labels != core::LabelMode::Off;
+    const bool want_label = b.selected || b.emergency || b.favorite || st.labels != core::LabelMode::Off;
     if (want_label) {
       std::snprintf(b.line1, sizeof(b.line1), "%s", displayName(t.ac));
-      if (st.labels == core::LabelMode::Full || b.selected || b.emergency) {
+      if (st.labels == core::LabelMode::Full || b.selected || b.emergency || b.favorite) {
         char alt[12];
         formatAltitude(t.ac, alt, sizeof(alt));
         const char* arrow = "";
@@ -600,7 +606,7 @@ void RadarView::prepareBlips(uint32_t now) {
 
   // Draw selected/emergency on top: move them to the end.
   std::stable_partition(blips_.begin(), blips_.end(),
-                        [](const Blip& b) { return !(b.selected || b.emergency); });
+                        [](const Blip& b) { return !(b.selected || b.emergency || b.favorite); });
 }
 
 void RadarView::placeLabels() {
@@ -620,7 +626,7 @@ void RadarView::placeLabels() {
   for (int pass = 0; pass < 2; ++pass) {
     for (Blip& b : blips_) {
       if (!b.label || b.kind == 0xFF) continue;
-      const bool prio = b.selected || b.emergency;
+      const bool prio = b.selected || b.emergency || b.favorite;
       if ((pass == 0) != prio) continue;
       lv_point_t s1, s2 = {0, 0};
       lv_text_get_size(&s1, b.line1, f1, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -738,8 +744,11 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
         const float pulse = 0.5f + 0.5f * std::sin(now * 0.008f);
         drawCircle(layer, b.x, b.y, sz * 0.8f + pulse * sc(8), p.danger, static_cast<lv_opa_t>(120 + 120 * pulse), sc(3));
       }
+      if (b.favorite && !b.selected) {
+        drawCircle(layer, b.x, b.y, sz * 0.72f, p.favorite, 200, sc(2));
+      }
       if (b.selected) {
-        drawCircle(layer, b.x, b.y, sz * 0.78f, p.select, LV_OPA_COVER, sc(3));
+        drawCircle(layer, b.x, b.y, sz * 0.78f, b.favorite ? p.favorite : p.select, LV_OPA_COVER, sc(3));
       }
       const lv_draw_buf_t* img = sprites::get(kind, b.heading);
       if (img != nullptr) {
@@ -754,9 +763,25 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
         lv_area_t a = {x0, y0, x0 + sz - 1, y0 + sz - 1};
         lv_draw_image(layer, &d, &a);
       }
+      if (b.favorite) {
+        // Star badge at the top-right of the aircraft.
+        const lv_draw_buf_t* st_img = sprites::star(sprites::starBadgeSize());
+        if (st_img != nullptr) {
+          const int32_t ss = sprites::starBadgeSize();
+          lv_draw_image_dsc_t d;
+          lv_draw_image_dsc_init(&d);
+          d.src = st_img;
+          d.recolor = p.favorite;
+          d.recolor_opa = LV_OPA_COVER;
+          const int32_t x0 = static_cast<int32_t>(b.x + sz * 0.42f);
+          const int32_t y0 = static_cast<int32_t>(b.y - sz * 0.42f) - ss;
+          lv_area_t a = {x0, y0, x0 + ss - 1, y0 + ss - 1};
+          lv_draw_image(layer, &d, &a);
+        }
+      }
     }
     if (b.label && areasOverlap(b.label_area, clip)) {
-      const lv_color_t c1 = b.emergency ? p.danger : (b.selected ? p.select : p.label);
+      const lv_color_t c1 = b.emergency ? p.danger : (b.favorite ? p.favorite : (b.selected ? p.select : p.label));
       drawText(layer, b.line1, b.label_area.x1, b.label_area.y1, f1, c1, b.opa);
       if (b.line2[0]) {
         drawText(layer, b.line2, b.label_area.x1, b.label_area.y1 + lh, f1, p.label_dim,

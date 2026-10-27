@@ -66,6 +66,7 @@ class RadarView {
     float hx, hy;  // last trail point (trail head joins it to the blip)
     bool selected;
     bool emergency;
+    bool favorite;
     bool label;
     lv_area_t label_area;
     char line1[12];
@@ -100,6 +101,7 @@ class RadarView {
   std::vector<core::Track> tracks_;
   uint32_t tracks_version_ = 0;
   std::vector<Blip> blips_;
+  std::vector<core::Favorite> favorites_;  // refreshed each frame
 
   // Static layer invalidation
   bool static_dirty_ = true;

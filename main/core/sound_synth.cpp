@@ -98,6 +98,21 @@ std::vector<int16_t> synthesize(Sound sound, int rate) {
       b.tone(0, 0.35, 500, 1400, 0.35, 0.2, 0.02);
       return b.toPcm();
     }
+    case Sound::FavoriteSeen: {
+      Buffer b(rate, 0.9);
+      const double notes[] = {783.99, 987.77, 1318.51};  // G5 B5 E6
+      for (int i = 0; i < 3; ++i) b.tone(i * 0.12, 0.55, notes[i], notes[i], 0.38, 0.22);
+      b.tone(0.36, 0.5, 2637.0, 2637.0, 0.08, 0.15);  // sparkle
+      return b.toPcm();
+    }
+    case Sound::FavoriteNear: {
+      Buffer b(rate, 1.45);
+      for (int i = 0; i < 2; ++i) {
+        b.tone(i * 0.7, 0.4, 1174.66, 1174.66, 0.45, 0.25);         // D6
+        b.tone(i * 0.7 + 0.22, 0.45, 880.0, 880.0, 0.45, 0.28);     // A5
+      }
+      return b.toPcm();
+    }
     default:
       return {};
   }

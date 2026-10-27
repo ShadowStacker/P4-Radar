@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <string>
 
+#include <vector>
+
+#include "core/favorites.h"
 #include "core/geo.h"
 #include "core/settings.h"
 #include "core/sound_synth.h"
@@ -46,6 +49,15 @@ struct FeedStatus {
   char error[48] = "";
 };
 FeedStatus feedStatus();
+
+// --- Favorites (thread-safe) ---------------------------------------------------
+std::vector<core::Favorite> favorites();
+bool isFavorite(const char* hex);
+/** Adds or removes the aircraft. Returns true if it is now a favorite. */
+bool toggleFavorite(const core::Aircraft& a);
+void removeFavorite(const char* hex);
+/** Next on-screen notice from the poller ("RCH471 detected"), if any. */
+bool popNotice(std::string* out);
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);

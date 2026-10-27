@@ -18,6 +18,7 @@ Palette makePalette(core::Theme t) {
   p.vector = hex(0xE0E0E0);
   p.home = hex(0xFFFFFF);
   p.select = hex(0xFFFFFF);
+  p.favorite = hex(0xFFC83C);
   p.text = hex(0xEAF2F5);
   p.text_dim = hex(0x8EA3AE);
   p.warn = hex(0xFFB020);
@@ -81,6 +82,7 @@ Palette makePalette(core::Theme t) {
       p.text_dim = hex(0x903030);
       p.home = hex(0xD04040);
       p.select = hex(0xFF6060);
+      p.favorite = hex(0xFF8C40);  // stays warm, but distinct from the red labels
       break;
     case core::Theme::Phosphor:
     default:

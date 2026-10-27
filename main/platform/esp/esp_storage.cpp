@@ -18,8 +18,21 @@ namespace {
 const char* TAG = "storage";
 constexpr char kNamespace[] = "radar";
 
-// Size of Settings up to its last field as of v1.0.3, before fields were appended.
-constexpr size_t kLegacySettingsSize = offsetof(core::Settings, poll_interval_s) + sizeof(uint8_t);
+/**
+ * How much of a saved blob to trust, by its version. Fields past this point
+ * keep their defaults. (Version 1 stops before autohide_buttons on purpose:
+ * its default changed to on in v1.2.0.)
+ */
+size_t validPrefix(uint16_t version) {
+  switch (version) {
+    case 1:
+      // v1.0.x and v1.1.0 blobs are the same size. In v1.0.x the byte that is
+      // now military_only was zero-filled padding, which reads as its default.
+      return offsetof(core::Settings, autohide_buttons);
+    case 2: return sizeof(core::Settings);
+    default: return 0;
+  }
+}
 
 struct Blob {
   uint16_t version;
@@ -44,14 +57,14 @@ void settingsLoad(core::Settings* s) {
       std::memcpy(&version, raw.data() + offsetof(Blob, version), sizeof(version));
       std::memcpy(&size, raw.data() + offsetof(Blob, size), sizeof(size));
       const size_t stored = std::min<size_t>(size, len - offsetof(Blob, settings));
-      if (version == core::Settings::kVersion) {
-        // Stop at the first appended field: an old blob's tail padding would
-        // otherwise overwrite new fields with zeros instead of their defaults.
-        const size_t copy = size == sizeof(core::Settings)
-                                ? std::min(stored, sizeof(core::Settings))
-                                : std::min(stored, kLegacySettingsSize);
+      // Copy only fields that existed in the saved version; an old blob's tail
+      // padding would otherwise overwrite newer fields with zeros.
+      const size_t copy = std::min(stored, validPrefix(version));
+      if (copy > 0) {
         std::memcpy(static_cast<void*>(s), raw.data() + offsetof(Blob, settings), copy);
-        if (copy < sizeof(core::Settings)) ESP_LOGI(TAG, "upgraded settings from older firmware");
+        if (version != core::Settings::kVersion) {
+          ESP_LOGI(TAG, "upgraded settings from version %u", version);
+        }
       } else {
         ESP_LOGW(TAG, "settings version %u not supported; using defaults (Wi-Fi kept)", version);
       }
@@ -79,6 +92,34 @@ void settingsSave(const core::Settings& s) {
   nvs_set_str(h, "ssid", s.wifi_ssid);
   nvs_set_str(h, "pass", s.wifi_pass);
   if (nvs_commit(h) != ESP_OK) ESP_LOGE(TAG, "nvs_commit failed");
+  nvs_close(h);
+}
+
+void favoritesLoad(std::vector<core::Favorite>* out) {
+  out->clear();
+  nvs_handle_t h;
+  if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) return;
+  size_t len = 0;
+  if (nvs_get_blob(h, "favs", nullptr, &len) == ESP_OK && len % sizeof(core::Favorite) == 0) {
+    out->resize(std::min(len / sizeof(core::Favorite), core::kMaxFavorites));
+    len = out->size() * sizeof(core::Favorite);
+    if (nvs_get_blob(h, "favs", out->data(), &len) != ESP_OK) out->clear();
+    for (core::Favorite& f : *out) {  // never trust stored strings to be terminated
+      f.hex[sizeof(f.hex) - 1] = f.label[sizeof(f.label) - 1] = f.type[sizeof(f.type) - 1] = '\0';
+    }
+  }
+  nvs_close(h);
+}
+
+void favoritesSave(const std::vector<core::Favorite>& favs) {
+  nvs_handle_t h;
+  if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) return;
+  if (favs.empty()) {
+    nvs_erase_key(h, "favs");
+  } else {
+    nvs_set_blob(h, "favs", favs.data(), favs.size() * sizeof(core::Favorite));
+  }
+  if (nvs_commit(h) != ESP_OK) ESP_LOGE(TAG, "nvs_commit failed (favorites)");
   nvs_close(h);
 }
 

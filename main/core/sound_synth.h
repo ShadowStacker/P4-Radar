@@ -13,6 +13,8 @@ enum class Sound : uint8_t {
   Emergency,     // emergency squawk: warbling siren
   Startup,       // rising arpeggio at boot
   Home,          // whoosh-ish sweep when returning home
+  FavoriteSeen,  // bright rising three-note fanfare
+  FavoriteNear,  // insistent two-tone "ding-dong", repeated
   kCount
 };
 

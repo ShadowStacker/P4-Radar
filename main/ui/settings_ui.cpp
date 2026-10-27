@@ -17,6 +17,7 @@
 #include "ui/hud.h"
 #include "ui/keyboard.h"
 #include "ui/radar_view.h"
+#include "ui/sprites.h"
 #include "ui/theme.h"
 #include "ui/widgets.h"
 
@@ -246,6 +247,7 @@ void pageMain() {
   navRow(LV_SYMBOL_IMAGE, "Display", "", Page::Display);
   navRow(LV_SYMBOL_VOLUME_MAX, "Sound", st.sound_enabled ? fmtStr("%d%%", st.volume) : "Off", Page::Sound);
   navRow(LV_SYMBOL_GPS, "Traffic & data", core::adsb::sourceName(st.source), Page::Traffic);
+  navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
 
@@ -482,9 +484,10 @@ void pageSound() {
   switchRow("Touches", &st.sound_touch);
   switchRow("New aircraft", &st.sound_new_aircraft);
   switchRow("Each sweep (sonar ping)", &st.sound_sweep_ping);
-  switchRow("Alerts & emergencies", &st.sound_alerts);
+  switchRow("Emergency squawks", &st.sound_alerts);
 
-  section("PROXIMITY ALERT");
+  section("PROXIMITY ALERT (ANY AIRCRAFT)");
+  switchRow("Proximity alert", &st.sound_proximity);
   sliderRow("Alert radius", 1, 20, static_cast<int>(app::kmToUnits(st.alert_radius_km) + 0.5),
             [](int v) { app::settings().alert_radius_km = static_cast<float>(app::unitsToKm(v)); },
             [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
@@ -492,11 +495,79 @@ void pageSound() {
             [](int v) { app::settings().alert_max_alt_ft = v * 500; },
             [](int v) { return fmtStr("%d ft", v * 500); });
 
+  section("FAVORITES");
+  switchRow("Favorite detected", &st.sound_favorite_seen);
+  switchRow("Favorite nearby", &st.sound_favorite_near);
+  sliderRow("Nearby radius", 1, 100, static_cast<int>(app::kmToUnits(st.favorite_near_radius_km) + 0.5),
+            [](int v) { app::settings().favorite_near_radius_km = static_cast<float>(app::unitsToKm(v)); },
+            [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
+
   section("TEST");
   actionRow(LV_SYMBOL_PLAY, "Sonar ping", [] { plat::playSound(core::Sound::Ping); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "New aircraft chime", [] { plat::playSound(core::Sound::NewAircraft); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Proximity alert", [] { plat::playSound(core::Sound::Alert); }, pal().text);
+  actionRow(LV_SYMBOL_PLAY, "Favorite detected", [] { plat::playSound(core::Sound::FavoriteSeen); }, pal().text);
+  actionRow(LV_SYMBOL_PLAY, "Favorite nearby", [] { plat::playSound(core::Sound::FavoriteNear); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Emergency", [] { plat::playSound(core::Sound::Emergency); }, pal().text);
+}
+
+void pageFavorites() {
+  const Palette& p = pal();
+  const std::vector<core::Favorite> favs = app::favorites();
+  std::vector<core::Track> tracks;
+  app::traffic().snapshot(tracks);
+
+  if (favs.empty()) {
+    lv_obj_t* l = label(s.list,
+                        "No favorites yet.\n\nTap an aircraft on the radar, then the\nstar on its info card to save it.",
+                        font(FontSize::M), p.text_dim);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(l, lv_pct(100));
+    lv_obj_set_style_pad_top(l, sc(30), 0);
+    return;
+  }
+
+  label(s.list, fmtStr("%u of %u saved", static_cast<unsigned>(favs.size()),
+                       static_cast<unsigned>(core::kMaxFavorites)).c_str(),
+        font(FontSize::S), p.text_dim);
+  const auto& st = app::settings();
+  const core::LatLon home{st.home_lat, st.home_lon};
+  for (const core::Favorite& f : favs) {
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_t* star = lv_image_create(r);
+    lv_image_set_src(star, sprites::star(sprites::starButtonSize()));
+    lv_obj_set_style_image_recolor(star, p.favorite, 0);
+    lv_obj_set_style_image_recolor_opa(star, LV_OPA_COVER, 0);
+
+    std::string status = "not in range";
+    for (const core::Track& t : tracks) {
+      if (std::strcmp(t.ac.hex, f.hex) == 0) {
+        char d[20];
+        app::formatDistance(core::distanceKm(home, core::positionAt(t, plat::millis())), d, sizeof(d));
+        status = std::string("in range, ") + d;
+        break;
+      }
+    }
+    lv_obj_t* col = lv_obj_create(r);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    label(col, f.label, font(FontSize::M), p.text);
+    label(col, fmtStr("%s  %s  -  %s", f.type[0] ? f.type : "?", f.hex, status.c_str()).c_str(),
+          font(FontSize::S), p.text_dim);
+
+    const std::string hex = f.hex, name = f.label;
+    lv_obj_t* del = iconButton(r, LV_SYMBOL_TRASH, sc(56), nullptr);
+    onClick(del, [hex, name] {
+      confirm("Remove favorite?", (name + " will no longer be highlighted or announced.").c_str(), "Remove",
+              [hex] {
+                app::removeFavorite(hex.c_str());
+                RadarView::get().markStaticDirty();
+                showPage(Page::Favorites);
+              });
+    });
+  }
 }
 
 void pageTraffic() {
@@ -575,6 +646,7 @@ const char* pageTitle(Page p) {
     case Page::Display: return "Display";
     case Page::Sound: return "Sound";
     case Page::Traffic: return "Traffic & data";
+    case Page::Favorites: return "Favorites";
     case Page::About: return "About";
     default: return "Settings";
   }
@@ -595,6 +667,7 @@ void showPage(Page page) {
     case Page::Display: pageDisplay(); break;
     case Page::Sound: pageSound(); break;
     case Page::Traffic: pageTraffic(); break;
+    case Page::Favorites: pageFavorites(); break;
     case Page::About: pageAbout(); break;
     default: pageMain(); break;
   }

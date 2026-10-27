@@ -16,9 +16,11 @@ enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2 };
  * never loses the network.
  */
 struct Settings {
-  // Bump only for incompatible changes (reordering/removing fields). New
-  // fields are appended instead; see the end of the struct.
-  static constexpr uint16_t kVersion = 1;
+  // New fields are appended (see the end of the struct). The version marks
+  // where a saved blob's fields end; bump it whenever fields are added.
+  //   1: up to poll_interval_s (v1.0.x) or autohide_buttons (v1.1.0)
+  //   2: up to favorite_near_radius_km (v1.2.0)
+  static constexpr uint16_t kVersion = 2;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -53,7 +55,7 @@ struct Settings {
   bool sound_touch = true;
   bool sound_new_aircraft = true;
   bool sound_sweep_ping = false;
-  bool sound_alerts = true;        // emergency squawks + close approach
+  bool sound_alerts = true;        // emergency squawks (proximity has its own switch below)
   float alert_radius_km = 3.0f;
   int32_t alert_max_alt_ft = 5000;
 
@@ -70,7 +72,13 @@ struct Settings {
   // older firmware are loaded by copying the prefix they contain, and anything
   // past it keeps the defaults here.
   bool military_only = false;
-  bool autohide_buttons = false;  // fade the radar's buttons after 10 s idle
+  bool autohide_buttons = true;  // fade the radar's buttons after 10 s idle
+
+  // v1.2.0
+  bool sound_proximity = false;        // any aircraft inside alert_radius_km
+  bool sound_favorite_seen = true;     // a favorite comes into range
+  bool sound_favorite_near = true;     // a favorite comes within favorite_near_radius_km
+  float favorite_near_radius_km = 15.0f;
 };
 
 }  // namespace core

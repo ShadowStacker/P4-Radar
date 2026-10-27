@@ -16,6 +16,14 @@ const lv_draw_buf_t* get(Kind kind, float heading_deg);
 /** Sprite edge length in px (sprites are square, centered on the aircraft). */
 int32_t size(Kind kind);
 
+/**
+ * White five-pointed star, `size` px square, for favorites (the built-in
+ * fonts have no star glyph). Rendered once per size and cached.
+ */
+const lv_draw_buf_t* star(int32_t size);
+int32_t starBadgeSize();   // radar badge next to a favorite aircraft
+int32_t starButtonSize();  // star buttons in the info card and lists
+
 /** Picks a sprite family from the ADS-B emitter category (A1..A7, C1..). */
 Kind kindFor(const char* category, bool on_ground);
 
