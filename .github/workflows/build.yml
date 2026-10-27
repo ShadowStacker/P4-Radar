@@ -64,6 +64,8 @@ jobs:
             build/partition_table/partition-table.bin
             build/flasher_args.json
             build/plane-radar-merged.bin
+            build/plane_radar_p4.elf
+            build/bootloader/bootloader.elf
 
   simulator:
     runs-on: ubuntu-latest
@@ -104,9 +106,11 @@ jobs:
           for board in 3.4in-800x800 4in-720x720; do
             for chip in chip-v3 chip-v1; do
               cp "artifacts/plane-radar-$board-$chip/plane-radar-merged.bin" "dist/plane-radar-$board-$chip-${VERSION}.bin"
+              # Symbol files, so crash backtraces from this exact build can be decoded.
+              cp "artifacts/plane-radar-$board-$chip/plane_radar_p4.elf" "dist/symbols-$board-$chip-${VERSION}.elf"
             done
           done
-          (cd dist && sha256sum *.bin > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          (cd dist && sha256sum *.bin *.elf > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -140,6 +144,9 @@ jobs:
           `ESP-ROM:esp32p4-eco2-...` means revision v1.x (use `chip-v1`); a v3.x chip
           (use `chip-v3`) reports a newer ROM, and esptool shows "revision v3.x".
           If the board isn't detected: hold BOOT, tap RESET, release BOOT.
+
+          The `symbols-*.elf` files aren't for flashing. They decode crash backtraces
+          (`idf.py monitor` or `riscv32-esp-elf-addr2line -pfiaC -e symbols-....elf <addresses>`).
           NOTES
           gh release create "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Plane Radar P4 $VERSION" --notes-file notes.md
