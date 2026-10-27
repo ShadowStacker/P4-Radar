@@ -58,7 +58,7 @@ You can redo any of this later from **Settings** (the gear button).
 | **Rim dots** | Aircraft beyond the edge of the screen, shown at the correct bearing. |
 | **Red pulsing ring** | Emergency: squawk 7500 (hijack), 7600 (radio failure) or 7700 (general emergency). |
 | **Gold ring + star** | One of your [favorites](#favorites). |
-| **Runways and codes** | Airports from the built-in database. Large airports show below 250 km of zoom, medium below 70 km, small fields below 35 km. Faint thin runways are unpaved, or placed approximately (strips with no surveyed coordinates). |
+| **Runways and codes** | Airports from the built-in database. Large airports show below 250 km of zoom, medium below 70 km, small fields below 35 km. Faint thin runways are unpaved, or placed approximately (strips with no surveyed coordinates). Codes are ICAO (`KRDM`), but fields with only a local code use their IATA code if they have one (Prineville `S39` shows as `PRZ`). See **Airport code style**. |
 | **Status pill** (top) | Aircraft count, filtered count, zoom radius, and any problem (Wi-Fi, feed errors, stale data). Tap it: it opens Wi-Fi when offline, About when online. |
 
 Between data updates (every 5 s by default) aircraft keep moving along their
@@ -83,20 +83,25 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | Button | Position | Action |
 |---|---|---|
 | ⚙ Gear | top right | Open Settings |
+| ⏷ Funnel | right | Open the [Filters](#filters) page. Lit while a filter is hiding aircraft. |
+| 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Zoom in / out by 2× |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
 
-With **Auto-hide buttons** on (the default), the buttons fade out after
-10 seconds without a touch. Touch anywhere to bring them back. They stay
-visible while an info card is open.
+With **Auto-hide buttons** on (the default), the buttons and the status pill
+fade out after 10 seconds without a touch. Touch anywhere to bring them back.
+They stay visible while an info card is open, and while the status pill is
+reporting a problem (offline, feed errors).
 
 ### The aircraft info card
 
 | Field | Meaning |
 |---|---|
 | Callsign + type badge | Flight number (or registration) and ICAO type code, e.g. `B738`. **MIL** = military. |
-| Second line | Registration, ICAO hex address, emitter category (e.g. `cat A3`), and the [flight history](#flight-history) status |
+| Route | Where the flight is from and going, e.g. *Dublin (DUB) > Lanzarote (ACE)*. Shown when the route is known. |
+| Airline line | The airline (or the registered owner for private and military aircraft) and the exact model, e.g. *Ryanair - Boeing 737-8AS* |
+| Next line | Registration, ICAO hex address, emitter category (e.g. `cat A3`), and the [flight history](#flight-history) status |
 | ALT | Barometric altitude in feet (or "Ground") |
 | V/S | Vertical speed in ft/min (+ climbing, − descending) |
 | SPEED | Ground speed in knots |
@@ -109,6 +114,16 @@ Card buttons:
 - ➤ **Follow**: keep this aircraft on screen. The map re-centers whenever it
   drifts away from the middle. Panning or pinching stops following.
 - ✕ **Close**: close the card.
+
+**Where the airline and route come from.** When you tap an aircraft, the radar
+looks it up on [adsbdb.com](https://www.adsbdb.com), a free database of
+airframes and callsign routes. Routes are matched by flight number from a
+community-maintained list, so occasionally they are out of date (a flight
+number reused for a different route) or missing, mostly for private,
+military and charter flights. Results are remembered for the last 24 aircraft.
+The card says *Looking up airline and route...* while it waits, and
+*No airline or route info* if adsbdb knows nothing. Turn it off with
+**Display → Airline and route on tap**.
 
 ### Flight history
 
@@ -133,9 +148,16 @@ feed saw it). Zoom out to see the whole route.
 
 ## Settings reference
 
-Open with the gear button. **<** goes back a level and **X** returns to the
-radar. Changes apply immediately and are saved automatically a couple of
-seconds later.
+Open with the gear button (or the funnel button for Filters).
+
+- Changes show up right away, so you can see what they do.
+- **<** goes back a level. On the main settings page it returns to the radar
+  and **keeps** your changes.
+- **X** returns to the radar and **discards** everything you changed since you
+  opened settings: options, home location, filters, theme and removed
+  favorites. It says *Changes discarded*. Two things can't be undone this way:
+  Wi-Fi (joining or forgetting a network happens right away) and a restart you
+  confirmed (screen rotation, erase settings).
 
 ### Wi-Fi
 
@@ -167,19 +189,24 @@ proximity and favorite alerts.
 
 | Option | What it does | Default |
 |---|---|---|
-| Theme | **Green** (classic phosphor), **Amber**, **Blue**, **Night** (dim red to preserve night vision; aircraft colors stay red) | Green |
+| Theme | **Green** (classic phosphor), **Amber**, **Blue**, **Night** (dim red to preserve night vision; aircraft colors stay red), **Custom** (your own colors, see below) | Green |
+| Custom colors | Only with the Custom theme: opens the [Custom colors](#custom-colors) page | |
 | Brightness | Backlight level, 5–100 % | 80 % |
-| Distance units | km, statute miles (mi) or nautical miles (nm), for rings, the zoom readout and distances | km |
+| Distance units | km, statute miles (mi) or nautical miles (nm), for rings, the zoom readout and distances | mi |
 | Screen rotation (clockwise) | Turn the whole picture by 0°, 90°, 180° or 270°, e.g. when the board is mounted with its USB port on another side. North stays at the top of the rotated screen and touch follows the rotation. Asks to restart, which applies it. If you skip the restart, it applies at the next power-up. | 0° |
 | Auto-hide buttons after 10 s | Fade the radar buttons out when idle; touch to show them again | On |
 | Labels | **Off**: no labels, except the selected aircraft, emergencies and favorites. **Callsign**: one line. **Full**: callsign + altitude/climb/type. | Full |
 | Aircraft colors | **Theme**: one color. **By altitude**: color gradient by altitude. | By altitude |
+| Aircraft size | Size of the aircraft symbols, 60–160 % | 100 % |
+| Label size | **Small**, **Normal** or **Large** text for aircraft labels | Normal |
 | Trails | Show where aircraft have been (the last few minutes) | On |
 | Flight history on tap | Download and draw the whole current flight of the aircraft you tap. See [Flight history](#flight-history). | On |
+| Airline and route on tap | Look up the airline, origin, destination and model of the aircraft you tap, see [the info card](#the-aircraft-info-card) | On |
 | Speed vectors (1 min) | Line showing each aircraft's position one minute ahead | On |
 | Range rings | Distance rings and crosshair around home | On |
 | Runways | Draw airport runways | On |
 | Airport codes | Label airports with their code | On |
+| Airport code style | **ICAO** (`KRDM`; fields with only a local code such as `S39` use their IATA code, `PRZ`) or **IATA** (`RDM`, wherever one exists) | ICAO |
 | Radar sweep | The rotating beam animation | On |
 | Sweep speed | Revolutions per minute, 4–60 | 15 rpm |
 | Sweep trail | Length of the glowing trail behind the beam, 0–180°. **0 = clean bar** (just the beam line). | 70° |
@@ -187,6 +214,22 @@ proximity and favorite alerts.
 | Echoes fade after the beam | Aircraft dim after the beam passes and brighten on the next pass, like a real radar scope. Selected aircraft, emergencies and favorites stay bright. | Off |
 | Dim when idle | Lower the backlight after Never / 1 / 5 / 15 / 30 minutes without a touch. Touch to wake. | Never |
 | Dimmed brightness | Backlight level while dimmed, 0–50 % | 10 % |
+
+#### Custom colors
+
+Pick **Custom** as the theme, then tap **Custom colors**. Four swatches at the
+top preview the radar color, background, aircraft and labels as you move the
+sliders. The whole screen switches to the new colors when you let go of a
+slider.
+
+| Option | What it does | Default |
+|---|---|---|
+| Radar color: hue / saturation | The main color: sweep, rings, compass, trails and buttons. Hue goes around the color wheel (0 red, 120 green, 200 blue). Saturation 0 is gray. | 175°, 80 % (teal) |
+| Background brightness | 0 = black; higher values give a tinted background | 6 % |
+| Rings and compass brightness | How bright the range rings and compass marks are | 45 % |
+| Aircraft color: hue / saturation | Aircraft symbol color when **Aircraft colors** is set to **Theme**. Saturation 0 = white. | White |
+| Label color: hue / saturation | Aircraft label text color. Saturation 0 = white. | White |
+| Reset custom colors | Back to the defaults above | |
 
 ### Sound
 
@@ -365,6 +408,7 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | "Rate limited - slow down polling" | The feed is asking for fewer requests. Raise **Update every**, or switch **ADS-B feed**. |
 | "Loading traffic..." forever | Check the internet connection, or try another feed. |
 | No aircraft, but everything else works | Check **Filters** (the status pill says "filtered"). Also zoom out; there may simply be no traffic nearby. |
+| Airline or route is wrong | Routes come from adsbdb.com's community list by flight number, and can be stale. Corrections can be reported on [adsbdb's GitHub](https://github.com/mrjackwills/adsbdb/issues). |
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
 | Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |

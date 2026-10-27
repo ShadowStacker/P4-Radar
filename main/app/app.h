@@ -7,6 +7,7 @@
 
 #include "core/favorites.h"
 #include "core/geo.h"
+#include "core/route.h"
 #include "core/settings.h"
 #include "core/sound_synth.h"
 #include "core/trace.h"
@@ -28,6 +29,8 @@ core::Settings& settings();
 void settingsChanged();
 /** Writes pending settings to flash immediately. */
 void settingsFlush();
+/** Counts settingsChanged() calls, to tell whether anything changed since a snapshot. */
+uint32_t settingsGeneration();
 /** Called periodically from the UI task (handles debounced save, dimming). */
 void tick(uint32_t now_ms);
 /** Reset the idle timer (any touch). Returns true if the screen was dimmed. */
@@ -58,6 +61,8 @@ bool isFavorite(const char* hex);
 /** Adds or removes the aircraft. Returns true if it is now a favorite. */
 bool toggleFavorite(const core::Aircraft& a);
 void removeFavorite(const char* hex);
+/** Replaces the whole list (used to undo edits). */
+void setFavorites(const std::vector<core::Favorite>& favs);
 /** Next on-screen notice from the poller ("RCH471 detected"), if any. */
 bool popNotice(std::string* out);
 
@@ -85,6 +90,22 @@ uint32_t traceCopy(core::trace::Trace* out);
  * true if it made a request.
  */
 bool serviceTrace();
+
+// --- Airline / route of the selected aircraft (adsbdb.com) --------------------
+enum class RouteStatus : uint8_t { None, Loading, Ready, Unknown };
+
+struct RouteState {
+  RouteStatus status = RouteStatus::None;
+  char hex[8] = "";
+  char callsign[9] = "";
+  core::route::Info info;
+};
+
+/** Asks the poller to look up the aircraft ("" cancels). Cached per aircraft and callsign. */
+void requestRoute(const char* hex, const char* callsign);
+RouteState routeState();
+/** Runs a pending lookup (network task); true if it made a request. */
+bool serviceRoute();
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);

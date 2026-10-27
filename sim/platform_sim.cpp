@@ -1,5 +1,6 @@
 // Fake implementations of platform.h for the desktop simulator.
 
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -19,6 +20,7 @@ Touch g_touch;
 bool g_preset_wifi = true;
 std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
+std::function<std::string(const std::string&)> g_route_server;
 }  // namespace sim
 
 namespace plat {
@@ -120,6 +122,17 @@ bool wifiScanResults(std::vector<WifiNetwork>* out) {
 // Only the trace endpoint is simulated (traffic is fed directly). Bodies are
 // gzip-compressed like the real servers send them.
 int httpGet(const char* url, std::string* body, int, const char* const*) {
+  if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
+    if (!sim::g_route_server) return -1;
+    std::string hex(ac + std::strlen("adsbdb.com/v0/aircraft/"));
+    hex = hex.substr(0, hex.find('?'));
+    for (char& c : hex) c = static_cast<char>(std::tolower(c));
+    const std::string json = sim::g_route_server(hex);
+    if (json.empty()) return 404;
+    body->append(json);
+    return 200;
+  }
+  if (std::strstr(url, "adsbdb.com") != nullptr) return 404;
   const char* name = std::strstr(url, "/trace_full_");
   if (name == nullptr || !sim::g_trace_server) return -1;
   std::string hex(name + std::strlen("/trace_full_"));

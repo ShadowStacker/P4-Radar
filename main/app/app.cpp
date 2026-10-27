@@ -13,6 +13,7 @@
 #include "core/adsb.h"
 #include "core/filter.h"
 #include "core/inflate.h"
+#include "core/route.h"
 #include "core/trace.h"
 #include "platform/platform.h"
 
@@ -24,6 +25,7 @@ core::Settings s_settings;
 core::TrafficStore s_traffic;
 
 bool s_dirty = false;
+uint32_t s_generation = 0;
 uint32_t s_dirty_since = 0;
 constexpr uint32_t kSaveDebounceMs = 2500;
 
@@ -51,6 +53,26 @@ uint32_t s_trace_fetched_ms = 0;
 constexpr uint32_t kTraceRefreshMs = 120000;      // keep the history joined to the live trail
 constexpr uint32_t kTraceRetryMs = 300000;        // after "not available"
 constexpr size_t kMaxTraceJson = 8 * 1024 * 1024;  // decompressed
+
+// Airline / route lookups. Guarded by s_route_mu.
+std::mutex s_route_mu;
+RouteState s_route;
+bool s_route_pending = false;
+std::deque<RouteState> s_route_cache;  // most recent first
+constexpr size_t kRouteCacheSize = 24;
+
+bool sameKey(const RouteState& r, const char* hex, const char* callsign) {
+  return std::strcmp(r.hex, hex) == 0 && std::strcmp(r.callsign, callsign) == 0;
+}
+
+/** One adsbdb GET merged into `info`; returns the HTTP status. */
+int routeGet(const std::string& url, core::route::Info* info) {
+  std::string body;
+  const int code = plat::httpGet(url.c_str(), &body, 10000);
+  if (code == 200 && !core::route::parse(body.data(), body.size(), info)) return -2;
+  std::printf("route: %s -> %d\n", url.c_str(), code);
+  return code;
+}
 
 /** Tries each trace host in turn; true once one returned a usable trace. */
 bool downloadTrace(const char* hex, core::trace::Trace* out) {
@@ -183,7 +205,7 @@ void networkLoop() {
       plat::sleepMs(100);
       continue;
     }
-    if (!first && now - last_fetch >= kMinFetchSpacingMs && serviceTrace()) {
+    if (!first && now - last_fetch >= kMinFetchSpacingMs && (serviceRoute() || serviceTrace())) {
       last_fetch = plat::millis();
       continue;
     }
@@ -229,10 +251,13 @@ void init() {
 core::Settings& settings() { return s_settings; }
 
 void settingsChanged() {
+  ++s_generation;
   applyHardware();
   if (!s_dirty) s_dirty_since = plat::millis();
   s_dirty = true;
 }
+
+uint32_t settingsGeneration() { return s_generation; }
 
 void settingsFlush() {
   if (!s_dirty) return;
@@ -321,6 +346,14 @@ void removeFavorite(const char* hex) {
   plat::favoritesSave(copy);
 }
 
+void setFavorites(const std::vector<core::Favorite>& favs) {
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    s_favorites = favs;
+  }
+  plat::favoritesSave(favs);
+}
+
 bool popNotice(std::string* out) {
   std::lock_guard<std::mutex> lock(s_mu);
   if (s_notices.empty()) return false;
@@ -361,6 +394,66 @@ uint32_t traceCopy(core::trace::Trace* out) {
   std::lock_guard<std::mutex> lock(s_trace_mu);
   *out = s_trace;
   return s_trace_info.version;
+}
+
+void requestRoute(const char* hex, const char* callsign) {
+  std::lock_guard<std::mutex> lock(s_route_mu);
+  if (!s_settings.show_route_info) hex = "";
+  if (hex[0] == '\0') callsign = "";
+  if (sameKey(s_route, hex, callsign)) return;
+  s_route = RouteState{};
+  std::snprintf(s_route.hex, sizeof(s_route.hex), "%s", hex);
+  std::snprintf(s_route.callsign, sizeof(s_route.callsign), "%s", callsign);
+  s_route_pending = false;
+  if (hex[0] == '\0') return;
+  for (const RouteState& c : s_route_cache) {
+    if (sameKey(c, hex, callsign)) {
+      s_route = c;
+      return;
+    }
+  }
+  s_route.status = RouteStatus::Loading;
+  s_route_pending = true;
+}
+
+RouteState routeState() {
+  std::lock_guard<std::mutex> lock(s_route_mu);
+  return s_route;
+}
+
+bool serviceRoute() {
+  char hex[8], callsign[9];
+  {
+    std::lock_guard<std::mutex> lock(s_route_mu);
+    if (!s_route_pending) return false;
+    s_route_pending = false;
+    std::memcpy(hex, s_route.hex, sizeof(hex));
+    std::memcpy(callsign, s_route.callsign, sizeof(callsign));
+  }
+
+  core::route::Info info;
+  int code = routeGet(core::route::aircraftUrl(hex, callsign), &info);
+  bool reached = code == 200 || code == 404;
+  // Unknown airframe (404): the callsign alone may still have a route.
+  if (code == 404 && callsign[0]) reached = routeGet(core::route::callsignUrl(callsign), &info) > 0;
+  // No route: at least name the airline from the callsign prefix.
+  const std::string prefix = core::route::airlinePrefix(callsign);
+  if (reached && info.airline[0] == '\0' && !prefix.empty()) routeGet(core::route::airlineUrl(prefix.c_str()), &info);
+
+  std::lock_guard<std::mutex> lock(s_route_mu);
+  RouteState done;
+  std::memcpy(done.hex, hex, sizeof(hex));
+  std::memcpy(done.callsign, callsign, sizeof(callsign));
+  done.info = info;
+  const bool any = info.airline[0] || info.model[0] || info.owner[0] || info.has_route;
+  done.status = any ? RouteStatus::Ready : RouteStatus::Unknown;
+  // Network errors aren't cached, so the next tap tries again.
+  if (reached) {
+    s_route_cache.push_front(done);
+    if (s_route_cache.size() > kRouteCacheSize) s_route_cache.pop_back();
+  }
+  if (sameKey(s_route, hex, callsign)) s_route = done;
+  return true;
 }
 
 bool serviceTrace() {

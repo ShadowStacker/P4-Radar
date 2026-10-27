@@ -15,6 +15,7 @@
 #include "core/geo.h"
 #include "core/inflate.h"
 #include "core/rotation.h"
+#include "core/route.h"
 #include "core/sound_synth.h"
 #include "core/trace.h"
 #include "core/traffic.h"
@@ -502,6 +503,48 @@ void testTrace() {
         "https://globe.adsb.fi/data/traces/b5/trace_full_4ca7b5.json");
 }
 
+void testRoute() {
+  // Combined aircraft + flightroute response (shape from adsbdb's README).
+  const char* json =
+      "{\"response\":{\"aircraft\":{\"type\":\"737-8AS\",\"icao_type\":\"B738\",\"manufacturer\":\"Boeing\","
+      "\"mode_s\":\"4CA7B5\",\"registration\":\"EI-DAC\",\"registered_owner_country_iso_name\":\"IE\","
+      "\"registered_owner\":\"Ryanair\",\"url_photo\":null},"
+      "\"flightroute\":{\"callsign\":\"RYR12AB\",\"callsign_icao\":\"RYR12AB\",\"callsign_iata\":\"FR12AB\","
+      "\"airline\":{\"name\":\"Ryanair\",\"icao\":\"RYR\",\"iata\":\"FR\",\"country\":\"Ireland\"},"
+      "\"origin\":{\"country_iso_name\":\"IE\",\"elevation\":242,\"iata_code\":\"DUB\",\"icao_code\":\"EIDW\","
+      "\"latitude\":53.4,\"longitude\":-6.27,\"municipality\":\"Dublin\",\"name\":\"Dublin Airport\"},"
+      "\"destination\":{\"iata_code\":null,\"icao_code\":\"GCRR\",\"municipality\":\"\","
+      "\"name\":\"Lanzarote Airport\"}}}}";
+  core::route::Info in;
+  CHECK(core::route::parse(json, std::strlen(json), &in));
+  CHECK(std::strcmp(in.airline, "Ryanair") == 0);
+  CHECK(std::strcmp(in.model, "Boeing 737-8AS") == 0);
+  CHECK(in.has_route);
+  CHECK(std::strcmp(in.origin.code, "DUB") == 0 && std::strcmp(in.origin.city, "Dublin") == 0);
+  CHECK(std::strcmp(in.destination.code, "GCRR") == 0);                 // no IATA -> ICAO
+  CHECK(std::strcmp(in.destination.city, "Lanzarote Airport") == 0);    // no municipality -> name
+
+  core::route::Info only_ac;
+  const char* ac = "{\"response\":{\"aircraft\":{\"type\":\"Cessna 172S\",\"manufacturer\":\"Cessna\","
+                   "\"registered_owner\":\"Flying Club\"}}}";
+  CHECK(core::route::parse(ac, std::strlen(ac), &only_ac));
+  CHECK(std::strcmp(only_ac.model, "Cessna 172S") == 0);  // type already starts with the maker
+  CHECK(!only_ac.has_route && std::strcmp(only_ac.owner, "Flying Club") == 0);
+
+  const char* airline = "{\"response\":[{\"name\":\"KLM Royal Dutch Airlines\",\"icao\":\"KLM\"}]}";
+  core::route::Info al;
+  CHECK(core::route::parse(airline, std::strlen(airline), &al) && std::strcmp(al.airline, "KLM Royal Dutch Airlines") == 0);
+  core::route::Info none;
+  CHECK(!core::route::parse("{\"response\":\"unknown aircraft\"}", 32, &none));
+  CHECK(!core::route::parse("not json", 8, &none));
+
+  CHECK(core::route::airlinePrefix("RYR12AB") == "RYR");
+  CHECK(core::route::airlinePrefix("N123AB").empty());
+  CHECK(core::route::airlinePrefix("PHABC").empty());
+  CHECK(core::route::aircraftUrl("4ca7b5", "RYR12AB ") == "https://api.adsbdb.com/v0/aircraft/4CA7B5?callsign=RYR12AB");
+  CHECK(core::route::aircraftUrl("~1234ab", "") == "https://api.adsbdb.com/v0/aircraft/1234AB");
+}
+
 void testRotation() {
   const int W = 720, H = 720;
   for (int q = 0; q < 4; ++q) {
@@ -536,6 +579,7 @@ int main() {
   testInflate();
   testTrace();
   testRotation();
+  testRoute();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

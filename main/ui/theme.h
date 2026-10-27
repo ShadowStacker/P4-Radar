@@ -35,7 +35,10 @@ struct Palette {
 };
 
 const Palette& pal();
-void setTheme(core::Theme t);
+/** Builds the palette for st.theme (Custom uses the st.custom_* colors) and the label size. */
+void setTheme(const core::Settings& st);
+/** The palette a Custom theme with these settings would have (for previews). */
+Palette customPalette(const core::Settings& st);
 
 /** Scales a size designed for the 800 px panel to the actual resolution. */
 int32_t sc(int32_t px_at_800);
@@ -48,6 +51,8 @@ lv_color_t altitudeColor(int32_t alt_ft, bool on_ground);
 
 enum class FontSize { S, M, L, XL, XXL };
 const lv_font_t* font(FontSize s);
+/** Font for aircraft labels on the radar (Display -> Label size). */
+const lv_font_t* labelFont();
 
 /** Applies the theme to an LVGL theme + default styles; call after setTheme. */
 void applyLvglTheme(lv_display_t* disp);

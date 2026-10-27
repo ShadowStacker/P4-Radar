@@ -24,6 +24,19 @@ constexpr uint32_t kSlowFrameMs = 100;  // 10 fps is plenty for dead-reckoned mo
 constexpr float kSliceDegStandard = 3.5f;
 constexpr float kSliceDegSmooth = 1.0f;
 
+/**
+ * Code shown under an airport. ICAO style keeps 4-letter ICAO codes (KRDM)
+ * but uses the IATA code for local identifiers like S39 (Prineville -> PRZ)
+ * that travellers don't recognize; IATA style prefers IATA everywhere.
+ */
+const char* airportCode(const data::Airport& ap, uint8_t style) {
+  if (ap.iata[0] == '\0') return ap.ident;
+  if (style == 1) return ap.iata;
+  bool icao = std::strlen(ap.ident) == 4;
+  for (const char* c = ap.ident; *c && icao; ++c) icao = *c >= 'A' && *c <= 'Z';
+  return icao ? ap.ident : ap.iata;
+}
+
 /** Night theme stays monochrome red to preserve night vision. */
 bool useAltitudeColors(const core::Settings& st) {
   return st.color_mode == core::ColorMode::Altitude && st.theme != core::Theme::Night;
@@ -312,6 +325,11 @@ void RadarView::frame() {
 }
 
 void RadarView::syncTrace() {
+  // Airline/route lookup follows the selection too (and a callsign change).
+  const int sel = findSelected();
+  if (sel >= 0) app::requestRoute(tracks_[sel].ac.hex, tracks_[sel].ac.callsign);
+  else app::requestRoute("", "");
+
   const std::string want = app::settings().extended_trail ? selected_hex_ : std::string();
   if (want != trace_req_hex_) {
     trace_req_hex_ = want;
@@ -474,7 +492,7 @@ void RadarView::renderStatic(bool with_trails) {
           }
           if (crowded) continue;
           placed.push_back(a);
-          drawTextCentered(&layer, ap->ident, a.x, a.y + sc(22), f, p.runway_label, pass == data::kSmall ? 170 : 230);
+          drawTextCentered(&layer, airportCode(*ap, st.airport_codes), a.x, a.y + sc(22), f, p.runway_label, pass == data::kSmall ? 170 : 230);
         }
       }
     }
@@ -697,8 +715,8 @@ void RadarView::prepareBlips(uint32_t now) {
 }
 
 void RadarView::placeLabels() {
-  const lv_font_t* f1 = font(FontSize::S);
-  const lv_font_t* f2 = font(FontSize::S);
+  const lv_font_t* f1 = labelFont();
+  const lv_font_t* f2 = labelFont();
   const int32_t lh = lv_font_get_line_height(f1);
   const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
   std::vector<lv_area_t> placed;
@@ -823,7 +841,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
     }
   }
 
-  const lv_font_t* f1 = font(FontSize::S);
+  const lv_font_t* f1 = labelFont();
   const int32_t lh = lv_font_get_line_height(f1);
   for (const Blip& b : blips_) {
     if (b.kind == 0xFF) {

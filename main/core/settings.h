@@ -7,7 +7,7 @@ namespace core {
 enum class Units : uint8_t { Km = 0, Mi = 1, Nm = 2 };
 enum class LabelMode : uint8_t { Off = 0, Callsign = 1, Full = 2 };
 enum class ColorMode : uint8_t { Classic = 0, Altitude = 1 };
-enum class Theme : uint8_t { Phosphor = 0, Amber = 1, Ocean = 2, Night = 3 };
+enum class Theme : uint8_t { Phosphor = 0, Amber = 1, Ocean = 2, Night = 3, Custom = 4 };
 enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2 };
 
 /**
@@ -22,7 +22,8 @@ struct Settings {
   //   2: up to favorite_near_radius_km (v1.2.0)
   //   3: up to type_filter (v1.3.0)
   //   4: up to extended_trail (v1.4.0)
-  static constexpr uint16_t kVersion = 4;
+  //   5: up to show_route_info (v1.5.0)
+  static constexpr uint16_t kVersion = 5;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -35,7 +36,7 @@ struct Settings {
   bool home_set = false;         // false until the user picks a location
 
   // Display
-  Units units = Units::Km;
+  Units units = Units::Mi;
   Theme theme = Theme::Phosphor;
   uint8_t brightness = 80;  // %
   LabelMode labels = LabelMode::Full;
@@ -93,6 +94,21 @@ struct Settings {
   // v1.4.0
   uint8_t rotation = 0;             // screen orientation in quarter turns clockwise (0-3); applied at boot
   bool extended_trail = true;       // download the flight history of the tapped aircraft
+
+  // v1.5.0: Custom theme colors (hue 0-359, saturation/brightness in %).
+  uint16_t custom_hue = 175;              // radar color: rings, sweep, accents
+  uint8_t custom_sat = 80;
+  uint8_t custom_bg = 6;                  // background brightness
+  uint8_t custom_grid = 45;               // rings and compass brightness
+  uint16_t custom_aircraft_hue = 0;       // aircraft in "Theme" color mode
+  uint8_t custom_aircraft_sat = 0;        // 0 = white
+  uint16_t custom_label_hue = 0;
+  uint8_t custom_label_sat = 0;           // 0 = white
+  // v1.5.0: sizes, apply to every theme
+  uint8_t aircraft_scale = 100;           // % of the standard aircraft symbol size
+  uint8_t label_size = 1;                 // 0 small, 1 normal, 2 large
+  uint8_t airport_codes = 0;              // 0 ICAO (local codes like S39 fall back to IATA), 1 IATA
+  bool show_route_info = true;            // look up airline and route of the tapped aircraft
 };
 
 }  // namespace core

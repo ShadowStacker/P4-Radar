@@ -10,6 +10,37 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.5.0] - 2026-10-27
+
+### Added
+- **Airline and route on the info card**: tap an aircraft to see where it's
+  flying from and to (*Dublin (DUB) > Lanzarote (ACE)*), the airline (or the
+  owner for private aircraft) and the exact model (*Boeing 737-8AS*). Looked
+  up on adsbdb.com and remembered for the last 24 aircraft. Routes come from
+  a community list by flight number, so now and then one is out of date.
+  Switch: Display → **Airline and route on tap**.
+- **Custom theme** (Display → Theme → Custom, then **Custom colors**): sliders
+  for the radar color, background brightness, ring/compass brightness,
+  aircraft color and label color, with live swatches and a reset button.
+- **Aircraft size** (60–160 %) and **Label size** (Small / Normal / Large) in
+  Display, for every theme.
+- **Filter button** on the radar (right side) opens Filters directly, and is
+  lit while a filter is hiding aircraft.
+- **Mute button** on the radar (left side) turns all sounds on or off.
+- **Airport code style** (Display): ICAO or IATA codes on the map.
+
+### Changed
+- **X on a settings page now discards your changes** since you opened
+  settings and goes back to the radar. **<** keeps them. Wi-Fi changes and
+  confirmed restarts can't be undone this way.
+- The **status pill** (aircraft count and zoom) now fades out with the
+  buttons. It stays visible while it's showing a problem, such as being
+  offline.
+- **Distance units default to miles.** Boards upgrading from older versions
+  switch to miles once; you can change it back in Display.
+- Airports with only a local code show their IATA code instead, for example
+  Prineville shows **PRZ** instead of S39. Proper ICAO codes like KRDM stay.
+
 ## [v1.4.0] - 2026-10-27
 
 ### Added
@@ -157,6 +188,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.5.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.2.0

@@ -31,7 +31,8 @@ size_t validPrefix(uint16_t version) {
       return offsetof(core::Settings, autohide_buttons);
     case 2: return offsetof(core::Settings, sweep_trail_deg);
     case 3: return offsetof(core::Settings, rotation);
-    case 4: return sizeof(core::Settings);
+    case 4: return offsetof(core::Settings, custom_hue);
+    case 5: return sizeof(core::Settings);
     default: return 0;
   }
 }
@@ -64,6 +65,8 @@ void settingsLoad(core::Settings* s) {
       const size_t copy = std::min(stored, validPrefix(version));
       if (copy > 0) {
         std::memcpy(static_cast<void*>(s), raw.data() + offsetof(Blob, settings), copy);
+        // v1.5.0 made miles the default; boards upgrading switch once.
+        if (version < 5) s->units = core::Units::Mi;
         if (version != core::Settings::kVersion) {
           ESP_LOGI(TAG, "upgraded settings from version %u", version);
         }

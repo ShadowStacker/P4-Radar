@@ -26,4 +26,7 @@ extern std::string g_out_dir;
 /** Answers trace requests (hex -> uncompressed trace JSON, "" = 404). */
 extern std::function<std::string(const std::string&)> g_trace_server;
 
+/** Answers adsbdb aircraft lookups (hex -> JSON, "" = 404). */
+extern std::function<std::string(const std::string&)> g_route_server;
+
 }  // namespace sim

@@ -26,6 +26,10 @@ struct Hud {
   uint32_t hide_done_ms = 0;     // when the fade-out finishes (then the layer is hidden)
   lv_obj_t* status = nullptr;
   lv_obj_t* status_label = nullptr;
+  bool status_problem = false;   // offline/errors: keep everything visible
+  lv_obj_t* filter = nullptr;
+  lv_obj_t* mute = nullptr;
+  lv_obj_t* mute_label = nullptr;
   lv_obj_t* gear = nullptr;
   lv_obj_t* sweep = nullptr;
   lv_obj_t* zoom_in = nullptr;
@@ -36,6 +40,8 @@ struct Hud {
   lv_obj_t* card_title = nullptr;
   lv_obj_t* card_type = nullptr;
   lv_obj_t* card_sub = nullptr;
+  lv_obj_t* card_route = nullptr;    // "Dublin (DUB) > Lanzarote (ACE)"
+  lv_obj_t* card_airline = nullptr;  // "Ryanair  -  Boeing 737-8AS"
   lv_obj_t* stat_title[6] = {};
   lv_obj_t* stat_value[6] = {};
   lv_obj_t* follow_btn = nullptr;
@@ -109,6 +115,17 @@ void updateStatus() {
   }
   lv_label_set_text(h.status_label, txt);
   lv_obj_set_style_text_color(h.status_label, dot, 0);
+  h.status_problem = !lv_color_eq(dot, p.accent);
+
+  if (h.mute_label) {
+    lv_label_set_text(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
+  }
+
+  // The filter button lights up while any filter hides aircraft.
+  if (h.filter) {
+    if (core::filtersActive(app::settings())) lv_obj_add_state(h.filter, LV_STATE_CHECKED);
+    else lv_obj_remove_state(h.filter, LV_STATE_CHECKED);
+  }
 
   RadarView& rv = RadarView::get();
   if (!rv.pickMode()) {
@@ -140,6 +157,33 @@ void updateCard() {
   char badge[16];
   std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
   lv_label_set_text(h.card_type, badge);
+
+  // Airline and route (adsbdb), once looked up.
+  {
+    const app::RouteState rs = app::routeState();
+    const bool mine = std::strcmp(rs.hex, a.hex) == 0;
+    const core::route::Info& in = rs.info;
+    if (mine && rs.status == app::RouteStatus::Loading) {
+      lv_label_set_text(h.card_route, "");
+      lv_label_set_text(h.card_airline, "Looking up airline and route...");
+    } else if (mine && rs.status == app::RouteStatus::Ready) {
+      char route[96] = "";
+      if (in.has_route) {
+        std::snprintf(route, sizeof(route), "%s (%s)  " LV_SYMBOL_RIGHT "  %s (%s)", in.origin.city, in.origin.code,
+                      in.destination.city, in.destination.code);
+      }
+      lv_label_set_text(h.card_route, route);
+      const char* who = in.airline[0] ? in.airline : in.owner;
+      char line[96];
+      std::snprintf(line, sizeof(line), "%s%s%s", who, who[0] && in.model[0] ? "  -  " : "", in.model);
+      lv_label_set_text(h.card_airline, line);
+    } else {
+      lv_label_set_text(h.card_route, "");
+      lv_label_set_text(h.card_airline, mine && rs.status == app::RouteStatus::Unknown ? "No airline or route info" : "");
+    }
+    setHidden(h.card_route, lv_label_get_text(h.card_route)[0] == '\0');
+    setHidden(h.card_airline, lv_label_get_text(h.card_airline)[0] == '\0');
+  }
 
   // Flight history status, once the download was asked for.
   char hist[32] = "";
@@ -207,13 +251,18 @@ void onTimer(lv_timer_t*) {
 constexpr uint32_t kAutoHideIdleMs = 10000;
 constexpr uint32_t kFadeMs = 400;
 
-/** Fades the buttons out after 10 s without touches; any touch brings them back. */
+/**
+ * Fades the buttons and the status pill out after 10 s without touches; any
+ * touch brings them back.
+ */
 void onAutoHideTimer(lv_timer_t*) {
   const uint32_t idle = lv_display_get_inactive_time(nullptr);
   const uint32_t now = plat::millis();
   RadarView& rv = RadarView::get();
-  // Keep them while an aircraft card or the home picker is open.
-  const bool may_hide = app::settings().autohide_buttons && rv.selected() == nullptr && !rv.pickMode();
+  // Keep them while an aircraft card or the home picker is open, or while the
+  // status pill reports a problem (offline, feed errors).
+  const bool may_hide = app::settings().autohide_buttons && rv.selected() == nullptr && !rv.pickMode() &&
+                        !h.status_problem;
 
   if (h.controls_hidden) {
     if (idle < 200 || !may_hide) {
@@ -293,8 +342,15 @@ void buildCard(lv_obj_t* parent) {
     updateCard();
   });
 
+  h.card_route = label(h.card, "", font(FontSize::M), p.text);
+  lv_obj_set_width(h.card_route, lv_pct(100));
+  lv_label_set_long_mode(h.card_route, LV_LABEL_LONG_DOT);
+  h.card_airline = label(h.card, "", font(FontSize::S), p.accent);
+  lv_obj_set_width(h.card_airline, lv_pct(100));
+  lv_label_set_long_mode(h.card_airline, LV_LABEL_LONG_DOT);
   h.card_sub = label(h.card, "", font(FontSize::S), p.text_dim);
   lv_obj_set_width(h.card_sub, lv_pct(100));
+  lv_label_set_long_mode(h.card_sub, LV_LABEL_LONG_DOT);
 
   for (int i = 0; i < 6; ++i) {
     lv_obj_t* cell = lv_obj_create(h.card);
@@ -314,6 +370,8 @@ void leavePickMode() {
   setHidden(h.home, false);
   setHidden(h.gear, false);
   setHidden(h.sweep, false);
+  setHidden(h.filter, false);
+  setHidden(h.mute, false);
   updateCard();
 }
 
@@ -363,6 +421,8 @@ void enterPickMode() {
   setHidden(h.home, true);
   setHidden(h.gear, true);
   setHidden(h.sweep, true);
+  setHidden(h.filter, true);
+  setHidden(h.mute, true);
   updateCard();
 }
 
@@ -373,8 +433,15 @@ void create(lv_obj_t* parent) {
   h = Hud{};
   h.root = parent;
 
+  // Full-screen, non-clickable layer: taps between buttons fall through to the map.
+  h.controls = lv_obj_create(parent);
+  lv_obj_remove_style_all(h.controls);
+  lv_obj_set_size(h.controls, screenW(), screenH());
+  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_SCROLLABLE);
+
   // Status pill (top)
-  h.status = panel(parent);
+  h.status = panel(h.controls);  // fades with the buttons
   lv_obj_set_size(h.status, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_style_pad_hor(h.status, sc(22), 0);
   lv_obj_set_style_pad_ver(h.status, sc(8), 0);
@@ -388,16 +455,30 @@ void create(lv_obj_t* parent) {
     openSettings(ws.state == plat::WifiState::Connected ? Page::About : Page::Wifi);
   });
 
-  // Full-screen, non-clickable layer: taps between buttons fall through to the map.
-  h.controls = lv_obj_create(parent);
-  lv_obj_remove_style_all(h.controls);
-  lv_obj_set_size(h.controls, screenW(), screenH());
-  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_SCROLLABLE);
-
   const int32_t d = sc(76);
   h.gear = iconButton(h.controls, LV_SYMBOL_SETTINGS, d, [] { openSettings(Page::Main); });
   placePolar(h.gear, 45, 0.80f);
+
+  // Quick access to Filters, between the gear and the "E" of the compass.
+  h.filter = iconButton(h.controls, "", d, [] { openSettings(Page::Filters); });
+  lv_obj_t* funnel = lv_image_create(h.filter);
+  lv_image_set_src(funnel, sprites::funnel(sc(30) | 1));
+  lv_obj_center(funnel);
+  lv_obj_set_style_image_recolor(funnel, p.text, 0);
+  lv_obj_set_style_image_recolor_opa(funnel, LV_OPA_COVER, 0);
+  placePolar(h.filter, 77, 0.80f);
+
+  // Mute, mirroring the filter button on the left.
+  h.mute = iconButton(h.controls, LV_SYMBOL_VOLUME_MAX, d, [] {
+    auto& st = app::settings();
+    st.sound_enabled = !st.sound_enabled;
+    app::settingsChanged();
+    if (st.sound_enabled) app::sound(core::Sound::Click);
+    toast(st.sound_enabled ? LV_SYMBOL_VOLUME_MAX "  Sound on" : LV_SYMBOL_MUTE "  Sound off");
+    updateStatus();
+  });
+  h.mute_label = lv_obj_get_child(h.mute, 0);
+  placePolar(h.mute, -77, 0.80f);
 
   h.sweep = iconButton(h.controls, LV_SYMBOL_LOOP, d, [] {
     auto& st = app::settings();

@@ -432,12 +432,15 @@ void pageLocation() {
 
 void pageDisplay() {
   auto& st = app::settings();
-  static const char* const kThemes[] = {"Green", "Amber", "Blue", "Night", ""};
+  static const char* const kThemes[] = {"Green", "Amber", "Blue", "Night", "Custom", ""};
   choiceRow("Theme", kThemes, static_cast<int>(st.theme), [](int v) {
     app::settings().theme = static_cast<core::Theme>(v);
     app::settingsChanged();
     lv_async_call([](void*) { rebuild(); }, nullptr);  // rebuild every screen with new colors
   });
+  if (st.theme == core::Theme::Custom) {
+    navRow(LV_SYMBOL_EDIT, "Custom colors", "", Page::CustomTheme);
+  }
   sliderRow("Brightness", 5, 100, st.brightness, [](int v) { app::settings().brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
   static const char* const kUnits[] = {"km", "mi", "nm", ""};
@@ -464,14 +467,27 @@ void pageDisplay() {
   static const char* const kColors[] = {"Theme", "By altitude", ""};
   choiceRow("Aircraft colors", kColors, static_cast<int>(st.color_mode),
             [](int v) { app::settings().color_mode = static_cast<core::ColorMode>(v); });
+  sliderRow("Aircraft size", 6, 16, st.aircraft_scale / 10,
+            [](int v) { app::settings().aircraft_scale = static_cast<uint8_t>(v * 10); },
+            [](int v) { return fmtStr("%d%%", v * 10); },
+            [] { sprites::init(app::settings().aircraft_scale); });
+  static const char* const kLabelSizes[] = {"Small", "Normal", "Large", ""};
+  choiceRow("Label size", kLabelSizes, st.label_size > 2 ? 1 : st.label_size, [](int v) {
+    app::settings().label_size = static_cast<uint8_t>(v);
+    setTheme(app::settings());
+  });
   switchRow("Trails", &st.show_trails);
   switchRow("Flight history on tap", &st.extended_trail);
+  switchRow("Airline and route on tap", &st.show_route_info);
   switchRow("Speed vectors (1 min)", &st.show_speed_vectors);
 
   section("MAP");
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
+  static const char* const kCodeStyles[] = {"ICAO (KRDM)", "IATA (RDM)", ""};
+  choiceRow("Airport code style", kCodeStyles, st.airport_codes > 1 ? 0 : st.airport_codes,
+            [](int v) { app::settings().airport_codes = static_cast<uint8_t>(v); });
 
   section("ANIMATION");
   switchRow("Radar sweep", &st.sweep_enabled);
@@ -494,6 +510,99 @@ void pageDisplay() {
   sliderRow("Dimmed brightness", 0, 50, st.dim_brightness,
             [](int v) { app::settings().dim_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
+}
+
+// Custom theme: live swatches on this page, the whole UI re-themes when a
+// slider is let go.
+lv_obj_t* s_swatch[4] = {};
+
+void refreshSwatches() {
+  const Palette c = customPalette(app::settings());
+  const lv_color_t colors[4] = {c.accent, c.bg_center, c.aircraft, c.label};
+  for (int i = 0; i < 4; ++i) {
+    if (s_swatch[i]) lv_obj_set_style_bg_color(s_swatch[i], colors[i], 0);
+  }
+}
+
+void applyCustom() {
+  refreshSwatches();
+  lv_async_call([](void*) { rebuild(); }, nullptr);
+}
+
+void hueSliders(const char* name, uint16_t* hue, uint8_t* sat, const char* sat_zero) {
+  sliderRow(fmtStr("%s - hue", name).c_str(), 0, 359, *hue, [hue](int v) {
+    *hue = static_cast<uint16_t>(v);
+    refreshSwatches();
+  }, [](int v) { return fmtStr("%d" "\xC2\xB0", v); }, applyCustom);
+  sliderRow(fmtStr("%s - saturation", name).c_str(), 0, 100, *sat, [sat](int v) {
+    *sat = static_cast<uint8_t>(v);
+    refreshSwatches();
+  }, [sat_zero](int v) { return v == 0 && sat_zero ? std::string(sat_zero) : fmtStr("%d%%", v); }, applyCustom);
+}
+
+void pageCustomTheme() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+
+  // Preview: radar color, background, aircraft, labels.
+  lv_obj_t* r = baseRow(s.list);
+  lv_obj_set_flex_align(r, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  static const char* const kNames[] = {"Radar", "Background", "Aircraft", "Labels"};
+  for (int i = 0; i < 4; ++i) {
+    lv_obj_t* col = lv_obj_create(r);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, sc(6), 0);
+    s_swatch[i] = lv_obj_create(col);
+    lv_obj_remove_style_all(s_swatch[i]);
+    lv_obj_set_size(s_swatch[i], sc(54), sc(54));
+    lv_obj_set_style_radius(s_swatch[i], LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(s_swatch[i], LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(s_swatch[i], p.text_dim, 0);
+    lv_obj_set_style_border_width(s_swatch[i], sc(2), 0);
+    label(col, kNames[i], font(FontSize::S), p.text_dim);
+  }
+  lv_obj_add_event_cb(r, [](lv_event_t*) { std::fill(std::begin(s_swatch), std::end(s_swatch), nullptr); },
+                      LV_EVENT_DELETE, nullptr);
+  refreshSwatches();
+
+  section("RADAR");
+  hueSliders("Radar color", &st.custom_hue, &st.custom_sat, "Gray");
+  sliderRow("Background brightness", 0, 30, st.custom_bg, [](int v) {
+    app::settings().custom_bg = static_cast<uint8_t>(v);
+    refreshSwatches();
+  }, [](int v) { return v == 0 ? std::string("Black") : fmtStr("%d%%", v); }, applyCustom);
+  sliderRow("Rings and compass brightness", 15, 100, st.custom_grid,
+            [](int v) { app::settings().custom_grid = static_cast<uint8_t>(v); },
+            [](int v) { return fmtStr("%d%%", v); }, applyCustom);
+
+  section("AIRCRAFT");
+  hueSliders("Aircraft color", &st.custom_aircraft_hue, &st.custom_aircraft_sat, "White");
+  {
+    lv_obj_t* note = label(s.list, "Used when Display > Aircraft colors is set to Theme.", font(FontSize::S),
+                           pal().text_dim);
+    lv_obj_set_width(note, lv_pct(90));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(note, sc(16), 0);
+  }
+  hueSliders("Label color", &st.custom_label_hue, &st.custom_label_sat, "White");
+
+  actionRow(LV_SYMBOL_REFRESH, "Reset custom colors", [] {
+    const core::Settings d;
+    auto& c = app::settings();
+    c.custom_hue = d.custom_hue;
+    c.custom_sat = d.custom_sat;
+    c.custom_bg = d.custom_bg;
+    c.custom_grid = d.custom_grid;
+    c.custom_aircraft_hue = d.custom_aircraft_hue;
+    c.custom_aircraft_sat = d.custom_aircraft_sat;
+    c.custom_label_hue = d.custom_label_hue;
+    c.custom_label_sat = d.custom_label_sat;
+    changed();
+    applyCustom();
+  }, p.warn);
 }
 
 void pageSound() {
@@ -748,6 +857,7 @@ const char* pageTitle(Page p) {
     case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
     case Page::About: return "About";
+    case Page::CustomTheme: return "Custom colors";
     default: return "Settings";
   }
 }
@@ -770,6 +880,7 @@ void showPage(Page page) {
     case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
     case Page::About: pageAbout(); break;
+    case Page::CustomTheme: pageCustomTheme(); break;
     default: pageMain(); break;
   }
   if (s.tick) s.tick();
@@ -781,7 +892,10 @@ void onTimer(lv_timer_t*) {
 
 }  // namespace
 
-lv_obj_t* create(Page page) {
+Page currentPage() { return s.page; }
+int32_t scrollY() { return s.list ? lv_obj_get_scroll_y(s.list) : 0; }
+
+lv_obj_t* create(Page page, int32_t scroll_y) {
   const Palette& p = pal();
   s = State{};
   s.screen = lv_obj_create(nullptr);
@@ -795,10 +909,11 @@ lv_obj_t* create(Page page) {
   // Back (left) and close (right) on the upper diagonals of the circle.
   lv_obj_t* back = iconButton(s.screen, LV_SYMBOL_LEFT, sc(72), [] {
     if (s.page == Page::Main) closeSettings();
-    else showPage(Page::Main);
+    else showPage(s.page == Page::CustomTheme ? Page::Display : Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));
-  lv_obj_t* close = iconButton(s.screen, LV_SYMBOL_CLOSE, sc(72), [] { closeSettings(); });
+  // X throws away this visit's changes; < keeps them.
+  lv_obj_t* close = iconButton(s.screen, LV_SYMBOL_CLOSE, sc(72), [] { closeSettings(true); });
   lv_obj_align(close, LV_ALIGN_CENTER, sc(196), -sc(286));
 
   // Scrolling list; generous bottom padding lets the last rows scroll up into
@@ -820,6 +935,10 @@ lv_obj_t* create(Page page) {
 
   s.timer = lv_timer_create(onTimer, 500, nullptr);
   showPage(page);
+  if (scroll_y > 0) {
+    lv_obj_update_layout(s.list);
+    lv_obj_scroll_to_y(s.list, scroll_y, LV_ANIM_OFF);
+  }
   return s.screen;
 }
 

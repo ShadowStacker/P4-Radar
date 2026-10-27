@@ -119,6 +119,55 @@ void FakeTraffic::setEmergency(bool on) {
   }
 }
 
+std::string FakeTraffic::routeJson(const std::string& hex) const {
+  const Plane* plane = nullptr;
+  for (const Plane& p : planes_) {
+    if (p.hex == hex) plane = &p;
+  }
+  if (plane == nullptr || plane->military) return "";
+  struct Airline {
+    const char* icao;
+    const char* name;
+  };
+  static const Airline kNames[] = {{"KLM", "KLM Royal Dutch Airlines"}, {"EZY", "easyJet"}, {"RYR", "Ryanair"},
+                                   {"DLH", "Lufthansa"}, {"BAW", "British Airways"}, {"TRA", "Transavia"},
+                                   {"UAE", "Emirates"}, {"AFR", "Air France"}, {"SAS", "Scandinavian Airlines"},
+                                   {"TAP", "TAP Air Portugal"}};
+  struct Ap {
+    const char* iata;
+    const char* icao;
+    const char* city;
+  };
+  static const Ap kAps[] = {{"AMS", "EHAM", "Amsterdam"}, {"LHR", "EGLL", "London"},  {"DXB", "OMDB", "Dubai"},
+                            {"FRA", "EDDF", "Frankfurt"}, {"LIS", "LPPT", "Lisbon"},  {"CPH", "EKCH", "Copenhagen"},
+                            {"CDG", "LFPG", "Paris"},     {"ACE", "GCRR", "Lanzarote"}, {"BCN", "LEBL", "Barcelona"}};
+  const char* airline = nullptr;
+  for (const Airline& a : kNames) {
+    if (plane->flight.compare(0, 3, a.icao) == 0) airline = a.name;
+  }
+  const unsigned h = static_cast<unsigned>(std::stoul(hex, nullptr, 16));
+  const Ap& o = kAps[h % 9];
+  const Ap& d = kAps[(h / 9 % 8 + 1 + h % 9) % 9];
+  char aircraft[320];
+  std::snprintf(aircraft, sizeof(aircraft),
+                "\"aircraft\":{\"type\":\"%s\",\"icao_type\":\"%s\",\"manufacturer\":\"%s\",\"mode_s\":\"%s\","
+                "\"registration\":\"%s\",\"registered_owner\":\"%s\",\"url_photo\":null}",
+                plane->type == "B77W" ? "777-36N ER" : plane->type.c_str(), plane->type.c_str(),
+                plane->type[0] == 'A' ? "Airbus" : (plane->type[0] == 'B' ? "Boeing" : "Textron"), hex.c_str(),
+                plane->reg.c_str(), airline ? airline : "Private owner");
+  std::string out = std::string("{\"response\":{") + aircraft;
+  if (airline != nullptr) {
+    char fr[700];
+    std::snprintf(fr, sizeof(fr),
+                  ",\"flightroute\":{\"callsign\":\"%s\",\"airline\":{\"name\":\"%s\",\"icao\":\"%.3s\"},"
+                  "\"origin\":{\"iata_code\":\"%s\",\"icao_code\":\"%s\",\"municipality\":\"%s\",\"name\":\"x\"},"
+                  "\"destination\":{\"iata_code\":\"%s\",\"icao_code\":\"%s\",\"municipality\":\"%s\",\"name\":\"y\"}}",
+                  plane->flight.c_str(), airline, plane->flight.c_str(), o.iata, o.icao, o.city, d.iata, d.icao, d.city);
+    out += fr;
+  }
+  return out + "}}";
+}
+
 std::string FakeTraffic::traceJson(const std::string& hex) const {
   const Plane* plane = nullptr;
   for (const Plane& p : planes_) {

@@ -68,8 +68,10 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - One finger pans, with momentum. Two fingers pinch-zoom around the midpoint
   between them.
 - Double-tap zooms in. The **＋/−** buttons also zoom.
-- **Home** button flies back to your home location and zoom.
-- Tap an aircraft to open an info card: altitude, vertical speed, speed,
+- **Home** button flies back to your home location and zoom. Quick buttons
+  for **Filters** and **Mute** sit on either side.
+- Tap an aircraft to open an info card: route (origin and destination),
+  airline and model, altitude, vertical speed, speed,
   track, distance and bearing from home, squawk and registration. **Follow**
   keeps that aircraft on screen.
 - **Flight history**: tapping an aircraft also downloads its whole current
@@ -96,7 +98,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Location**: pick it on the map with a crosshair, type in lat/lon, or enter
   an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
   button returns to.
-- **Display**: four themes (Green phosphor, Amber, Blue, red Night mode),
+- **Display**: four themes (Green phosphor, Amber, Blue, red Night mode)
+  plus a **Custom** theme with color sliders, aircraft and label size,
   brightness, units, screen rotation in 90° steps, auto-hiding the radar buttons after 10 s idle (on by
   default), label
   detail, color mode, and toggles for trails, flight history,
@@ -123,9 +126,10 @@ phone or captive portal is needed.
 |:-:|:-:|:-:|
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
+| ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme, large aircraft and labels | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
 | ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
 | ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |
-| ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/21_buttons_hidden.png)<br>Buttons auto-hidden |
+| ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/17_pick_home.png)<br>Pick home on the map |
 | ![](docs/images/11_settings_location.png)<br>Location | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
 | ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
 
@@ -265,6 +269,8 @@ it. Aircraft are pre-rendered at 72 headings and recolored when drawn.
 
 ## Data and credits
 
+- Airline, route and airframe details come from [adsbdb.com](https://www.adsbdb.com)
+  (route data by David Taylor and Jim Mason, aircraft data from PlaneBase).
 - Aircraft positions come from free community feeds:
   [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) and
   [adsb.lol](https://adsb.lol). Please keep the polling interval reasonable

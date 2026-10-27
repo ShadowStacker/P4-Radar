@@ -5,6 +5,7 @@ namespace ui {
 namespace {
 
 Palette s_pal;
+uint8_t s_label_size = 1;
 int32_t s_w = 800;
 int32_t s_h = 800;
 
@@ -105,11 +106,54 @@ Palette makePalette(core::Theme t) {
   return p;
 }
 
+lv_color_t hsv(int hue, int sat, int val) {
+  hue %= 360;
+  if (hue < 0) hue += 360;
+  sat = sat < 0 ? 0 : (sat > 100 ? 100 : sat);
+  val = val < 0 ? 0 : (val > 100 ? 100 : val);
+  return lv_color_hsv_to_rgb(static_cast<uint16_t>(hue), static_cast<uint8_t>(sat), static_cast<uint8_t>(val));
+}
+
 }  // namespace
+
+Palette customPalette(const core::Settings& st) {
+  Palette p = makePalette(core::Theme::Phosphor);  // shared colors (warn, danger, favorite, ...)
+  const int h = st.custom_hue, sat = st.custom_sat, g = st.custom_grid, bg = st.custom_bg;
+  const int tint = sat < 60 ? sat : 60;  // keep dark backgrounds from looking muddy
+  p.bg = hsv(h, tint, bg);
+  p.bg_center = hsv(h, tint, bg + 4 + bg / 2);
+  p.grid = hsv(h, sat, g * 7 / 10);
+  p.grid_text = hsv(h, sat * 8 / 10, g + 25);
+  p.bezel = hsv(h, sat, g);
+  p.bezel_text = hsv(h, sat * 6 / 10, g + 45);
+  p.sweep = hsv(h, sat, 100);
+  p.accent = p.sweep;
+  p.trail = hsv(h, sat, 75);
+  p.runway = hsv(h + 30, sat * 6 / 10, 58);
+  p.runway_label = hsv(h + 30, sat * 5 / 10, 82);
+  p.panel = hsv(h, tint, bg / 2 + 10);
+  p.panel_border = hsv(h, sat, 36);
+  p.aircraft = hsv(st.custom_aircraft_hue, st.custom_aircraft_sat, 100);
+  p.label = hsv(st.custom_label_hue, st.custom_label_sat * 8 / 10, 96);
+  p.label_dim = hsv(st.custom_label_hue, st.custom_label_sat * 5 / 10, 70);
+  return p;
+}
 
 const Palette& pal() { return s_pal; }
 
-void setTheme(core::Theme t) { s_pal = makePalette(t); }
+void setTheme(const core::Settings& st) {
+  s_pal = st.theme == core::Theme::Custom ? customPalette(st) : makePalette(st.theme);
+  s_label_size = st.label_size;
+}
+
+const lv_font_t* labelFont() {
+  const bool small_panel = sc(800) < 760;
+  switch (s_label_size) {
+    case 0: return small_panel ? &lv_font_montserrat_14 : &lv_font_montserrat_16;
+    case 2: return font(FontSize::M);
+    default: return font(FontSize::S);
+  }
+}
 
 void setScreenSize(int32_t w, int32_t h) {
   s_w = w;

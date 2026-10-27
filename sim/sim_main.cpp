@@ -21,6 +21,7 @@
 #include "ui/hud.h"
 #include "ui/keyboard.h"
 #include "ui/radar_view.h"
+#include "ui/sprites.h"
 #include "ui/theme.h"
 #include "ui/ui.h"
 
@@ -125,7 +126,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     sim::g_ms += step;
     g_traffic->advance(step / 1000.0);
     feedTraffic();
-    app::serviceTrace();
+    if (!app::serviceRoute()) app::serviceTrace();
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -251,6 +252,7 @@ int main(int argc, char** argv) {
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
   sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
+  sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
 
   ui::init(g_disp);
   run(600);
@@ -440,6 +442,56 @@ int main(int argc, char** argv) {
   shot((p + "32_sweep_smooth_long").c_str());
   app::settings().sweep_trail_deg = 70;
   app::settings().sweep_smooth = false;
+
+  // Custom theme: settings page, then the radar in those colors with bigger
+  // aircraft and labels.
+  app::settings().theme = core::Theme::Custom;
+  app::settings().custom_hue = 200;
+  app::settings().custom_sat = 85;
+  app::settings().custom_aircraft_hue = 45;
+  app::settings().custom_aircraft_sat = 70;
+  app::settings().color_mode = core::ColorMode::Classic;
+  ui::rebuild();
+  ui::openSettings(ui::Page::CustomTheme);
+  run(600);
+  shot((p + "36_settings_custom_theme").c_str());
+  ui::closeSettings();
+  app::settings().aircraft_scale = 130;
+  app::settings().label_size = 2;
+  ui::sprites::init(app::settings().aircraft_scale);
+  ui::rebuild();
+  run(1500);
+  shot((p + "37_custom_theme_radar").c_str());
+  app::settings().theme = core::Theme::Phosphor;
+  app::settings().color_mode = core::ColorMode::Altitude;
+  app::settings().aircraft_scale = 100;
+  app::settings().label_size = 1;
+  ui::sprites::init(100);
+  ui::rebuild();
+  run(300);
+
+  // X discards: change a few things, close with X, check they're back.
+  {
+    const core::Settings before = app::settings();
+    const size_t favs_before = app::favorites().size();
+    ui::openSettings(ui::Page::Display);
+    run(300);
+    app::settings().theme = core::Theme::Amber;
+    app::settings().units = core::Units::Km;
+    app::settings().brightness = 30;
+    app::settingsChanged();
+    ui::rebuild();
+    if (!app::favorites().empty()) app::removeFavorite(app::favorites()[0].hex);
+    run(300);
+    ui::closeSettings(true);
+    run(800);
+    const auto& st = app::settings();
+    const bool ok = st.theme == before.theme && st.units == before.units && st.brightness == before.brightness &&
+                    app::favorites().size() == favs_before;
+    std::printf("discard check: %s\n", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+    shot((p + "38_changes_discarded").c_str());
+  }
 
   // Central Oregon: home at Redmond, zoomed in to show the small fields.
   app::settings().home_lat = 44.2541;

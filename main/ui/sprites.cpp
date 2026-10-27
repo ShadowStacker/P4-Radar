@@ -111,15 +111,27 @@ void drawGround(lv_layer_t* layer, float cx, float cy, float scale) {
 
 int32_t size(Kind kind) { return s_size[static_cast<int>(kind)]; }
 
-void init() {
-  // Base sizes at 800 px; scaled for the 720 px panel.
+void init(int scale_pct) {
+  static int s_scale = 0;
+  if (scale_pct < 50) scale_pct = 50;
+  if (scale_pct > 200) scale_pct = 200;
+  if (scale_pct == s_scale) return;
+  s_scale = scale_pct;
+  for (auto& kind : s_bufs) {
+    for (lv_draw_buf_t*& b : kind) {
+      if (b != nullptr) destroyImageBuf(b);
+      b = nullptr;
+    }
+  }
+
+  // Base sizes at 800 px; scaled for the 720 px panel and the user's choice.
   const int32_t base[kKinds] = {sc(30), sc(38), sc(48), sc(34), sc(16)};
 
   lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
   lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
 
   for (int k = 0; k < kKinds; ++k) {
-    const int32_t sz = base[k] | 1;  // odd size -> exact center pixel
+    const int32_t sz = (base[k] * scale_pct / 100) | 1;  // odd size -> exact center pixel
     s_size[k] = sz;
     const float c = sz / 2.0f;
     const float scale = sz * 0.47f;
@@ -181,6 +193,44 @@ const lv_draw_buf_t* star(int32_t size) {
     d.p[1].y = c + size * 0.03f + std::sin(a0) * r0;
     d.p[2].x = c + std::cos(a1) * r1;
     d.p[2].y = c + size * 0.03f + std::sin(a1) * r1;
+    lv_draw_triangle(&layer, &d);
+  }
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.push_back({size, buf});
+  return buf;
+}
+
+const lv_draw_buf_t* funnel(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  // Filter funnel: a wide cone over a spout cut at a slant.
+  const float s0 = size * 0.06f, s1 = size * 0.94f, top = size * 0.14f, neck = size * 0.52f;
+  const float sx0 = size * 0.41f, sx1 = size * 0.59f, bottom = size * 0.88f;
+  lv_draw_triangle_dsc_t d;
+  lv_draw_triangle_dsc_init(&d);
+  triangleDscSetColor(&d, lv_color_white(), LV_OPA_COVER);
+  const float tri[3][6] = {
+      {s0, top, s1, top, sx1, neck},
+      {s0, top, sx1, neck, sx0, neck},
+      {sx0, neck, sx1, neck, sx1, bottom},
+  };
+  for (const auto& t : tri) {
+    for (int i = 0; i < 3; ++i) {
+      d.p[i].x = t[i * 2];
+      d.p[i].y = t[i * 2 + 1];
+    }
     lv_draw_triangle(&layer, &d);
   }
   lv_canvas_finish_layer(canvas, &layer);
