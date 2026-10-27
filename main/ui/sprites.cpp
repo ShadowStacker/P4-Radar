@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "ui/image_buf.h"
 #include "ui/lv_compat.h"
 #include "ui/theme.h"
 
@@ -121,7 +122,7 @@ void init() {
     const float c = sz / 2.0f;
     const float scale = sz * 0.47f;
     for (int i = 0; i < kRotationSteps; ++i) {
-      lv_draw_buf_t* buf = lv_draw_buf_create(sz, sz, LV_COLOR_FORMAT_ARGB8888, LV_STRIDE_AUTO);
+      lv_draw_buf_t* buf = createImageBuf(sz, sz, LV_COLOR_FORMAT_ARGB8888);
       if (buf == nullptr) continue;
       lv_draw_buf_clear(buf, nullptr);
       lv_canvas_set_draw_buf(canvas, buf);

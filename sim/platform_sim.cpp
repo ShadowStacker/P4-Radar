@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <set>
 #include <thread>
@@ -133,6 +134,9 @@ void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::millisecond
 void restart() { std::printf("[sim] restart requested\n"); }
 
 const char* firmwareVersion() { return "sim"; }
+void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }
+void freeLarge(void* p) { std::free(p); }
+
 size_t freeInternalHeap() { return 412 * 1024; }
 size_t freePsram() { return 28 * 1024 * 1024; }
 

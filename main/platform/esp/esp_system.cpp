@@ -35,6 +35,13 @@ void restart() { esp_restart(); }
 
 const char* firmwareVersion() { return esp_app_get_description()->version; }
 
+void* allocLarge(size_t bytes) {
+  void* p = heap_caps_aligned_alloc(64, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return p != nullptr ? p : heap_caps_aligned_alloc(64, bytes, MALLOC_CAP_8BIT);
+}
+
+void freeLarge(void* p) { heap_caps_free(p); }
+
 size_t freeInternalHeap() { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL); }
 
 size_t freePsram() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM); }

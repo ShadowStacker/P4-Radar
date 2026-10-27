@@ -8,6 +8,7 @@
 #include "app/app.h"
 #include "data/airports.h"
 #include "platform/platform.h"
+#include "ui/image_buf.h"
 #include "ui/lv_compat.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
@@ -140,7 +141,7 @@ void RadarView::create(lv_obj_t* parent) {
   query_radius_km_ = vp_.radiusKm();
   app::setQueryArea(query_center_, query_radius_km_);
 
-  static_buf_ = lv_draw_buf_create(screenW(), screenH(), LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+  static_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
   canvas_ = lv_canvas_create(parent);
   lv_canvas_set_draw_buf(canvas_, static_buf_);
   lv_obj_set_pos(canvas_, 0, 0);
@@ -166,7 +167,7 @@ void RadarView::destroy() {
   timer_ = nullptr;
   canvas_ = nullptr;
   overlay_ = nullptr;
-  if (static_buf_ != nullptr) lv_draw_buf_destroy(static_buf_);
+  destroyImageBuf(static_buf_);
   static_buf_ = nullptr;
   gesture_ = Gesture::None;
   interacting_ = false;

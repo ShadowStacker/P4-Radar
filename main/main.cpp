@@ -56,6 +56,11 @@ extern "C" void app_main(void) {
     if (boot != lv_screen_active()) lv_obj_delete(boot);
     plat::esp::lvglUnlock();
   }
+  ESP_LOGI("main", "heap after UI: internal %u KB free (min %u KB, largest %u KB), PSRAM %u KB free",
+           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024),
+           static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
+           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
   app::sound(core::Sound::Startup);
   app::startNetworkTask();
   ESP_LOGI("main", "Plane Radar %s running", plat::firmwareVersion());

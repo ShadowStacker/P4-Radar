@@ -79,6 +79,13 @@ void startTask(const char* name, std::function<void()> fn, size_t stack_bytes, i
 void sleepMs(uint32_t ms);
 void restart();
 const char* firmwareVersion();
+/**
+ * Large, long-lived buffers (images, canvases): PSRAM on the device, 64-byte
+ * aligned. Internal RAM is reserved for the RTOS, Wi-Fi and display DMA.
+ */
+void* allocLarge(size_t bytes);
+void freeLarge(void* p);
+
 /** Free heap / PSRAM in bytes for the About page. */
 size_t freeInternalHeap();
 size_t freePsram();
