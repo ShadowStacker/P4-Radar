@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "app/app.h"
+#include "core/clock.h"
 #include "data/airports.h"
 #include "platform/platform.h"
 #include "ui/image_buf.h"
@@ -528,8 +529,28 @@ void RadarView::renderStatic(bool with_trails) {
   drawCircle(&layer, home.x, home.y, sc(9), p.home, 220, sc(2));
   drawCircle(&layer, home.x, home.y, sc(3), p.home, LV_OPA_COVER);
 
-  // --- Compass bezel (screen-fixed, north up) -------------------------------
-  {
+  // --- Bezel: compass (north up), or a clock dial in clock mode --------------
+  if (st.clock_mode) {
+    const lv_font_t* fc = font(FontSize::L);
+    drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
+    for (int m = 0; m < 60; ++m) {  // minute marks, longer every five
+      const float rad = static_cast<float>(core::degToRad(m * 6));
+      const float sx = std::sin(rad), sy = -std::cos(rad);
+      const bool hour = m % 5 == 0;
+      const float len = hour ? sc(20) : sc(8);
+      const float r0 = R - sc(4);
+      drawLine(&layer, cx + sx * r0, cy + sy * r0, cx + sx * (r0 - len), cy + sy * (r0 - len), p.bezel,
+               hour ? sc(4) : sc(2), hour ? 240 : 150);
+    }
+    for (int h = 1; h <= 12; ++h) {
+      const float rad = static_cast<float>(core::degToRad(h * 30));
+      const float rt = R - sc(46);
+      char txt[4];
+      std::snprintf(txt, sizeof(txt), "%d", h);
+      drawTextCentered(&layer, txt, cx + std::sin(rad) * rt, cy - std::cos(rad) * rt, fc,
+                       h % 3 == 0 ? p.text : p.bezel_text);
+    }
+  } else {
     const lv_font_t* fc = font(FontSize::L);
     const lv_font_t* fs = font(FontSize::S);
     drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
@@ -821,6 +842,55 @@ void RadarView::drawSweep(lv_layer_t* layer) {
   }
 }
 
+/** Hour, minute and second hands plus a date window, centered on the dial. */
+void RadarView::drawClockHands(lv_layer_t* layer) {
+  const Palette& p = pal();
+  const auto& st = app::settings();
+  const float cx = screenW() / 2.0f, cy = screenH() / 2.0f, R = vp_.radiusPx();
+  if (!plat::timeValid()) {
+    drawTextCentered(layer, "Waiting for the time...", cx, cy + sc(70), font(FontSize::S), p.text_dim);
+    return;
+  }
+  const int64_t ms = plat::unixTimeMs();
+  const std::tm t = core::localTime(ms / 1000);
+  const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), false);
+
+  // Date window at three o'clock, like a watch.
+  static const char* const kDays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+  char date[12];
+  std::snprintf(date, sizeof(date), "%s %d", kDays[t.tm_wday % 7], t.tm_mday);
+  {
+    const lv_font_t* f = font(FontSize::S);
+    lv_point_t sz;
+    lv_text_get_size(&sz, date, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const float dx = cx + R * 0.60f, pad = sc(8);
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    d.bg_color = p.panel;
+    d.bg_opa = 200;
+    d.border_color = p.panel_border;
+    d.border_width = sc(2);
+    d.radius = sc(8);
+    lv_area_t box = {static_cast<int32_t>(dx - sz.x / 2.0f - pad), static_cast<int32_t>(cy - sz.y / 2.0f - pad / 2),
+                     static_cast<int32_t>(dx + sz.x / 2.0f + pad), static_cast<int32_t>(cy + sz.y / 2.0f + pad / 2)};
+    lv_draw_rect(layer, &d, &box);
+    drawTextCentered(layer, date, dx, cy, f, p.text);
+  }
+
+  auto hand = [&](float deg, float len, float tail, int32_t w, lv_color_t c, lv_opa_t opa) {
+    const float rad = static_cast<float>(core::degToRad(deg));
+    const float sx = std::sin(rad), sy = -std::cos(rad);
+    drawLine(layer, cx - sx * tail, cy - sy * tail, cx + sx * len, cy + sy * len, c, w, opa, true);
+  };
+  hand(a.hour, R * 0.48f, R * 0.06f, sc(10), p.text, 220);
+  hand(a.minute, R * 0.72f, R * 0.06f, sc(6), p.text, 220);
+  drawCircle(layer, cx, cy, sc(9), p.text, LV_OPA_COVER);
+  if (st.clock_seconds) {
+    hand(a.second, R * 0.80f, R * 0.15f, sc(3) > 1 ? sc(3) : 2, p.danger, LV_OPA_COVER);
+    drawCircle(layer, cx, cy, sc(5), p.danger, LV_OPA_COVER);
+  }
+}
+
 void RadarView::drawOverlay(lv_layer_t* layer) {
   const Palette& p = pal();
   const auto& st = app::settings();
@@ -828,6 +898,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
   const uint32_t now = plat::millis();
 
   if (st.sweep_enabled) drawSweep(layer);
+  if (st.clock_mode) drawClockHands(layer);
 
   // Trail heads and speed vectors under the symbols.
   for (const Blip& b : blips_) {

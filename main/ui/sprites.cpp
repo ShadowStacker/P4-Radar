@@ -239,6 +239,52 @@ const lv_draw_buf_t* funnel(int32_t size) {
   return buf;
 }
 
+const lv_draw_buf_t* clockIcon(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  // Round face with hands at ten past ten.
+  const int32_t w = size / 9 > 2 ? size / 9 : 2;
+  const float c = size / 2.0f;
+  lv_draw_arc_dsc_t arc;
+  lv_draw_arc_dsc_init(&arc);
+  arc.color = lv_color_white();
+  arc.width = w;
+  arc.center.x = static_cast<int32_t>(c);
+  arc.center.y = static_cast<int32_t>(c);
+  arc.radius = static_cast<uint16_t>(c - 1);
+  arc.start_angle = 0;
+  arc.end_angle = 360;
+  lv_draw_arc(&layer, &arc);
+  lv_draw_line_dsc_t ln;
+  lv_draw_line_dsc_init(&ln);
+  ln.color = lv_color_white();
+  ln.width = w;
+  ln.round_start = ln.round_end = 1;
+  ln.p1.x = c;
+  ln.p1.y = c;
+  ln.p2.x = c;
+  ln.p2.y = c - size * 0.30f;  // minute hand to 12
+  lv_draw_line(&layer, &ln);
+  ln.p2.x = c + size * 0.20f;
+  ln.p2.y = c + size * 0.06f;  // hour hand toward 3-4
+  lv_draw_line(&layer, &ln);
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.push_back({size, buf});
+  return buf;
+}
+
 const lv_draw_buf_t* get(Kind kind, float heading_deg) {
   float h = std::fmod(heading_deg, 360.0f);
   if (h < 0) h += 360.0f;

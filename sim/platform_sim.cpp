@@ -43,6 +43,7 @@ const char* soundName(core::Sound s) {
     case core::Sound::Home: return "home";
     case core::Sound::FavoriteSeen: return "favorite_detected";
     case core::Sound::FavoriteNear: return "favorite_nearby";
+    case core::Sound::Alarm: return "alarm";
     default: return "unknown";
   }
 }
@@ -178,6 +179,11 @@ void startTask(const char*, std::function<void()> fn, size_t, int) { std::thread
 void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
 void restart() { std::printf("[sim] restart requested\n"); }
+
+// Fixed, repeatable wall clock: 2026-10-27 17:09:25 UTC (10:09:25 Pacific)
+// at the start of the run, then advancing with the virtual clock.
+int64_t unixTimeMs() { return 1793120965000LL + sim::g_ms; }
+bool timeValid() { return true; }
 
 const char* firmwareVersion() { return "sim"; }
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }

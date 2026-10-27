@@ -91,6 +91,7 @@ class RadarView {
   void syncTrace();
   void drawOverlay(lv_layer_t* layer);
   void drawSweep(lv_layer_t* layer);
+  void drawClockHands(lv_layer_t* layer);
   void updateQueryArea(bool force_refresh);
   int findSelected() const;
 

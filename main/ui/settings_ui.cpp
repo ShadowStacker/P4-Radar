@@ -12,6 +12,7 @@
 
 #include "app/app.h"
 #include "core/adsb.h"
+#include "core/clock.h"
 #include "core/filter.h"
 #include "data/airports.h"
 #include "platform/platform.h"
@@ -39,6 +40,8 @@ struct State {
   lv_obj_t* wifi_status = nullptr;
   lv_obj_t* wifi_list = nullptr;
   bool scanning = false;
+  // Alarm being edited
+  int alarm_index = 0;
 };
 
 State s;
@@ -107,6 +110,18 @@ lv_obj_t* navRow(const char* symbol, const char* text, const std::string& value,
   lv_obj_set_style_max_width(v, sc(220), 0);
   label(r, LV_SYMBOL_RIGHT, font(FontSize::S), p.text_dim);
   onClick(r, [target] { showPage(target); });
+  return r;
+}
+
+/** navRow with an image icon (for icons the fonts don't have). */
+lv_obj_t* navRowImage(const lv_draw_buf_t* icon, const char* text, const std::string& value, Page target) {
+  lv_obj_t* r = navRow("", text, value, target);
+  lv_obj_t* img = lv_image_create(r);
+  lv_image_set_src(img, icon);
+  lv_obj_set_style_image_recolor(img, pal().accent, 0);
+  lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+  lv_obj_move_to_index(img, 0);
+  lv_obj_delete(lv_obj_get_child(r, 1));  // the empty symbol label
   return r;
 }
 
@@ -249,6 +264,16 @@ void pageMain() {
   navRow(LV_SYMBOL_VOLUME_MAX, "Sound", st.sound_enabled ? fmtStr("%d%%", st.volume) : "Off", Page::Sound);
   navRow(LV_SYMBOL_GPS, "Traffic & data", core::adsb::sourceName(st.source), Page::Traffic);
   navRow(LV_SYMBOL_EYE_OPEN, "Filters", core::filtersActive(st) ? "On" : "All aircraft", Page::Filters);
+  {
+    char next[32] = "";
+    for (const core::Alarm& a : st.alarms) {
+      if (!a.enabled) continue;
+      core::formatTime(a.hour, a.minute, st.clock_24h, next, sizeof(next));
+      break;
+    }
+    navRowImage(sprites::clockIcon(sc(30) | 1), "Clock & alarms", next[0] ? fmtStr(LV_SYMBOL_BELL " %s", next) : "",
+                Page::Clock);
+  }
   navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -605,6 +630,188 @@ void pageCustomTheme() {
   }, p.warn);
 }
 
+// ---------------------------------------------------------------------------
+// Clock & alarms
+
+std::string nowText() {
+  if (!plat::timeValid()) return "Not set yet (needs Wi-Fi)";
+  const auto& st = app::settings();
+  const int64_t now = plat::unixTimeMs() / 1000;
+  const std::tm t = core::localTime(now);
+  char hm[16];
+  core::formatTime(t.tm_hour, t.tm_min, st.clock_24h, hm, sizeof(hm));
+  static const char* const kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  return fmtStr("%s, %s %s %d", hm, kDays[t.tm_wday % 7], kMonths[t.tm_mon % 12], t.tm_mday);
+}
+
+void pageClock() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  lv_obj_t* now = infoRow("Time now", nowText());
+  s.tick = [now] { lv_label_set_text(now, nowText().c_str()); };
+  navRow(LV_SYMBOL_GPS, "Time zone", core::timeZone(st.time_zone).name, Page::TimeZone);
+  switchRow("Clock face on the radar", &st.clock_mode);
+  switchRow("24-hour time", &st.clock_24h);
+  switchRow("Seconds hand", &st.clock_seconds);
+
+  section("ALARMS");
+  for (int i = 0; i < core::kMaxAlarms; ++i) {
+    core::Alarm& a = st.alarms[i];
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(r, p.panel_border, LV_STATE_PRESSED);
+    lv_obj_t* col = lv_obj_create(r);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    char hm[16], days[40];
+    core::formatTime(a.hour, a.minute, st.clock_24h, hm, sizeof(hm));
+    core::formatDays(a.days, days, sizeof(days));
+    label(col, hm, font(FontSize::L), a.enabled ? p.text : p.text_dim);
+    label(col, days, font(FontSize::S), p.text_dim);
+    lv_obj_t* sw = lv_switch_create(r);
+    lv_obj_set_size(sw, sc(92), sc(48));
+    lv_obj_set_style_bg_color(sw, p.accent, static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
+    if (a.enabled) lv_obj_add_state(sw, LV_STATE_CHECKED);
+    onEvent(sw, LV_EVENT_VALUE_CHANGED, [sw, i] {
+      app::settings().alarms[i].enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+      app::sound(core::Sound::Click);
+      changed();
+      lv_async_call([](void*) { showPage(Page::Clock); }, nullptr);  // refresh the time's color
+    });
+    onClick(r, [i] {
+      s.alarm_index = i;
+      showPage(Page::AlarmEdit);
+    });
+  }
+  const int snooze = app::snoozeMinutesLeft();
+  if (snooze >= 0) {
+    infoRow("Snoozed", fmtStr("rings again in %d min", snooze));
+    actionRow(LV_SYMBOL_CLOSE, "Cancel snooze", [] {
+      app::stopAlarm();
+      showPage(Page::Clock);
+    }, p.warn);
+  }
+  lv_obj_t* note = label(s.list,
+                         "Tap an alarm to set its time and days. Alarms ring even when sound is off. "
+                         "The clock is set from the internet, so it needs Wi-Fi after power-up.",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
+void pageTimeZone() {
+  const auto& st = app::settings();
+  const Palette& p = pal();
+  for (int i = 0; i < core::timeZoneCount(); ++i) {
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(r, p.panel_border, LV_STATE_PRESSED);
+    growLabel(r, core::timeZone(i).name, i == st.time_zone ? p.accent : p.text);
+    if (i == st.time_zone) label(r, LV_SYMBOL_OK, font(FontSize::M), p.accent);
+    onClick(r, [i] {
+      app::settings().time_zone = static_cast<uint8_t>(i);
+      app::timeZoneChanged();
+      app::sound(core::Sound::Click);
+      changed();
+      showPage(Page::Clock);
+    });
+  }
+}
+
+void pageAlarmEdit() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  const int i = s.alarm_index;
+  core::Alarm& a = st.alarms[i];
+
+  lv_obj_t* big = label(s.list, "", font(FontSize::XXL), p.text);
+  lv_obj_set_width(big, lv_pct(100));
+  lv_obj_set_style_text_align(big, LV_TEXT_ALIGN_CENTER, 0);
+  static lv_obj_t* s_big = nullptr;
+  s_big = big;
+  auto refresh = [] {
+    const auto& c = app::settings();
+    const core::Alarm& al = c.alarms[s.alarm_index];
+    char hm[16];
+    core::formatTime(al.hour, al.minute, c.clock_24h, hm, sizeof(hm));
+    if (s_big) lv_label_set_text(s_big, hm);
+  };
+  refresh();
+  lv_obj_add_event_cb(big, [](lv_event_t*) { s_big = nullptr; }, LV_EVENT_DELETE, nullptr);
+
+  switchRow("Alarm on", &a.enabled);
+  // Changing the time switches the alarm on: that's nearly always the intent.
+  sliderRow("Hour", 0, 23, a.hour, [refresh](int v) {
+    auto& al = app::settings().alarms[s.alarm_index];
+    al.hour = static_cast<uint8_t>(v);
+    al.enabled = true;
+    refresh();
+  }, [](int v) {
+    char hm[16];
+    core::formatTime(v, 0, app::settings().clock_24h, hm, sizeof(hm));
+    return app::settings().clock_24h ? fmtStr("%02d", v) : std::string(hm).replace(std::string(hm).find(":00"), 3, "");
+  });
+  sliderRow("Minute", 0, 59, a.minute, [refresh](int v) {
+    auto& al = app::settings().alarms[s.alarm_index];
+    al.minute = static_cast<uint8_t>(v);
+    al.enabled = true;
+    refresh();
+  }, [](int v) { return fmtStr(":%02d", v); });
+
+  // Days: Monday first; none selected = rings once.
+  {
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(r, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(r, sc(10), 0);
+    char days[40];
+    core::formatDays(a.days, days, sizeof(days));
+    lv_obj_t* title = label(r, fmtStr("Repeat: %s", days).c_str(), font(FontSize::M), p.text);
+    static const char* const kMap[] = {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su", ""};
+    lv_obj_t* bm = lv_buttonmatrix_create(r);
+    lv_buttonmatrix_set_map(bm, kMap);
+    lv_obj_set_size(bm, lv_pct(100), sc(64));
+    lv_buttonmatrix_set_button_ctrl_all(bm, LV_BUTTONMATRIX_CTRL_CHECKABLE);
+    for (int k = 0; k < 7; ++k) {
+      if (a.days & (1u << ((k + 1) % 7))) lv_buttonmatrix_set_button_ctrl(bm, k, LV_BUTTONMATRIX_CTRL_CHECKED);
+    }
+    lv_obj_set_style_bg_opa(bm, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(bm, 0, 0);
+    lv_obj_set_style_pad_all(bm, 0, 0);
+    lv_obj_set_style_pad_gap(bm, sc(6), 0);
+    lv_obj_set_style_text_font(bm, font(FontSize::S), LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(bm, p.bg, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(bm, p.text, LV_PART_ITEMS);
+    lv_obj_set_style_radius(bm, sc(14), LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(bm, p.accent, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(bm, lv_color_black(), static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
+    onEvent(bm, LV_EVENT_VALUE_CHANGED, [bm, title] {
+      uint8_t mask = 0;
+      for (int k = 0; k < 7; ++k) {
+        if (lv_buttonmatrix_has_button_ctrl(bm, k, LV_BUTTONMATRIX_CTRL_CHECKED)) mask |= 1u << ((k + 1) % 7);
+      }
+      auto& al = app::settings().alarms[s.alarm_index];
+      al.days = mask;
+      al.enabled = true;
+      char d[40];
+      core::formatDays(mask, d, sizeof(d));
+      lv_label_set_text(title, fmtStr("Repeat: %s", d).c_str());
+      app::sound(core::Sound::Click);
+      changed();
+    });
+    lv_obj_t* hint = label(r, "No days selected: rings once, then switches off.", font(FontSize::S), p.text_dim);
+    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(hint, lv_pct(100));
+  }
+  actionRow(LV_SYMBOL_BELL, "Test this alarm", [] { app::testAlarm(s.alarm_index); }, p.accent);
+}
+
 void pageSound() {
   auto& st = app::settings();
   switchRow("Sound", &st.sound_enabled);
@@ -858,6 +1065,9 @@ const char* pageTitle(Page p) {
     case Page::Favorites: return "Favorites";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
+    case Page::Clock: return "Clock & alarms";
+    case Page::TimeZone: return "Time zone";
+    case Page::AlarmEdit: return "Alarm";
     default: return "Settings";
   }
 }
@@ -881,6 +1091,9 @@ void showPage(Page page) {
     case Page::Favorites: pageFavorites(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
+    case Page::Clock: pageClock(); break;
+    case Page::TimeZone: pageTimeZone(); break;
+    case Page::AlarmEdit: pageAlarmEdit(); break;
     default: pageMain(); break;
   }
   if (s.tick) s.tick();
@@ -909,7 +1122,9 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
   // Back (left) and close (right) on the upper diagonals of the circle.
   lv_obj_t* back = iconButton(s.screen, LV_SYMBOL_LEFT, sc(72), [] {
     if (s.page == Page::Main) closeSettings();
-    else showPage(s.page == Page::CustomTheme ? Page::Display : Page::Main);
+    else if (s.page == Page::CustomTheme) showPage(Page::Display);
+    else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
+    else showPage(Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));
   // X throws away this visit's changes; < keeps them.

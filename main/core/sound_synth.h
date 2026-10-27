@@ -15,6 +15,7 @@ enum class Sound : uint8_t {
   Home,          // whoosh-ish sweep when returning home
   FavoriteSeen,  // bright rising three-note fanfare
   FavoriteNear,  // insistent two-tone "ding-dong", repeated
+  Alarm,         // alarm clock: two bursts of four quick beeps
   kCount
 };
 

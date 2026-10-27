@@ -13,6 +13,7 @@ troubleshooting. For what changed in each version, see the
   - [Buttons](#buttons)
   - [The aircraft info card](#the-aircraft-info-card)
   - [Flight history](#flight-history)
+  - [Clock and alarms](#clock-and-alarms)
 - [Settings reference](#settings-reference)
   - [Wi-Fi](#wi-fi) · [Location](#location) · [Display](#display) ·
     [Sound](#sound) · [Traffic & data](#traffic--data) · [Filters](#filters) ·
@@ -85,6 +86,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | ⚙ Gear | top right | Open Settings |
 | ⏷ Funnel | right | Open the [Filters](#filters) page. Lit while a filter is hiding aircraft. |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
+| 🕘 Clock | right, below the funnel | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Zoom in / out by 2× |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
@@ -143,6 +145,24 @@ feed saw it). Zoom out to see the whole route.
   API, so a feed may stop serving them; the card then says *no history* and
   the normal trail still works.
 - Turn it off with **Display → Flight history on tap**.
+
+### Clock and alarms
+
+Tap the clock button to turn the radar into a clock. The compass headings
+around the edge are replaced by the numbers 1–12 with minute marks, and hour,
+minute and (optionally) seconds hands sweep from the middle, under the
+aircraft. A date window sits at three o'clock. The radar keeps working as
+usual. Tap the button again for the compass.
+
+The time comes from the internet (NTP), so after power-up the clock needs
+Wi-Fi; until then the face says *Waiting for the time...*. Set your time zone
+in **Settings → Clock & alarms**. Daylight saving time is handled
+automatically.
+
+When an alarm goes off, a full-screen notice shows the time with **Snooze 9
+min** and **Stop**. The screen wakes up if it was dimmed, and the alarm beeps
+every 2 seconds at no less than 70 % volume, **even if sound is switched
+off**. It stops by itself after 10 minutes.
 
 ---
 
@@ -230,6 +250,23 @@ slider.
 | Aircraft color: hue / saturation | Aircraft symbol color when **Aircraft colors** is set to **Theme**. Saturation 0 = white. | White |
 | Label color: hue / saturation | Aircraft label text color. Saturation 0 = white. | White |
 | Reset custom colors | Back to the defaults above | |
+
+### Clock & alarms
+
+| Option | What it does | Default |
+|---|---|---|
+| Time now | The current local time and date, or *Not set yet* before the clock has synced over Wi-Fi | |
+| Time zone | Your zone, chosen from a list of 24 (US zones, Europe, Asia, Australia, ...). Daylight saving is automatic. | Pacific |
+| Clock face on the radar | Same as the clock button | Off |
+| 24-hour time | 19:45 instead of 7:45 PM, on the alarm screens and settings | Off |
+| Seconds hand | Show the red seconds hand on the clock face | On |
+| Alarms 1–4 | Each shows its time and days. The switch turns it on or off; tap the row to edit it. | All off, 7:00 AM Mon–Fri |
+| Cancel snooze | Shown while an alarm is snoozed, with the minutes left | |
+
+**Editing an alarm:** **Hour** and **Minute** sliders (changing them switches
+the alarm on), **Alarm on**, the days it repeats (tap **Mo**…**Su**), and
+**Test this alarm**. With no days selected the alarm rings once and then
+switches itself off.
 
 ### Sound
 
@@ -412,6 +449,8 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
 | Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
+| Clock shows "Waiting for the time..." | It hasn't reached an internet time server yet. Check Wi-Fi; the time is set within a few seconds of connecting. |
+| Clock is off by whole hours | Choose your **Time zone** in Clock & alarms. |
 | Freezes while rotated (v1.4.0–v1.5.0) | Fixed in v1.5.1; flash it. Your rotation setting is kept. |
 | Touch is mirrored or rotated (picture is right) | Report it with your board model and rotation setting. |
 | Card says "no history" | The feed doesn't have this aircraft's history (common for aircraft that just appeared, or TIS-B/MLAT-only targets), or its history files are unreachable. Try another **ADS-B feed**. |

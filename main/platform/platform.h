@@ -66,6 +66,12 @@ bool wifiScanResults(std::vector<WifiNetwork>* out);
  */
 int httpGet(const char* url, std::string* body, int timeout_ms, const char* const* headers = nullptr);
 
+// --- Time ----------------------------------------------------------------------
+/** Wall-clock time in ms since 1970 (UTC). Meaningless until timeValid(). */
+int64_t unixTimeMs();
+/** True once the clock was set from the internet (SNTP). */
+bool timeValid();
+
 // --- Display -----------------------------------------------------------------
 void setBrightness(int percent);
 /** Raw touch points currently down (screen px), for multi-finger gestures. */

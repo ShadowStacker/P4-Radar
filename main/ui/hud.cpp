@@ -30,6 +30,8 @@ struct Hud {
   lv_obj_t* filter = nullptr;
   lv_obj_t* mute = nullptr;
   lv_obj_t* mute_label = nullptr;
+  lv_obj_t* clock = nullptr;
+  lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
   lv_obj_t* sweep = nullptr;
   lv_obj_t* zoom_in = nullptr;
@@ -119,6 +121,11 @@ void updateStatus() {
 
   if (h.mute_label) {
     lv_label_set_text(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
+  }
+
+  if (h.clock) {
+    if (app::settings().clock_mode) lv_obj_add_state(h.clock, LV_STATE_CHECKED);
+    else lv_obj_remove_state(h.clock, LV_STATE_CHECKED);
   }
 
   // The filter button lights up while any filter hides aircraft.
@@ -372,6 +379,7 @@ void leavePickMode() {
   setHidden(h.sweep, false);
   setHidden(h.filter, false);
   setHidden(h.mute, false);
+  setHidden(h.clock, false);
   updateCard();
 }
 
@@ -423,6 +431,7 @@ void enterPickMode() {
   setHidden(h.sweep, true);
   setHidden(h.filter, true);
   setHidden(h.mute, true);
+  setHidden(h.clock, true);
   updateCard();
 }
 
@@ -467,6 +476,23 @@ void create(lv_obj_t* parent) {
   lv_obj_set_style_image_recolor(funnel, p.text, 0);
   lv_obj_set_style_image_recolor_opa(funnel, LV_OPA_COVER, 0);
   placePolar(h.filter, 77, 0.80f);
+
+  // Clock face on/off, below the filter button.
+  h.clock = iconButton(h.controls, "", d, [] {
+    auto& st = app::settings();
+    st.clock_mode = !st.clock_mode;
+    app::settingsChanged();
+    RadarView::get().markStaticDirty();
+    updateStatus();
+  });
+  {
+    lv_obj_t* icon = lv_image_create(h.clock);
+    lv_image_set_src(icon, sprites::clockIcon(sc(32) | 1));
+    lv_obj_center(icon);
+    lv_obj_set_style_image_recolor(icon, p.text, 0);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+  }
+  placePolar(h.clock, 103, 0.80f);
 
   // Mute, mirroring the filter button on the left.
   h.mute = iconButton(h.controls, LV_SYMBOL_VOLUME_MAX, d, [] {

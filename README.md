@@ -69,7 +69,10 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   between them.
 - Double-tap zooms in. The **＋/−** buttons also zoom.
 - **Home** button flies back to your home location and zoom. Quick buttons
-  for **Filters** and **Mute** sit on either side.
+  for **Filters**, **Mute** and the **Clock** face sit around the edge.
+- **Clock mode**: the bezel turns into a clock dial with hour, minute and
+  seconds hands over the live radar. Set the time zone and up to four alarms
+  (with snooze) in **Clock & alarms**.
 - Tap an aircraft to open an info card: route (origin and destination),
   airline and model, altitude, vertical speed, speed,
   track, distance and bearing from home, squawk and registration. **Follow**
@@ -126,6 +129,7 @@ phone or captive portal is needed.
 |:-:|:-:|:-:|
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
+| ![](docs/images/39_clock_face.png)<br>Clock face | ![](docs/images/40_settings_clock.png)<br>Clock & alarms | ![](docs/images/43_alarm_ringing.png)<br>Alarm ringing |
 | ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme, large aircraft and labels | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
 | ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
 | ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |

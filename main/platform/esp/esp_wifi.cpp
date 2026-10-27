@@ -9,6 +9,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "platform/esp/esp_platform.h"
@@ -113,6 +114,11 @@ bool wifiStart() {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   s_netif = esp_netif_create_default_wifi_sta();
   esp_netif_set_hostname(s_netif, "plane-radar");
+
+  // Internet time for the clock face and alarms. SNTP keeps retrying in the
+  // background and syncs as soon as Wi-Fi is up (then hourly).
+  esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+  if (esp_netif_sntp_init(&sntp) != ESP_OK) ESP_LOGW(TAG, "SNTP init failed; the clock won't be set");
 
   esp_timer_create_args_t targs = {};
   targs.callback = retryNow;

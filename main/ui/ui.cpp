@@ -1,9 +1,11 @@
 #include "ui/ui.h"
 
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "app/app.h"
+#include "core/clock.h"
 #include "platform/platform.h"
 #include "ui/hud.h"
 #include "ui/radar_view.h"
@@ -29,7 +31,71 @@ void buildRadarScreen() {
   hud::create(s_radar_screen);
 }
 
+// Alarm dialog on the top layer, so it shows over the radar or settings.
+lv_obj_t* s_alarm_box = nullptr;
+lv_obj_t* s_alarm_time = nullptr;
+
+std::string clockText() {
+  const int64_t now = plat::unixTimeMs() / 1000;
+  const std::tm t = core::localTime(now);
+  char hm[16];
+  core::formatTime(t.tm_hour, t.tm_min, app::settings().clock_24h, hm, sizeof(hm));
+  return hm;
+}
+
+void closeAlarmDialog() {
+  if (s_alarm_box) lv_obj_delete(s_alarm_box);
+  s_alarm_box = nullptr;
+  s_alarm_time = nullptr;
+}
+
+void updateAlarmDialog() {
+  const int ringing = app::alarmRinging();
+  if (ringing < 0) {
+    closeAlarmDialog();
+    return;
+  }
+  if (s_alarm_box) {
+    lv_label_set_text(s_alarm_time, clockText().c_str());
+    return;
+  }
+  const Palette& p = pal();
+  s_alarm_box = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(s_alarm_box);
+  lv_obj_set_size(s_alarm_box, screenW(), screenH());
+  lv_obj_set_style_bg_color(s_alarm_box, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(s_alarm_box, 215, 0);
+  lv_obj_add_flag(s_alarm_box, LV_OBJ_FLAG_CLICKABLE);  // swallow taps
+  lv_obj_set_flex_flow(s_alarm_box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(s_alarm_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_row(s_alarm_box, sc(18), 0);
+
+  label(s_alarm_box, LV_SYMBOL_BELL "  Alarm", font(FontSize::L), p.accent);
+  s_alarm_time = label(s_alarm_box, clockText().c_str(), &lv_font_montserrat_44, p.text);
+  const core::Alarm& a = app::settings().alarms[ringing];
+  char set[16];
+  core::formatTime(a.hour, a.minute, app::settings().clock_24h, set, sizeof(set));
+  label(s_alarm_box, (std::string("Set for ") + set).c_str(), font(FontSize::M), p.text_dim);
+
+  lv_obj_t* row = lv_obj_create(s_alarm_box);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, sc(520), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_top(row, sc(20), 0);
+  pillButton(row, "Snooze 9 min", [] {
+    app::snoozeAlarm();
+    closeAlarmDialog();
+    toast(LV_SYMBOL_BELL "  Snoozed for 9 minutes", 2500);
+  });
+  pillButton(row, LV_SYMBOL_OK "  Stop", [] {
+    app::stopAlarm();
+    closeAlarmDialog();
+  }, true);
+}
+
 void onAppTimer(lv_timer_t*) {
+  updateAlarmDialog();
   // Any touch on any screen keeps the backlight up.
   if (lv_display_get_inactive_time(s_disp) < 400) app::userActivity();
   app::tick(plat::millis());

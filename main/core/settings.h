@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "core/clock.h"
+
 namespace core {
 
 enum class Units : uint8_t { Km = 0, Mi = 1, Nm = 2 };
@@ -23,7 +25,8 @@ struct Settings {
   //   3: up to type_filter (v1.3.0)
   //   4: up to extended_trail (v1.4.0)
   //   5: up to show_route_info (v1.5.0)
-  static constexpr uint16_t kVersion = 5;
+  //   6: up to alarms (v1.6.0)
+  static constexpr uint16_t kVersion = 6;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -109,6 +112,13 @@ struct Settings {
   uint8_t label_size = 1;                 // 0 small, 1 normal, 2 large
   uint8_t airport_codes = 0;              // 0 ICAO (local codes like S39 fall back to IATA), 1 IATA
   bool show_route_info = true;            // look up airline and route of the tapped aircraft
+
+  // v1.6.0: clock
+  bool clock_mode = false;                // clock face (numerals + hands) instead of compass headings
+  bool clock_24h = false;
+  bool clock_seconds = true;              // seconds hand
+  uint8_t time_zone = 1;                  // index into core::timeZone(); 1 = US Pacific
+  Alarm alarms[kMaxAlarms];
 };
 
 }  // namespace core

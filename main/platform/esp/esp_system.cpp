@@ -1,5 +1,8 @@
 #include <functional>
 
+#include <sys/time.h>
+#include <ctime>
+
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_system.h"
@@ -20,6 +23,15 @@ void taskTrampoline(void* arg) {
 }
 
 }  // namespace
+
+int64_t unixTimeMs() {
+  struct timeval tv;
+  gettimeofday(&tv, nullptr);
+  return static_cast<int64_t>(tv.tv_sec) * 1000 + tv.tv_usec / 1000;
+}
+
+// The board has no battery-backed clock, so before SNTP it counts from 1970.
+bool timeValid() { return std::time(nullptr) > 1735689600; }  // 2025-01-01
 
 uint32_t millis() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
 

@@ -32,6 +32,15 @@ constexpr uint32_t kSaveDebounceMs = 2500;
 uint32_t s_last_activity = 0;
 bool s_dimmed = false;
 
+// Alarms (UI task only).
+int s_ringing = -1;
+uint32_t s_ring_started_ms = 0;
+uint32_t s_next_beep_ms = 0;
+int64_t s_last_minute = -1;
+int s_snoozed = -1;
+int64_t s_snooze_until_s = 0;
+constexpr uint32_t kBeepEveryMs = 2000;
+
 std::mutex s_mu;  // guards s_query_* and s_feed
 core::LatLon s_query_center;
 double s_query_radius_km = 50;
@@ -108,7 +117,47 @@ bool downloadTrace(const char* hex, core::trace::Trace* out) {
 
 void applyHardware() {
   if (!s_dimmed) plat::setBrightness(s_settings.brightness);
-  plat::setVolume(s_settings.volume);
+  // A ringing alarm is never quieter than 70 %, whatever the volume setting.
+  plat::setVolume(s_ringing >= 0 ? std::max<int>(s_settings.volume, 70) : s_settings.volume);
+}
+
+void startRinging(int index) {
+  s_ringing = index;
+  s_ring_started_ms = plat::millis();
+  s_next_beep_ms = s_ring_started_ms;
+  s_snoozed = -1;
+  s_snooze_until_s = 0;
+  userActivity();  // wake a dimmed screen
+  applyHardware();
+}
+
+void checkAlarms(uint32_t now_ms) {
+  if (plat::timeValid()) {
+    const int64_t unix_s = plat::unixTimeMs() / 1000;
+    const int64_t minute = unix_s / 60;
+    if (minute != s_last_minute) {
+      s_last_minute = minute;
+      const std::tm t = core::localTime(unix_s);
+      for (int i = 0; i < core::kMaxAlarms; ++i) {
+        core::Alarm& a = s_settings.alarms[i];
+        if (!core::alarmMatches(a, t)) continue;
+        if (a.days == 0) {  // one-time alarm: done after this
+          a.enabled = false;
+          settingsChanged();
+        }
+        if (s_ringing < 0) startRinging(i);
+      }
+    }
+    if (s_snoozed >= 0 && unix_s >= s_snooze_until_s && s_ringing < 0) startRinging(s_snoozed);
+  }
+  if (s_ringing >= 0) {
+    if (now_ms - s_ring_started_ms > core::kAlarmRingMinutes * 60000u) {
+      stopAlarm();
+    } else if (static_cast<int32_t>(now_ms - s_next_beep_ms) >= 0) {
+      plat::playSound(core::Sound::Alarm);
+      s_next_beep_ms = now_ms + kBeepEveryMs;
+    }
+  }
 }
 
 void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed) {
@@ -242,6 +291,7 @@ void init() {
   s_query_center = {s_settings.home_lat, s_settings.home_lon};
   s_query_radius_km = s_settings.home_radius_km;
   s_last_activity = plat::millis();
+  core::applyTimeZone(s_settings.time_zone);
   applyHardware();
   if (s_settings.wifi_ssid[0] != '\0') {
     plat::wifiConnect(s_settings.wifi_ssid, s_settings.wifi_pass);
@@ -266,6 +316,7 @@ void settingsFlush() {
 }
 
 void tick(uint32_t now_ms) {
+  checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed &&
@@ -273,6 +324,36 @@ void tick(uint32_t now_ms) {
     s_dimmed = true;
     plat::setBrightness(s_settings.dim_brightness);
   }
+}
+
+void timeZoneChanged() {
+  core::applyTimeZone(s_settings.time_zone);
+  s_last_minute = -1;
+}
+
+int alarmRinging() { return s_ringing; }
+
+void snoozeAlarm() {
+  if (s_ringing < 0) return;
+  s_snoozed = s_ringing;
+  s_snooze_until_s = plat::unixTimeMs() / 1000 + core::kSnoozeMinutes * 60;
+  s_ringing = -1;
+  applyHardware();
+}
+
+void stopAlarm() {
+  s_ringing = -1;
+  s_snoozed = -1;
+  s_snooze_until_s = 0;
+  applyHardware();
+}
+
+void testAlarm(int index) { startRinging(index); }
+
+int snoozeMinutesLeft() {
+  if (s_snoozed < 0) return -1;
+  const int64_t left = s_snooze_until_s - plat::unixTimeMs() / 1000;
+  return left <= 0 ? 0 : static_cast<int>((left + 59) / 60);
 }
 
 bool userActivity() {

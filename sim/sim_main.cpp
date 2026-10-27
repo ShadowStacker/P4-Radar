@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "app/app.h"
+#include "core/clock.h"
+#include "platform/platform.h"
 #include "core/filter.h"
 #include "core/traffic.h"
 #include "fake_traffic.h"
@@ -498,6 +500,52 @@ int main(int argc, char** argv) {
     std::printf("discard check: %s\n", ok ? "OK" : "FAILED");
     if (!ok) return 1;
     shot((p + "38_changes_discarded").c_str());
+  }
+
+  // Clock face, clock menus, and an alarm going off.
+  {
+    auto& st = app::settings();
+    st.clock_mode = true;
+    ui::RadarView::get().markStaticDirty();
+    run(1200);
+    shot((p + "39_clock_face").c_str());
+    ui::openSettings(ui::Page::Clock);
+    run(500);
+    shot((p + "40_settings_clock").c_str());
+    ui::closeSettings();
+    ui::openSettings(ui::Page::TimeZone);
+    run(400);
+    shot((p + "41_settings_time_zone").c_str());
+    ui::closeSettings();
+
+    // Alarm one minute from now.
+    const std::tm t = core::localTime(plat::unixTimeMs() / 1000 + 60);
+    st.alarms[0].enabled = true;
+    st.alarms[0].hour = static_cast<uint8_t>(t.tm_hour);
+    st.alarms[0].minute = static_cast<uint8_t>(t.tm_min);
+    st.alarms[0].days = 0x7F;
+    app::settingsChanged();
+    ui::openSettings(ui::Page::Clock);
+    run(300);
+    lv_obj_send_event(lv_obj_get_child(settingsList(), 6), LV_EVENT_CLICKED, nullptr);  // first alarm row
+    run(400);
+    shot((p + "42_settings_alarm_edit").c_str());
+    ui::closeSettings();
+    run(62000);
+    const bool rang = app::alarmRinging() == 0;
+    std::printf("alarm check: %s\n", rang ? "OK" : "FAILED");
+    if (!rang) return 1;
+    shot((p + "43_alarm_ringing").c_str());
+    app::snoozeAlarm();
+    run(300);
+    const bool snoozed = app::alarmRinging() < 0 && app::snoozeMinutesLeft() == core::kSnoozeMinutes;
+    std::printf("snooze check: %s\n", snoozed ? "OK" : "FAILED");
+    if (!snoozed) return 1;
+    app::stopAlarm();
+    st.alarms[0].enabled = false;
+    st.clock_mode = false;
+    ui::RadarView::get().markStaticDirty();
+    run(300);
   }
 
   // Central Oregon: home at Redmond, zoomed in to show the small fields.

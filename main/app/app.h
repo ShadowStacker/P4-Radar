@@ -113,6 +113,18 @@ void ingest(int http_code, const std::string& body);
 /** Starts the background ADS-B poller task. */
 void startNetworkTask();
 
+// --- Clock and alarms (UI task) ------------------------------------------------
+/** Re-applies settings().time_zone to local-time conversions. */
+void timeZoneChanged();
+/** Index of the alarm that is ringing, or -1. Alarms ring even when muted. */
+int alarmRinging();
+void snoozeAlarm();  // rings again in core::kSnoozeMinutes
+void stopAlarm();
+/** Rings alarm `index` now (Clock settings test button). */
+void testAlarm(int index);
+/** Minutes until a snoozed alarm rings again, or -1. */
+int snoozeMinutesLeft();
+
 /** Plays a sound if the user enabled that category. */
 void sound(core::Sound s);
 

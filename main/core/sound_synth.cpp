@@ -113,6 +113,15 @@ std::vector<int16_t> synthesize(Sound sound, int rate) {
       }
       return b.toPcm();
     }
+    case Sound::Alarm: {
+      Buffer b(rate, 1.5);
+      for (int burst = 0; burst < 2; ++burst) {
+        for (int i = 0; i < 4; ++i) {
+          b.tone(burst * 0.75 + i * 0.12, 0.07, 2093.0, 2093.0, 0.5, 1.0, 0.003, true);  // C7
+        }
+      }
+      return b.toPcm();
+    }
     default:
       return {};
   }

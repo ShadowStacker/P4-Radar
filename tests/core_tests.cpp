@@ -11,6 +11,7 @@
 #include <zlib.h>
 
 #include "core/adsb.h"
+#include "core/clock.h"
 #include "core/filter.h"
 #include "core/geo.h"
 #include "core/inflate.h"
@@ -545,6 +546,84 @@ void testRoute() {
   CHECK(core::route::aircraftUrl("~1234ab", "") == "https://api.adsbdb.com/v0/aircraft/1234AB");
 }
 
+void testClock() {
+  // Time zones with daylight saving. 2026-07-01 12:00 UTC and 2026-01-15 12:00 UTC.
+  const int64_t summer = 1782907200, winter = 1768478400;
+  int pacific = -1, cet = -1, india = -1;
+  for (int i = 0; i < core::timeZoneCount(); ++i) {
+    const std::string n = core::timeZone(i).name;
+    if (n.rfind("Pacific", 0) == 0) pacific = i;
+    if (n.rfind("Central Europe", 0) == 0) cet = i;
+    if (n.rfind("India", 0) == 0) india = i;
+  }
+  CHECK(pacific == 1 && cet > 0 && india > 0);
+  core::applyTimeZone(pacific);
+  CHECK(core::localTime(summer).tm_hour == 5);   // PDT, UTC-7
+  CHECK(core::localTime(winter).tm_hour == 4);   // PST, UTC-8
+  core::applyTimeZone(cet);
+  CHECK(core::localTime(summer).tm_hour == 14);  // CEST
+  CHECK(core::localTime(winter).tm_hour == 13);  // CET
+  core::applyTimeZone(india);
+  const std::tm ist = core::localTime(winter);
+  CHECK(ist.tm_hour == 17 && ist.tm_min == 30);
+  core::applyTimeZone(999);  // out of range -> UTC
+  CHECK(core::localTime(winter).tm_hour == 12);
+  // Every zone's rule parses (a bad rule silently falls back to UTC in newlib/glibc).
+  for (int i = 1; i < core::timeZoneCount(); ++i) {
+    core::applyTimeZone(i);
+    const std::tm a = core::localTime(summer), b = core::localTime(winter);
+    CHECK(a.tm_hour != 12 || a.tm_min != 0 || b.tm_hour != 12 || b.tm_min != 0);
+  }
+
+  core::Alarm al;
+  al.enabled = true;
+  al.hour = 7;
+  al.minute = 30;
+  al.days = 0x3E;  // Mon-Fri
+  std::tm t{};
+  t.tm_hour = 7;
+  t.tm_min = 30;
+  t.tm_wday = 2;  // Tuesday
+  CHECK(core::alarmMatches(al, t));
+  t.tm_wday = 6;  // Saturday
+  CHECK(!core::alarmMatches(al, t));
+  al.days = 0;    // once: any day
+  CHECK(core::alarmMatches(al, t));
+  t.tm_min = 31;
+  CHECK(!core::alarmMatches(al, t));
+  al.enabled = false;
+  t.tm_min = 30;
+  CHECK(!core::alarmMatches(al, t));
+
+  std::tm c{};
+  c.tm_hour = 15;
+  c.tm_min = 30;
+  c.tm_sec = 15;
+  const core::HandAngles h = core::handAngles(c, 500, false);
+  CHECK_NEAR(h.hour, 105.0, 0.2);   // 3:30 -> between 3 and 4
+  CHECK_NEAR(h.minute, 181.5, 0.01);
+  CHECK_NEAR(h.second, 90.0, 0.01);
+  CHECK_NEAR(core::handAngles(c, 500, true).second, 93.0, 0.01);
+
+  char buf[40];
+  core::formatDays(0x3E, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "Mon-Fri") == 0);
+  core::formatDays(0x7F, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "Every day") == 0);
+  core::formatDays(0x41, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "Weekends") == 0);
+  core::formatDays(0x2A, buf, sizeof(buf));  // Mon Wed Fri
+  CHECK(std::strcmp(buf, "Mon Wed Fri") == 0);
+  core::formatDays(0, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "Once") == 0);
+  core::formatTime(0, 5, false, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "12:05 AM") == 0);
+  core::formatTime(12, 0, false, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "12:00 PM") == 0);
+  core::formatTime(19, 45, true, buf, sizeof(buf));
+  CHECK(std::strcmp(buf, "19:45") == 0);
+}
+
 void testRotation() {
   const int W = 720, H = 720;
   for (int q = 0; q < 4; ++q) {
@@ -602,6 +681,7 @@ int main() {
   testInflate();
   testTrace();
   testRotation();
+  testClock();
   testRoute();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);

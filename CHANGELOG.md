@@ -10,6 +10,23 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.6.0] - 2026-10-27
+
+### Added
+- **Clock face**: a new clock button on the radar (right side) swaps the
+  compass headings for clock numerals and minute marks, with hour, minute and
+  seconds hands and a date window. The radar keeps running underneath.
+- **Settings → Clock & alarms**:
+  - Time zone, from a list of 24 with automatic daylight saving (default
+    US Pacific).
+  - 24-hour time and seconds-hand options.
+  - **Four alarms**, each with a time, the days it repeats (or once), and a
+    test button.
+- **Alarm screen** with **Snooze 9 min** and **Stop**. Alarms wake a dimmed
+  screen, beep at no less than 70 % volume even when sound is off, and give
+  up after 10 minutes.
+- The time is set from the internet (NTP) once Wi-Fi connects.
+
 ## [v1.5.1] - 2026-10-27
 
 ### Fixed
@@ -198,6 +215,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.6.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.6.0
 [v1.5.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.0
 [v1.4.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.4.0
