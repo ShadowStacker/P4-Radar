@@ -958,7 +958,10 @@ void pageSdCard() {
   lv_obj_t* note = label(s.list,
                          "Map tiles you look at are saved on the card, so they appear instantly next time and "
                          "work without internet for those areas. Use a FAT32-formatted microSD card. Insert it "
-                         "with the power off, or tap \"Look for a card again\".",
+                         "with the power off, or tap \"Look for a card again\".\n\n"
+                         "The card also keeps a copy of your settings (settings.txt, including Wi-Fi) and "
+                         "favorites (favorites.txt). They are read at startup, so they come back after a "
+                         "reflash, and you can edit them on a computer.",
                          font(FontSize::S), p.text_dim);
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
@@ -1198,8 +1201,11 @@ void pageAbout() {
     plat::restart();
   }, pal().text);
   actionRow(LV_SYMBOL_TRASH, "Factory reset", [] {
-    confirm("Factory reset?", "Erases Wi-Fi, location and all settings, then restarts.", "Erase", [] {
-      plat::settingsErase();
+    confirm("Factory reset?",
+            "Erases Wi-Fi, location and all settings (also settings.txt on the SD card), then restarts. "
+            "favorites.txt on the card is kept.",
+            "Erase", [] {
+      app::factoryReset();
       plat::restart();
     });
   }, pal().danger);

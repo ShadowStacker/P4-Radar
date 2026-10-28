@@ -1,4 +1,7 @@
 # Name,   Type, SubType, Offset,   Size
-nvs,      data, nvs,     0x9000,   0x6000
-phy_init, data, phy,     0xf000,   0x1000
+# The settings (nvs) sit after the app on purpose: the release image is
+# flashed at 0x0 and covers everything up to the end of the app, so anything
+# below 0x10000 would be erased by every update.
 factory,  app,  factory, 0x10000,  0x700000
+nvs,      data, nvs,     0x710000, 0x10000
+phy_init, data, phy,     0x720000, 0x1000

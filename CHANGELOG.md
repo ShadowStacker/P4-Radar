@@ -7,8 +7,30 @@ All notable changes to Plane Radar P4. Versions match the
 for your board size **and** your ESP32-P4 chip revision. See
 [Flashing](docs/USER_GUIDE.md#flashing-the-firmware) in the user guide.
 
-Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
-entry below says otherwise.
+From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
+favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
+
+## [v1.12.0] - 2026-10-28
+
+### Fixed
+- **Updates no longer erase your settings.** Earlier versions stored settings
+  in a flash area that the release image (flashed at `0x0`) also covered, so
+  every update wiped Wi-Fi, location, settings and favorites, despite what
+  these notes said. Settings now live after the app, outside the image.
+  Updating *to* v1.12.0 still starts fresh one last time (or restores from
+  the SD card, see below); later updates keep everything.
+
+### Added
+- **`settings.txt` on the SD card:** every setting, Wi-Fi included, as
+  commented `key = value` lines. Written whenever settings change, read back
+  at startup, and editable on a computer. Settings survive even a full
+  `erase_flash`, and moving the card to a second radar copies them.
+- **`favorites.txt` on the SD card:** one aircraft per line (ICAO hex, label,
+  type). Add aircraft on a computer by hex code or just by tail number; tail
+  numbers are looked up online at startup and replaced by their hex code.
+- Several tail-number lookups can now wait in line (before, a second one
+  replaced the first).
+- *Factory reset* also deletes `settings.txt` (`favorites.txt` is kept).
 
 ## [v1.11.0] - 2026-10-28
 

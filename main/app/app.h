@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
-
 #include <vector>
 
 #include "core/favorites.h"
@@ -31,6 +31,14 @@ void settingsChanged();
 void settingsFlush();
 /** Counts settingsChanged() calls, to tell whether anything changed since a snapshot. */
 uint32_t settingsGeneration();
+/**
+ * UI task: runs after settings were replaced from settings.txt on the SD
+ * card (Wi-Fi, time zone and hardware are already applied), with the
+ * settings from before, so the UI can re-theme or restart.
+ */
+void onSettingsLoaded(std::function<void(const core::Settings& before)> fn);
+/** Factory reset: erases saved settings and favorites, and settings.txt on the card. */
+void factoryReset();
 /** Called periodically from the UI task (handles debounced save, dimming). */
 void tick(uint32_t now_ms);
 /**
@@ -79,6 +87,14 @@ void lookupFavorite(const std::string& registration_or_hex);
 bool serviceFavoriteLookup();
 /** Replaces the whole list (used to undo edits). */
 void setFavorites(const std::vector<core::Favorite>& favs);
+/**
+ * Network task: a card was just mounted. Reads settings.txt and
+ * favorites.txt (or writes them if missing, or if this board has changes the
+ * card hasn't seen).
+ */
+void sdFilesMounted();
+/** Network task: writes the text files when they're out of date. True if it wrote one. */
+bool serviceSdFiles();
 /** Next on-screen notice from the poller ("RCH471 detected"), if any. */
 bool popNotice(std::string* out);
 

@@ -15,6 +15,7 @@
 #include "app/maps.h"
 #include "core/inflate.h"
 #include "core/route.h"
+#include "core/settings_text.h"
 #include "core/trace.h"
 #include "platform/platform.h"
 
@@ -70,8 +71,117 @@ std::mutex s_route_mu;
 RouteState s_route;
 bool s_route_pending = false;
 std::deque<RouteState> s_route_cache;  // most recent first
-std::string s_fav_lookup;              // tail number waiting to be looked up
+// Favorites waiting to be looked up: tail number or hex, and whether it came
+// from favorites.txt.
+std::deque<std::pair<std::string, bool>> s_fav_lookups;
 constexpr size_t kRouteCacheSize = 24;
+
+// Text copies of the settings and favorites on the SD card. Guarded by s_files_mu.
+std::mutex s_files_mu;
+bool s_first_mount_done = false;
+bool s_settings_file_dirty = false;   // settings.txt is behind; write s_settings_file_text
+std::string s_settings_file_text;
+bool s_favorites_file_dirty = false;  // favorites.txt is behind
+bool s_settings_file_read = false;    // s_settings_file_in waits for the UI task
+std::string s_settings_file_in;
+bool s_settings_file_missing = false;  // UI task should write one
+std::vector<std::string> s_fav_unresolved;  // tail numbers from favorites.txt not looked up yet
+std::function<void(const core::Settings&)> s_on_loaded;  // UI task
+constexpr size_t kMaxTextFile = 64 * 1024;
+
+std::string sdPath(const char* name) { return std::string(plat::sdRoot()) + "/" + name; }
+
+bool readText(const char* name, std::string* out) {
+  FILE* f = std::fopen(sdPath(name).c_str(), "rb");
+  if (f == nullptr) return false;
+  out->clear();
+  char buf[1024];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0 && out->size() < kMaxTextFile) out->append(buf, n);
+  std::fclose(f);
+  return true;
+}
+
+void writeText(const char* name, const std::string& text) {
+  // Write a temporary file and rename it, so a power cut never leaves half a file.
+  const std::string path = sdPath(name), tmp = path + ".tmp";
+  FILE* f = std::fopen(tmp.c_str(), "wb");
+  bool ok = f != nullptr && std::fwrite(text.data(), 1, text.size(), f) == text.size();
+  if (f != nullptr && std::fclose(f) != 0) ok = false;
+  if (ok) {
+    std::remove(path.c_str());
+    ok = std::rename(tmp.c_str(), path.c_str()) == 0;
+  } else {
+    std::remove(tmp.c_str());
+  }
+  std::printf("sd: %s %s (%u bytes)\n", ok ? "wrote" : "FAILED to write", name, static_cast<unsigned>(text.size()));
+}
+
+/** UI task: settings.txt should match s_settings. */
+void queueSettingsFile() {
+  std::string text = core::settings_text::serialize(s_settings);
+  std::lock_guard<std::mutex> lock(s_files_mu);
+  s_settings_file_text.swap(text);
+  s_settings_file_dirty = true;
+}
+
+void queueFavoritesFile() {
+  std::lock_guard<std::mutex> lock(s_files_mu);
+  s_favorites_file_dirty = true;
+}
+
+void dropUnresolved(const std::string& tail) {
+  std::lock_guard<std::mutex> lock(s_files_mu);
+  s_fav_unresolved.erase(std::remove(s_fav_unresolved.begin(), s_fav_unresolved.end(), tail),
+                         s_fav_unresolved.end());
+  s_favorites_file_dirty = true;
+}
+
+void settingsFlushImpl();
+
+/** UI task: applies a settings.txt read by the network task. */
+void applySettingsFile() {
+  std::string text;
+  bool read, missing;
+  {
+    std::lock_guard<std::mutex> lock(s_files_mu);
+    read = s_settings_file_read;
+    missing = s_settings_file_missing;
+    s_settings_file_read = s_settings_file_missing = false;
+    text.swap(s_settings_file_in);
+  }
+  if (missing) queueSettingsFile();
+  if (!read) return;
+
+  core::Settings next = s_settings;
+  std::vector<std::string> problems;
+  const int n = core::settings_text::parse(text, &next, &problems);
+  std::printf("sd: settings.txt has %d settings\n", n);
+  for (const std::string& p : problems) std::printf("sd: settings.txt %s\n", p.c_str());
+
+  if (std::memcmp(&next, &s_settings, sizeof(next)) == 0) {
+    // Same settings; rewrite the file if it's missing lines or in an old layout.
+    if (core::settings_text::serialize(s_settings) != text) queueSettingsFile();
+    return;
+  }
+  const core::Settings before = s_settings;
+  s_settings = next;
+  core::applyTimeZone(s_settings.time_zone);
+  if (std::strcmp(before.wifi_ssid, s_settings.wifi_ssid) != 0 ||
+      std::strcmp(before.wifi_pass, s_settings.wifi_pass) != 0) {
+    plat::wifiConnect(s_settings.wifi_ssid, s_settings.wifi_pass);
+  }
+  settingsChanged();
+  settingsFlushImpl();  // saves to flash and rewrites the file in the current layout
+  traffic().clear();     // filters may have changed
+  requestRefresh();
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_notices.push_back(problems.empty() ? "Settings loaded from SD card"
+                                         : "Settings loaded from SD card (some lines ignored)");
+  }
+  if (s_on_loaded) s_on_loaded(before);
+}
 
 bool sameKey(const RouteState& r, const char* hex, const char* callsign) {
   return std::strcmp(r.hex, hex) == 0 && std::strcmp(r.callsign, callsign) == 0;
@@ -265,7 +375,7 @@ void networkLoop() {
     const bool due = first || now - last_fetch >= interval ||
                      (s_refresh_requested.load() && now - last_fetch >= kMinFetchSpacingMs);
     // The SD card and saved map tiles work without Wi-Fi.
-    if (maps::serviceSd()) continue;
+    if (maps::serviceSd() || serviceSdFiles()) continue;
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       if (!maps::service(false)) plat::sleepMs(100);
       continue;
@@ -327,13 +437,102 @@ void settingsChanged() {
 
 uint32_t settingsGeneration() { return s_generation; }
 
-void settingsFlush() {
+void settingsFlush() { settingsFlushImpl(); }
+
+namespace {
+void settingsFlushImpl() {
   if (!s_dirty) return;
   plat::settingsSave(s_settings);
+  queueSettingsFile();
   s_dirty = false;
+}
+}  // namespace
+
+void onSettingsLoaded(std::function<void(const core::Settings& before)> fn) { s_on_loaded = std::move(fn); }
+
+void factoryReset() {
+  // favorites.txt is kept: it's the user's own list and restores the favorites.
+  if (maps::sdStatus().state == maps::SdState::Mounted) {
+    std::remove(sdPath(core::settings_text::kSettingsFile).c_str());
+  }
+  plat::settingsErase();
+}
+
+void sdFilesMounted() {
+  bool first, settings_behind, favorites_behind;
+  {
+    std::lock_guard<std::mutex> lock(s_files_mu);
+    first = !s_first_mount_done;
+    s_first_mount_done = true;
+    settings_behind = s_settings_file_dirty;
+    favorites_behind = s_favorites_file_dirty;
+  }
+  // At boot the card wins. A card put in later only wins if nothing changed
+  // on the screen in the meantime; otherwise it gets this board's settings.
+  std::string text;
+  if (first || !settings_behind) {
+    const bool found = readText(core::settings_text::kSettingsFile, &text);
+    std::lock_guard<std::mutex> lock(s_files_mu);
+    s_settings_file_dirty = false;
+    if (found) {
+      s_settings_file_in.swap(text);
+      s_settings_file_read = true;
+    } else {
+      s_settings_file_missing = true;
+    }
+  }
+  if (first || !favorites_behind) {
+    if (readText(core::settings_text::kFavoritesFile, &text)) {
+      std::vector<core::Favorite> favs;
+      std::vector<std::string> lookups;
+      core::settings_text::parseFavorites(text, &favs, &lookups);
+      std::printf("sd: favorites.txt has %u aircraft, %u to look up\n", static_cast<unsigned>(favs.size()),
+                  static_cast<unsigned>(lookups.size()));
+      {
+        std::lock_guard<std::mutex> lock(s_favorites_mu);
+        s_favorites = favs;
+      }
+      plat::favoritesSave(favs);
+      {
+        std::lock_guard<std::mutex> lock(s_files_mu);
+        s_fav_unresolved = lookups;
+        s_favorites_file_dirty = false;
+      }
+      std::lock_guard<std::mutex> lock(s_route_mu);
+      for (const std::string& q : lookups) s_fav_lookups.emplace_back(q, true);
+    } else {
+      queueFavoritesFile();
+    }
+  }
+}
+
+bool serviceSdFiles() {
+  if (maps::sdStatus().state != maps::SdState::Mounted) return false;
+  std::string text;
+  {
+    std::lock_guard<std::mutex> lock(s_files_mu);
+    if (s_settings_file_dirty) {
+      text.swap(s_settings_file_text);
+      s_settings_file_dirty = false;
+    }
+  }
+  if (!text.empty()) {
+    writeText(core::settings_text::kSettingsFile, text);
+    return true;
+  }
+  std::vector<std::string> unresolved;
+  {
+    std::lock_guard<std::mutex> lock(s_files_mu);
+    if (!s_favorites_file_dirty) return false;
+    s_favorites_file_dirty = false;
+    unresolved = s_fav_unresolved;
+  }
+  writeText(core::settings_text::kFavoritesFile, core::settings_text::serializeFavorites(favorites(), unresolved));
+  return true;
 }
 
 void tick(uint32_t now_ms) {
+  applySettingsFile();
   checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
@@ -440,6 +639,7 @@ bool toggleFavorite(const core::Aircraft& a) {
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
+  queueFavoritesFile();
   return now_favorite;
 }
 
@@ -453,6 +653,7 @@ void removeFavorite(const char* hex) {
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
+  queueFavoritesFile();
 }
 
 bool addFavorite(const core::Favorite& f) {
@@ -464,20 +665,27 @@ bool addFavorite(const core::Favorite& f) {
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
+  queueFavoritesFile();
   return true;
 }
 
 void lookupFavorite(const std::string& q) {
   std::lock_guard<std::mutex> lock(s_route_mu);
-  s_fav_lookup = q;
+  for (const auto& p : s_fav_lookups) {
+    if (p.first == q) return;
+  }
+  s_fav_lookups.emplace_back(q, false);
 }
 
 bool serviceFavoriteLookup() {
   std::string q;
+  bool from_file;
   {
     std::lock_guard<std::mutex> lock(s_route_mu);
-    if (s_fav_lookup.empty()) return false;
-    q.swap(s_fav_lookup);
+    if (s_fav_lookups.empty()) return false;
+    q = s_fav_lookups.front().first;
+    from_file = s_fav_lookups.front().second;
+    s_fav_lookups.pop_front();
   }
   core::route::Info info;
   std::string body;
@@ -486,6 +694,9 @@ bool serviceFavoriteLookup() {
   const bool found = code == 200 && core::route::parse(body.data(), body.size(), &info) && info.mode_s[0] != '\0';
   std::printf("favorite lookup: %s -> %d\n", url.c_str(), code);
 
+  // A tail number from favorites.txt leaves the file once it's resolved (or
+  // doesn't exist); after a network error it stays for the next start.
+  if (from_file && (found || code == 404 || code == 200)) dropUnresolved(q);
   std::string notice;
   if (found) {
     core::Favorite f;
@@ -511,6 +722,7 @@ void setFavorites(const std::vector<core::Favorite>& favs) {
     s_favorites = favs;
   }
   plat::favoritesSave(favs);
+  queueFavoritesFile();
 }
 
 bool popNotice(std::string* out) {

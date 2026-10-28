@@ -74,6 +74,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Background maps**: dark street map, topo map or FAA VFR sectional
   charts under the radar (streets and topo tinted to the theme), with tiles saved on an optional microSD card for instant and
   offline use.
+- **Settings and favorites on the SD card**: `settings.txt` (Wi-Fi included) and `favorites.txt` are kept in the card's
+  root, read at startup and editable on a computer. Add favorites there by hex code or tail number.
 - **Clock mode**: the bezel turns into a clock dial with hour, minute and
   seconds hands over the live radar. Set the time zone and up to four alarms
   (with snooze) in **Clock & alarms**.

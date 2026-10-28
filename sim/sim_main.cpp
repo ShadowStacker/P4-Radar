@@ -137,7 +137,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     g_traffic->advance(step / 1000.0);
     feedTraffic();
     if (!app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
-    if (!app::maps::serviceSd()) app::maps::service(true);
+    if (!app::maps::serviceSd() && !app::serviceSdFiles()) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -326,6 +326,9 @@ int main(int argc, char** argv) {
   if (bench) return runBench();
 
   sim::g_preset_wifi = false;  // start like a fresh device
+  // A blank card: no settings.txt or favorites.txt from an earlier run.
+  std::remove((std::string(plat::sdRoot()) + "/settings.txt").c_str());
+  std::remove((std::string(plat::sdRoot()) + "/favorites.txt").c_str());
   app::init();
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
@@ -738,6 +741,75 @@ int main(int argc, char** argv) {
     st.map_style = 0;
     st.map_tint = true;
     run(300);
+  }
+
+  // settings.txt and favorites.txt: written by the radar, edited on a
+  // computer, read back when the card is mounted again.
+  {
+    const std::string root = plat::sdRoot();
+    auto readAll = [](const std::string& path) {
+      std::string out;
+      if (FILE* f = std::fopen(path.c_str(), "rb")) {
+        char buf[4096];
+        size_t n;
+        while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) out.append(buf, n);
+        std::fclose(f);
+      }
+      return out;
+    };
+    app::settings().volume = 42;
+    app::settingsChanged();
+    app::settingsFlush();
+    run(500);
+    std::string text = readAll(root + "/settings.txt");
+    const bool written = text.find("volume = 42") != std::string::npos &&
+                         text.find("wifi_ssid = \"HomeNet\"") != std::string::npos;
+    std::printf("settings.txt written: %s\n", written ? "OK" : "FAILED");
+    if (!written) return 1;
+
+    // Pick a tail number to add by hand.
+    std::vector<core::Track> tracks;
+    app::traffic().snapshot(tracks);
+    std::string reg, hex;
+    for (const auto& t : tracks) {
+      if (t.ac.reg[0] && !app::isFavorite(t.ac.hex) && !t.ac.military) {
+        reg = t.ac.reg;
+        hex = t.ac.hex;
+        break;
+      }
+    }
+    app::maps::sdRequest(app::maps::SdAction::Unmount);
+    run(300);
+    auto replace = [&](const std::string& from, const std::string& to) {
+      const size_t at = text.find(from);
+      if (at != std::string::npos) text.replace(at, from.size(), to);
+    };
+    replace("theme = phosphor", "theme = amber");
+    replace("volume = 42", "volume = 75");
+    replace("clock_mode = off", "clock_mode = on");
+    if (FILE* f = std::fopen((root + "/settings.txt").c_str(), "wb")) {
+      std::fwrite(text.data(), 1, text.size(), f);
+      std::fclose(f);
+    }
+    std::string favs = readAll(root + "/favorites.txt");
+    favs += "a0b1c2 TEST1 C172\n" + reg + "\n";
+    if (FILE* f = std::fopen((root + "/favorites.txt").c_str(), "wb")) {
+      std::fwrite(favs.data(), 1, favs.size(), f);
+      std::fclose(f);
+    }
+    app::maps::sdRequest(app::maps::SdAction::Mount);
+    run(3000);
+    const auto& st = app::settings();
+    const bool loaded = st.theme == core::Theme::Amber && st.volume == 75 && st.clock_mode;
+    std::printf("settings.txt loaded: %s\n", loaded ? "OK" : "FAILED");
+    if (!loaded) return 1;
+    const bool fav_ok = app::isFavorite("a0b1c2") && app::isFavorite(hex.c_str());
+    favs = readAll(root + "/favorites.txt");
+    const bool fav_file_ok = favs.find(hex) != std::string::npos && favs.find("not looked up") == std::string::npos;
+    std::printf("favorites.txt loaded (%s): %s, rewritten with hex: %s\n", reg.c_str(), fav_ok ? "OK" : "FAILED",
+                fav_file_ok ? "OK" : "FAILED");
+    if (!fav_ok || !fav_file_ok) return 1;
+    shot((p + "54_settings_from_sd").c_str());
   }
 
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,

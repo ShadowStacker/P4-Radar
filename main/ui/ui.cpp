@@ -129,6 +129,8 @@ void onAppTimer(lv_timer_t*) {
   app::tick(plat::millis());
 }
 
+void onSettingsLoaded(const core::Settings& before);
+
 }  // namespace
 
 void init(lv_display_t* disp) {
@@ -144,6 +146,8 @@ void init(lv_display_t* disp) {
 
   // First boot: go straight to Wi-Fi setup.
   if (app::settings().wifi_ssid[0] == '\0') openSettings(Page::Wifi);
+
+  app::onSettingsLoaded(onSettingsLoaded);
 }
 
 namespace {
@@ -159,6 +163,32 @@ bool sameFavorites(const std::vector<core::Favorite>& a, const std::vector<core:
     if (std::strcmp(a[i].hex, b[i].hex) != 0) return false;
   }
   return true;
+}
+
+/** settings.txt on the SD card replaced the settings: redraw everything with them. */
+void onSettingsLoaded(const core::Settings& before) {
+  const core::Settings& st = app::settings();
+  if (before.rotation != st.rotation) {
+    plat::restart();  // the orientation is set up at boot (the new one is already saved)
+    return;
+  }
+  sprites::init(st.aircraft_scale);
+  if (s_settings_screen != nullptr) {
+    // X shouldn't undo what came from the card.
+    s_snapshot = st;
+    s_snapshot_gen = app::settingsGeneration();
+    if (before.wifi_ssid[0] == '\0' && st.wifi_ssid[0] != '\0') {
+      // First-time setup is done: the card brought the network.
+      lv_obj_t* old = s_settings_screen;
+      settings_ui::destroy();
+      s_settings_screen = nullptr;
+      RadarView::get().setPaused(false);
+      rebuild();
+      lv_obj_delete(old);
+      return;
+    }
+  }
+  rebuild();
 }
 
 }  // namespace

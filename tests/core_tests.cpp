@@ -19,6 +19,7 @@
 #include "core/png.h"
 #include "core/rotation.h"
 #include "core/route.h"
+#include "core/settings_text.h"
 #include "core/sound_synth.h"
 #include "core/tiles.h"
 #include "core/trace.h"
@@ -930,6 +931,89 @@ void testRotation() {
 
 }  // namespace
 
+void testSettingsText() {
+  namespace st = core::settings_text;
+  // Round trip: a changed Settings written and read back into defaults matches.
+  core::Settings a;
+  std::snprintf(a.wifi_ssid, sizeof(a.wifi_ssid), "My Net #2");
+  std::snprintf(a.wifi_pass, sizeof(a.wifi_pass), " p=ss \"word\" ");
+  a.home_lat = 47.4502;
+  a.home_lon = -122.3088;
+  a.home_set = true;
+  a.units = core::Units::Nm;
+  a.theme = core::Theme::Custom;
+  a.rotation = 3;
+  a.source = core::DataSource::AdsbLol;
+  a.category_mask = core::kCatAirliner | core::kCatHeavy;
+  a.alarms[0] = {true, 6, 45, 0x3E};
+  a.alarms[2] = {true, 22, 5, 0x22};  // Mon, Fri
+  a.map_style = 3;
+  a.time_zone = 13;
+  std::snprintf(a.carto_key, sizeof(a.carto_key), "abc123");
+  std::snprintf(a.type_filter, sizeof(a.type_filter), "B738, A32*");
+  const std::string text = st::serialize(a);
+  core::Settings b;
+  std::vector<std::string> problems;
+  const int n = st::parse(text, &b, &problems);
+  CHECK(problems.empty());
+  for (const std::string& p : problems) std::printf("  %s\n", p.c_str());
+  CHECK(n > 80);
+  CHECK(std::strcmp(b.wifi_ssid, a.wifi_ssid) == 0);
+  CHECK(std::strcmp(b.wifi_pass, a.wifi_pass) == 0);
+  CHECK_NEAR(b.home_lat, 47.4502, 1e-9);
+  CHECK_NEAR(b.home_lon, -122.3088, 1e-9);
+  CHECK(b.home_set && b.units == core::Units::Nm && b.theme == core::Theme::Custom);
+  CHECK(b.rotation == 3 && b.source == core::DataSource::AdsbLol && b.map_style == 3 && b.time_zone == 13);
+  CHECK(b.category_mask == (core::kCatAirliner | core::kCatHeavy));
+  CHECK(b.alarms[0].enabled && b.alarms[0].hour == 6 && b.alarms[0].minute == 45 && b.alarms[0].days == 0x3E);
+  CHECK(b.alarms[2].days == 0x22 && !b.alarms[1].enabled);
+  CHECK(std::strcmp(b.carto_key, "abc123") == 0 && std::strcmp(b.type_filter, "B738, A32*") == 0);
+  CHECK(st::serialize(b) == text);  // stable
+  CHECK(text.find("rotation = 270") != std::string::npos);
+  CHECK(text.find("alarm3 = on 22:05 mon,fri") != std::string::npos);
+  CHECK(text.find("categories = airliner, heavy") != std::string::npos);
+
+  // Hand-edited file: partial, odd spacing, CRLF, comments, clamping, problems.
+  core::Settings c;
+  c.brightness = 33;
+  problems.clear();
+  const int m = st::parse(
+      "# hi\r\n[Display]\r\n  UNITS=KM \r\nsweep_rpm = 500\r\nrotation = 90\r\nshow_rings = false\r\n"
+      "source = airplaneslive\nalarm1 = on 7:30 mon-wed\nalarm2 = on 25:00\nbogus = 1\nwifi_ssid = Home\n"
+      "max_alt_ft = 1000\nmin_alt_ft = 5000\ncategories = all\njunk line\n",
+      &c, &problems);
+  CHECK(m == 10);
+  CHECK(problems.size() == 3);  // alarm2, bogus, junk line
+  CHECK(c.units == core::Units::Km && c.sweep_rpm == 60 && c.rotation == 1 && !c.show_rings);
+  CHECK(c.source == core::DataSource::AirplanesLive && c.brightness == 33);
+  CHECK(c.alarms[0].enabled && c.alarms[0].hour == 7 && c.alarms[0].minute == 30 && c.alarms[0].days == 0x0E);
+  CHECK(!c.alarms[1].enabled);
+  CHECK(std::strcmp(c.wifi_ssid, "Home") == 0);
+  CHECK(c.min_alt_ft == 1000 && c.max_alt_ft == 5000);  // swapped into order
+  CHECK(c.category_mask == 0xFF);
+  // Too-long strings keep the old value.
+  core::Settings d;
+  st::parse("wifi_ssid = 0123456789012345678901234567890123456789\n", &d, nullptr);
+  CHECK(d.wifi_ssid[0] == '\0');
+
+  // Favorites file.
+  std::vector<core::Favorite> favs;
+  std::vector<std::string> lookups;
+  st::parseFavorites(
+      "# comment\nA1B2C3 N123AB b738\n\n  ad4f21   # just hex\nn456cd\nA1B2C3 dup\nC-GABC   # Canadian\nN456CD\n",
+      &favs, &lookups);
+  CHECK(favs.size() == 2);
+  CHECK(std::strcmp(favs[0].hex, "a1b2c3") == 0 && std::strcmp(favs[0].label, "N123AB") == 0 &&
+        std::strcmp(favs[0].type, "B738") == 0);
+  CHECK(std::strcmp(favs[1].hex, "ad4f21") == 0 && std::strcmp(favs[1].label, "AD4F21") == 0);
+  CHECK(lookups.size() == 2 && lookups[0] == "N456CD" && lookups[1] == "C-GABC");
+  std::vector<core::Favorite> favs2;
+  st::parseFavorites(st::serializeFavorites(favs), &favs2, &lookups);
+  CHECK(favs2.size() == 2 && lookups.empty());
+  CHECK(std::strcmp(favs2[0].type, "B738") == 0 && std::strcmp(favs2[1].hex, "ad4f21") == 0);
+  CHECK(st::isIcaoHex("abcdef") && !st::isIcaoHex("abcdeg") && !st::isIcaoHex("abcde") && !st::isIcaoHex("abcdef0"));
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -946,6 +1030,7 @@ int main() {
   testMapRecolor();
   testClock();
   testRoute();
+  testSettingsText();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

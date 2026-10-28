@@ -341,7 +341,10 @@ bool serviceSd() {
       plat::SdInfo info;
       plat::sdMount(&info);
       setSdFromPlatform(info);
-      if (info.mounted) loadSdKey();
+      if (info.mounted) {
+        loadSdKey();
+        app::sdFilesMounted();  // settings.txt and favorites.txt
+      }
       break;
     }
     case SdAction::Unmount:

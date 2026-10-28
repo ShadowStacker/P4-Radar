@@ -402,6 +402,53 @@ larger ones as FAT32 on a computer). The radar never formats a card. Tiles go
 in a `tiles` folder, so the card can hold other files too. A whole city's
 worth of tiles at a few zoom levels is typically a few tens of megabytes.
 
+#### settings.txt and favorites.txt
+
+With a card inserted, the radar keeps two text files in its root folder:
+
+- **`settings.txt`**: every setting, including the Wi-Fi name and password,
+  as `key = value` lines with a comment explaining each one.
+- **`favorites.txt`**: your favorite aircraft, one per line.
+
+They are written the first time the card is used and rewritten whenever you
+change something on the screen. At startup (and when you tap **Look for a
+card again**) the radar reads them back. So your setup survives anything that
+erases the board, like a full `erase_flash`, and moving the card to a
+second radar copies everything across.
+
+You can edit both on a computer: take the card out (Unmount first, or power
+off), edit, put it back, and restart. *Settings loaded from SD card* confirms
+it worked. Lines you delete keep their current value, lines the radar doesn't
+understand are skipped (the serial log lists them as `sd: settings.txt line
+N: ...`), and the file is then rewritten in its standard layout.
+
+```ini
+[Display]
+units = mi
+theme = amber
+rotation = 0          # 0, 90, 180 or 270 (takes a restart)
+
+[Clock]
+alarm1 = on 06:45 weekdays     # once, daily, weekdays, weekends, mon,wed,fri or mon-fri
+```
+
+In `favorites.txt`, each line is an ICAO hex code (6 characters), then
+optionally a label and type. You can also type just a **tail number**:
+
+```
+a1b2c3   N123AB   B738
+N456CD
+```
+
+When the radar starts, it looks up `N456CD` online, adds it, and replaces the
+line with its hex code. A tail number it can't find is dropped (with a
+*not found* notice). If there's no internet yet, the line stays until the next
+start. The file is in charge: deleting a line there removes that favorite.
+
+If you change settings on the screen while no card is inserted and then insert
+one, the radar's settings win and are written to the card. *Factory reset*
+deletes `settings.txt` but keeps `favorites.txt`.
+
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.
@@ -484,13 +531,15 @@ A wrong-revision image doesn't boot. The serial log shows
 
 ```bash
 pip install --upgrade esptool
-python -m esptool --chip esp32p4 -p COM3 erase_flash          # optional; also clears settings
+python -m esptool --chip esp32p4 -p COM3 erase_flash          # optional; clears settings (not the SD card copy)
 python -m esptool --chip esp32p4 -p COM3 -b 460800 write_flash 0x0 plane-radar-4in-720x720-chip-v1-v1.3.0.bin
 ```
 
 Replace `COM3` with your port (`/dev/ttyACM0` on Linux,
 `/dev/cu.usbmodem…` on macOS). Skip `erase_flash` to keep your settings and
-favorites.
+favorites. (Versions before v1.12.0 kept settings where the update image
+overwrote them, so every update reset them. From v1.12.0 on they're kept, and
+an SD card holds a second copy; see [settings.txt](#settingstxt-and-favoritestxt).)
 
 ### With esptool-js (browser)
 
