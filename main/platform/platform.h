@@ -126,4 +126,11 @@ void freeLarge(void* p);
 size_t freeInternalHeap();
 size_t freePsram();
 
+/**
+ * One line for the serial log: internal RAM (free, lowest ever, largest
+ * block) and PSRAM free, plus CPU load per core and the busiest tasks since
+ * the previous call. For diagnosing slowdowns.
+ */
+std::string healthReport();
+
 }  // namespace plat

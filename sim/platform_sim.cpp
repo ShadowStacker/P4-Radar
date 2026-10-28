@@ -324,5 +324,6 @@ void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }
 size_t freePsram() { return 28 * 1024 * 1024; }
+std::string healthReport() { return "RAM (simulator)"; }
 
 }  // namespace plat

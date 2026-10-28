@@ -50,6 +50,11 @@ void setSleeping(bool on);
 bool sleeping();
 /** Reset the idle timer (any touch). Returns true if the screen was dimmed. */
 bool userActivity();
+/**
+ * The settings menu is open: the radar isn't visible, so the poller pauses
+ * map tiles and flight-history downloads to keep the menu responsive.
+ */
+void setMenuOpen(bool open);
 
 core::TrafficStore& traffic();
 

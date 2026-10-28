@@ -35,6 +35,15 @@ uint32_t s_last_activity = 0;
 bool s_dimmed = false;
 bool s_sleeping = false;  // screen off and sounds muted until a tap (or an alarm)
 
+// While the screen is being used, the poller holds back heavy background work
+// (tile decoding, flight histories). It runs on the other core, but the two
+// cores share the memory cache, so streaming megabytes through PSRAM slows
+// the UI down too.
+std::atomic<uint32_t> s_last_touch_ms{0};
+std::atomic<bool> s_menu_open{false};
+constexpr uint32_t kTouchQuietMs = 1500;  // background work waits this long after a touch
+constexpr uint32_t kMaxFeedDelayMs = 3000;  // but traffic updates are never later than this
+
 // Alarms (UI task only).
 int s_ringing = -1;
 uint32_t s_ring_started_ms = 0;
@@ -374,20 +383,28 @@ void networkLoop() {
     const uint32_t interval = s_settings.poll_interval_s * 1000u;
     const bool due = first || now - last_fetch >= interval ||
                      (s_refresh_requested.load() && now - last_fetch >= kMinFetchSpacingMs);
+    // Someone is touching the screen: wait, unless traffic would be late.
+    const bool touching = now - s_last_touch_ms.load() < kTouchQuietMs;
+    if (touching && !(first || now - last_fetch >= interval + kMaxFeedDelayMs)) {
+      plat::sleepMs(50);
+      continue;
+    }
+    const bool menu = s_menu_open.load();  // radar hidden: no tiles or flight history needed
     // The SD card and saved map tiles work without Wi-Fi.
     if (maps::serviceSd() || serviceSdFiles()) continue;
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
-      if (!maps::service(false)) plat::sleepMs(100);
+      if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }
-    if (!first && now - last_fetch >= kMinFetchSpacingMs && (serviceFavoriteLookup() || serviceRoute() || serviceTrace())) {
+    if (!first && now - last_fetch >= kMinFetchSpacingMs &&
+        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
     if (!due) {
       // Map tiles fill the gaps between traffic updates (different servers,
       // so the ADS-B rate limit doesn't apply).
-      if (!maps::service(true)) plat::sleepMs(100);
+      if (menu || !maps::service(true)) plat::sleepMs(100);
       continue;
     }
     first = false;
@@ -583,8 +600,11 @@ void setSleeping(bool on) {
 
 bool sleeping() { return s_sleeping; }
 
+void setMenuOpen(bool open) { s_menu_open = open; }
+
 bool userActivity() {
   s_last_activity = plat::millis();
+  s_last_touch_ms = s_last_activity;
   if (s_sleeping || !s_dimmed) return false;  // waking from sleep is the UI's job (one tap)
   s_dimmed = false;
   plat::setBrightness(s_settings.brightness);

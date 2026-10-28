@@ -7,6 +7,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <malloc.h>
+
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -290,11 +292,72 @@ int runBench() {
   return 0;
 }
 
+/** Memory over a long session of typical use: --soak [cycles]. Prints heap in
+ *  use after each round; a leak shows as steady growth. */
+int runSoak(int cycles) {
+  sim::g_preset_wifi = true;
+  app::init();
+  auto& st = app::settings();
+  sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 200, 300);
+  g_traffic = &traffic;
+  sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
+  sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
+  ui::init(g_disp);
+  run(5000);
+  auto& rv = ui::RadarView::get();
+  const ui::Page pages[] = {ui::Page::Main,      ui::Page::Display, ui::Page::Sound,      ui::Page::Traffic,
+                            ui::Page::Filters,   ui::Page::Favorites, ui::Page::About,    ui::Page::CustomTheme,
+                            ui::Page::Clock,     ui::Page::TimeZone, ui::Page::SdCard,    ui::Page::Location};
+  for (int c = 0; c < cycles; ++c) {
+    // Menus: every page, scrolled, then closed (alternating keep / discard).
+    for (ui::Page pg : pages) {
+      ui::closeSettings();
+      run(200);
+      ui::openSettings(pg);
+      run(200);
+      drag(S(400), S(600), S(400), S(250), 12);
+      run(300);
+    }
+    st.volume = static_cast<uint8_t>(40 + c % 20);
+    app::settingsChanged();
+    ui::closeSettings(c % 2 == 1);
+    run(500);
+    // Radar: tap an aircraft (trail + route), zoom out and in, pan, home.
+    int ax, ay;
+    if (findAircraftOnScreen(&ax, &ay)) {
+      tap(ax, ay);
+      run(2500);
+    }
+    rv.clearSelection();
+    pinch(S(400), S(400), S(220), S(60), 20);
+    run(1500);
+    pinch(S(400), S(400), S(60), S(220), 20);
+    run(1500);
+    drag(S(400), S(400), S(520), S(330), 10);
+    run(1500);
+    rv.goHome(false);
+    // Theme and map changes rebuild screens.
+    st.theme = static_cast<core::Theme>(c % 4);
+    st.map_style = static_cast<uint8_t>(c % 4);
+    ui::rebuild();
+    run(4000);
+    const struct mallinfo2 mi = mallinfo2();
+    std::printf("soak %3d: heap in use %8.1f KB, %zu chunks\n", c, mi.uordblks / 1024.0, mi.ordblks);
+    std::fflush(stdout);
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   bool bench = false;
+  int soak = 0;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--bench") == 0) {
       bench = true;
+      continue;
+    }
+    if (std::strcmp(argv[i], "--soak") == 0) {
+      soak = i + 1 < argc && std::atoi(argv[i + 1]) > 0 ? std::atoi(argv[++i]) : 40;
       continue;
     }
     if (std::strcmp(argv[i], "--size") == 0 && i + 1 < argc) g_size = std::atoi(argv[++i]);
@@ -324,6 +387,7 @@ int main(int argc, char** argv) {
   lv_indev_set_read_cb(indev, touchRead);
 
   if (bench) return runBench();
+  if (soak) return runSoak(soak);
 
   sim::g_preset_wifi = false;  // start like a fresh device
   // A blank card: no settings.txt or favorites.txt from an earlier run.

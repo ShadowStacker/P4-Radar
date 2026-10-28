@@ -1,5 +1,7 @@
 #include "ui/ui.h"
 
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -121,7 +123,26 @@ void updateSleepLayer() {
   }
 }
 
+/**
+ * Every 30 s, a "health:" line in the serial log: memory, CPU load and the
+ * longest the UI went without running this 250 ms timer (a stall that long
+ * is a frozen screen or missed touches).
+ */
+void logHealth() {
+  static uint32_t s_last_ms = 0, s_report_ms = 0, s_worst_gap = 0;
+  const uint32_t now = plat::millis();
+  if (s_last_ms != 0) s_worst_gap = std::max(s_worst_gap, now - s_last_ms);
+  s_last_ms = now;
+  if (s_report_ms == 0) s_report_ms = now;
+  if (now - s_report_ms < 30000) return;
+  std::printf("health: %s; UI longest pause %u ms (%s)\n", plat::healthReport().c_str(),
+              static_cast<unsigned>(s_worst_gap), s_settings_screen ? "menu" : "radar");
+  s_report_ms = now;
+  s_worst_gap = 0;
+}
+
 void onAppTimer(lv_timer_t*) {
+  logHealth();
   updateSleepLayer();
   updateAlarmDialog();
   // Any touch on any screen keeps the backlight up.
@@ -182,6 +203,7 @@ void onSettingsLoaded(const core::Settings& before) {
       lv_obj_t* old = s_settings_screen;
       settings_ui::destroy();
       s_settings_screen = nullptr;
+      app::setMenuOpen(false);
       RadarView::get().setPaused(false);
       rebuild();
       lv_obj_delete(old);
@@ -201,12 +223,14 @@ void openSettings(Page page) {
   s_snapshot_gen = app::settingsGeneration();
   s_fav_snapshot = app::favorites();
   RadarView::get().setPaused(true);
+  app::setMenuOpen(true);
   s_settings_screen = settings_ui::create(page);
   lv_screen_load_anim(s_settings_screen, LV_SCR_LOAD_ANIM_FADE_IN, 180, 0, false);
 }
 
 void closeSettings(bool discard) {
   if (s_settings_screen == nullptr) return;
+  app::setMenuOpen(false);
   const bool settings_changed = app::settingsGeneration() != s_snapshot_gen;
   const bool favs_changed = !sameFavorites(app::favorites(), s_fav_snapshot);
   if (discard && (settings_changed || favs_changed)) {

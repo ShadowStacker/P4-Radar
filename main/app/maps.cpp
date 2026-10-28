@@ -43,6 +43,17 @@ struct Ready {
 std::deque<Ready> s_ready;
 std::unordered_map<uint64_t, uint32_t> s_failed;  // key -> when (ms); 404s never retried
 std::unordered_map<uint64_t, bool> s_not_found;
+// Both only grow, in internal RAM (small allocations land there); start over
+// past this many so days of panning (or a long time offline) can't eat it.
+constexpr size_t kMaxFailedTiles = 512;
+
+void noteFailed(uint64_t key, bool permanent) {
+  if (s_failed.size() >= kMaxFailedTiles) s_failed.clear();
+  if (s_not_found.size() >= kMaxFailedTiles) s_not_found.clear();
+  if (permanent) s_not_found[key] = true;
+  else s_failed[key] = plat::millis();
+}
+
 SdStatus s_sd;
 std::string s_sd_key;  // from carto_key.txt on the card
 std::deque<SdAction> s_sd_actions;
@@ -254,8 +265,7 @@ bool service(bool online) {
     }
     if (code != 200 || png.empty()) {
       std::lock_guard<std::mutex> lock(s_mu);
-      if (code == 404) s_not_found[key] = true;
-      else s_failed[key] = plat::millis();
+      noteFailed(key, code == 404);
       std::printf("map: tile %d/%u/%u -> HTTP %d\n", z, static_cast<unsigned>(x), static_cast<unsigned>(y), code);
       return true;
     }
@@ -264,7 +274,7 @@ bool service(bool online) {
   } else {
     // Offline and not cached: try again later.
     std::lock_guard<std::mutex> lock(s_mu);
-    s_failed[key] = plat::millis();
+    noteFailed(key, false);
     return false;
   }
 
@@ -275,7 +285,7 @@ bool service(bool online) {
   if (!decoded ||
       img.width != core::tiles::kTileSize || img.height != core::tiles::kTileSize) {
     std::lock_guard<std::mutex> lock(s_mu);
-    s_not_found[key] = true;  // not a tile we can use
+    noteFailed(key, true);  // not a tile we can use
     std::printf("map: tile %d/%u/%u is not a 256 px PNG or JPEG\n", z, static_cast<unsigned>(x), static_cast<unsigned>(y));
     return true;
   }

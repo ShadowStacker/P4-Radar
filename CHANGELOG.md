@@ -10,6 +10,32 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.12.1] - 2026-10-28
+
+### Changed
+- **More responsive menus and touch:**
+  - Heavy background work (map tile downloads and decoding, the flight
+    history of the selected aircraft) waits while you're touching the
+    screen. It also stops while the menu is open, where neither is visible.
+    It runs on the other core, but both cores share one memory cache, so it
+    slowed the UI down too. Traffic updates still arrive, at most a few
+    seconds late while you scroll.
+  - The network stack's tasks stay on core 0, so they no longer take turns
+    with the screen on core 1.
+
+### Fixed
+- The list of map tiles that failed to download grew without limit in the
+  board's internal RAM (over days of use, or a long time offline). It's now
+  capped. No other memory leaks were found: a long simulated session
+  (menus, aircraft taps, zooming, theme and map changes) holds steady.
+- v1.12.0 reported itself as 1.11.0 on the About page. The release build
+  now stamps the version automatically.
+
+### Added
+- A `health:` line in the serial log every 30 s: free memory (and the lowest
+  it has been), CPU load per core, the busiest tasks, and the longest the
+  screen went without updating. It helps track down slowdowns.
+
 ## [v1.12.0] - 2026-10-28
 
 ### Fixed
