@@ -32,6 +32,7 @@ constexpr uint32_t kSaveDebounceMs = 2500;
 
 uint32_t s_last_activity = 0;
 bool s_dimmed = false;
+bool s_sleeping = false;  // screen off and sounds muted until a tap (or an alarm)
 
 // Alarms (UI task only).
 int s_ringing = -1;
@@ -118,7 +119,8 @@ bool downloadTrace(const char* hex, core::trace::Trace* out) {
 }
 
 void applyHardware() {
-  if (!s_dimmed) plat::setBrightness(s_settings.brightness);
+  if (s_sleeping) plat::setBrightness(0);
+  else if (!s_dimmed) plat::setBrightness(s_settings.brightness);
   // A ringing alarm is never quieter than 70 %, whatever the volume setting.
   plat::setVolume(s_ringing >= 0 ? std::max<int>(s_settings.volume, 70) : s_settings.volume);
 }
@@ -129,7 +131,8 @@ void startRinging(int index) {
   s_next_beep_ms = s_ring_started_ms;
   s_snoozed = -1;
   s_snooze_until_s = 0;
-  userActivity();  // wake a dimmed screen
+  s_sleeping = false;  // an alarm wakes a sleeping screen
+  userActivity();      // and a dimmed one
   applyHardware();
 }
 
@@ -325,7 +328,7 @@ void tick(uint32_t now_ms) {
   checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
-  if (s_settings.dim_after_min > 0 && !s_dimmed &&
+  if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
       now_ms - s_last_activity >= s_settings.dim_after_min * 60000u) {
     s_dimmed = true;
     plat::setBrightness(s_settings.dim_brightness);
@@ -362,9 +365,19 @@ int snoozeMinutesLeft() {
   return left <= 0 ? 0 : static_cast<int>((left + 59) / 60);
 }
 
+void setSleeping(bool on) {
+  if (on == s_sleeping) return;
+  s_sleeping = on;
+  s_dimmed = false;
+  s_last_activity = plat::millis();
+  applyHardware();
+}
+
+bool sleeping() { return s_sleeping; }
+
 bool userActivity() {
   s_last_activity = plat::millis();
-  if (!s_dimmed) return false;
+  if (s_sleeping || !s_dimmed) return false;  // waking from sleep is the UI's job (one tap)
   s_dimmed = false;
   plat::setBrightness(s_settings.brightness);
   return true;
@@ -632,7 +645,7 @@ void startNetworkTask() { plat::startTask("adsb", networkLoop, 16 * 1024, 4); }
 
 void sound(core::Sound s) {
   const core::Settings& st = s_settings;
-  if (!st.sound_enabled) return;
+  if (!st.sound_enabled || s_sleeping) return;
   switch (s) {
     case core::Sound::Click: if (!st.sound_touch) return; break;
     case core::Sound::Ping: if (!st.sound_sweep_ping) return; break;

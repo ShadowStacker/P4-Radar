@@ -504,6 +504,18 @@ int main(int argc, char** argv) {
     shot((p + "38_changes_discarded").c_str());
   }
 
+  // Sleep: screen off, then one tap on top of the gear button only wakes it.
+  {
+    app::setSleeping(true);
+    run(600);
+    shot((p + "50_sleeping").c_str());
+    tap(S(626), S(174));  // where the gear button is
+    run(600);
+    const bool ok = !app::sleeping() && !ui::settingsOpen();
+    std::printf("sleep check: %s\n", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+  }
+
   // Add a favorite by tail number.
   {
     std::vector<core::Track> tracks;

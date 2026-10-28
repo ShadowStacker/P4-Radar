@@ -14,6 +14,9 @@ void init(lv_display_t* disp);
 
 /** Opens the settings screen at a page. */
 void openSettings(Page page = Page::Main);
+/** True while the settings screen is shown. */
+bool settingsOpen();
+
 /**
  * Returns from settings to the radar. With `discard`, every setting and
  * favorite goes back to how it was when settings were opened (Wi-Fi, which

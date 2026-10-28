@@ -88,6 +88,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | ⚙ Gear | top right | Open Settings |
 | ⏷ Funnel | right | Open the [Filters](#filters) page. Lit while a filter is hiding aircraft. |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
+| ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep, and alarms still ring and wake the screen. |
 | 🕘 Clock | right, below the funnel | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Zoom in / out by 2× |

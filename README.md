@@ -69,7 +69,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   between them.
 - Double-tap zooms in. The **＋/−** buttons also zoom.
 - **Home** button flies back to your home location and zoom. Quick buttons
-  for **Filters**, **Mute** and the **Clock** face sit around the edge.
+  for **Filters**, **Mute**, **Sleep** (screen off, tap to wake) and the
+  **Clock** face sit around the edge.
 - **Background maps**: dark street map or topo map under the radar, tinted
   to the theme, with tiles saved on an optional microSD card for instant and
   offline use.

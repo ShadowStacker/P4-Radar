@@ -31,6 +31,7 @@ struct Hud {
   lv_obj_t* mute = nullptr;
   lv_obj_t* mute_label = nullptr;
   lv_obj_t* clock = nullptr;
+  lv_obj_t* sleep = nullptr;
   lv_obj_t* alt_key = nullptr;    // altitude color scale under the status pill
   lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
@@ -420,6 +421,7 @@ void leavePickMode() {
   setHidden(h.filter, false);
   setHidden(h.mute, false);
   setHidden(h.clock, false);
+  setHidden(h.sleep, false);
   updateCard();
 }
 
@@ -472,6 +474,7 @@ void enterPickMode() {
   setHidden(h.filter, true);
   setHidden(h.mute, true);
   setHidden(h.clock, true);
+  setHidden(h.sleep, true);
   updateCard();
 }
 
@@ -546,6 +549,10 @@ void create(lv_obj_t* parent) {
     lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
   }
   placePolar(h.clock, 103, 0.80f);
+
+  // Sleep, mirroring the clock button: screen off and quiet until a tap.
+  h.sleep = iconButton(h.controls, LV_SYMBOL_POWER, d, [] { app::setSleeping(true); });
+  placePolar(h.sleep, -103, 0.80f);
 
   // Mute, mirroring the filter button on the left.
   h.mute = iconButton(h.controls, LV_SYMBOL_VOLUME_MAX, d, [] {

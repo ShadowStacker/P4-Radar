@@ -94,7 +94,35 @@ void updateAlarmDialog() {
   }, true);
 }
 
+// While asleep: a black, full-screen layer that takes the waking tap, so the
+// tap can't also press whatever is under it.
+lv_obj_t* s_sleep_layer = nullptr;
+
+void onSleepPressed(lv_event_t*) {
+  lv_indev_t* indev = lv_indev_active();
+  if (indev) lv_indev_wait_release(indev);  // the rest of this touch does nothing
+  app::setSleeping(false);
+}
+
+void updateSleepLayer() {
+  const bool asleep = app::sleeping();
+  if (asleep && s_sleep_layer == nullptr) {
+    s_sleep_layer = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_sleep_layer);
+    lv_obj_set_size(s_sleep_layer, screenW(), screenH());
+    lv_obj_set_style_bg_color(s_sleep_layer, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_sleep_layer, LV_OPA_COVER, 0);
+    lv_obj_add_flag(s_sleep_layer, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_sleep_layer, onSleepPressed, LV_EVENT_PRESSED, nullptr);
+    lv_obj_move_background(s_sleep_layer);  // an alarm dialog stays on top of it
+  } else if (!asleep && s_sleep_layer != nullptr) {
+    lv_obj_delete_async(s_sleep_layer);  // we may be inside its own event
+    s_sleep_layer = nullptr;
+  }
+}
+
 void onAppTimer(lv_timer_t*) {
+  updateSleepLayer();
   updateAlarmDialog();
   // Any touch on any screen keeps the backlight up.
   if (lv_display_get_inactive_time(s_disp) < 400) app::userActivity();
@@ -134,6 +162,8 @@ bool sameFavorites(const std::vector<core::Favorite>& a, const std::vector<core:
 }
 
 }  // namespace
+
+bool settingsOpen() { return s_settings_screen != nullptr; }
 
 void openSettings(Page page) {
   if (s_settings_screen != nullptr) return;
