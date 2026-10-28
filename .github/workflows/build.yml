@@ -139,6 +139,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > notes.md <<'NOTES'
+          > ⚠️ **Flashing over USB? Use the file *without* `-ota` in its name**, at offset `0x0`.
+          > The `*-ota.bin` files are only for updates over Wi-Fi: they have no bootloader, and
+          > flashing one over USB gives a black screen (the serial log shows `invalid header`).
+          > Flashing the right file afterwards fixes it.
+
           ## Download
 
           Flashable firmware for the Waveshare ESP32-P4 round touch displays.
@@ -150,10 +155,10 @@ jobs:
 
           | File | Board | Chip |
           |---|---|---|
-          | `plane-radar-3.4in-800x800-chip-v3-*.bin` | 3.4C (800x800) | rev v3.x |
-          | `plane-radar-3.4in-800x800-chip-v1-*.bin` | 3.4C (800x800) | rev v0.x / v1.x |
-          | `plane-radar-4in-720x720-chip-v3-*.bin` | 4C (720x720) | rev v3.x |
-          | `plane-radar-4in-720x720-chip-v1-*.bin` | 4C (720x720) | rev v0.x / v1.x |
+          | `plane-radar-3.4in-800x800-chip-v3-<version>.bin` | 3.4C (800x800) | rev v3.x |
+          | `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | 3.4C (800x800) | rev v0.x / v1.x |
+          | `plane-radar-4in-720x720-chip-v3-<version>.bin` | 4C (720x720) | rev v3.x |
+          | `plane-radar-4in-720x720-chip-v1-<version>.bin` | 4C (720x720) | rev v0.x / v1.x |
 
           Each is a merged image (bootloader + partition table + app). Flash it at offset `0x0`:
 

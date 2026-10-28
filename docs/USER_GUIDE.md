@@ -537,10 +537,15 @@ images. Pick by board **and** chip revision:
 
 | File | Board | Chip |
 |---|---|---|
-| `plane-radar-3.4in-800x800-chip-v3-*.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v3.x |
-| `plane-radar-3.4in-800x800-chip-v1-*.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v0.x / v1.x |
-| `plane-radar-4in-720x720-chip-v3-*.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v3.x |
-| `plane-radar-4in-720x720-chip-v1-*.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v0.x / v1.x |
+| `plane-radar-3.4in-800x800-chip-v3-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v3.x |
+| `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v0.x / v1.x |
+| `plane-radar-4in-720x720-chip-v3-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v3.x |
+| `plane-radar-4in-720x720-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v0.x / v1.x |
+
+**Use the file without `-ota` in its name.** The `*-ota.bin` files next to
+them are for [updates over Wi-Fi](#updating-over-wi-fi) only. They have no
+bootloader, so flashing one over USB gives a black screen and the serial log
+shows `invalid header`. Flashing the right file fixes it.
 
 **Finding your chip revision**, any of:
 - Connect with [esptool-js](https://espressif.github.io/esptool-js/) and read
@@ -606,6 +611,7 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | Animation feels slow | The radar sweep is the most expensive animation: lower **Sweep trail** (0 = clean bar is cheapest), turn off Smooth trail fade, or turn the sweep off. Zoomed far out with hundreds of aircraft, symbols get smaller automatically. The serial log prints a `perf:` line every 30 s (frame rate and where the time goes); send it along when reporting slowness. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
 | Menus or touch feel sluggish at times | Background work (map tiles, the flight history of a selected aircraft) now pauses while you touch the screen and while the menu is open. If it still happens, deselect the aircraft and try with the background map off to narrow it down. The serial log prints a `health:` line every 30 s: free memory, CPU load per core, the busiest tasks, and the longest the screen went without updating. Send a few of those lines from around the slowdown when reporting it. |
+| Black screen right after flashing | Make sure you flashed the file **without** `-ota` in its name, at `0x0`, and the right chip revision (`chip-v1` vs `chip-v3`). Hold BOOT, tap RESET, release BOOT, and flash again. If it's still black, the first lines of the serial log (115200 baud) say why. |
 | Background map stays blank | It needs Wi-Fi the first time an area is viewed (or saved tiles on the SD card). The serial log shows `map: tile ... -> HTTP <code>` for tiles that failed. |
 | SD card says "No card" | Insert it with the power off, or tap **Look for a card again**. It must be FAT32. |
 | Clock shows "Waiting for the time..." | It hasn't reached an internet time server yet. Check Wi-Fi; the time is set within a few seconds of connecting. |
