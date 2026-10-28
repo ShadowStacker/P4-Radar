@@ -86,10 +86,11 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | Button | Position | Action |
 |---|---|---|
 | ⚙ Gear | top right | Open Settings |
-| ⏷ Funnel | right | Open the [Filters](#filters) page. Lit while a filter is hiding aircraft. |
+| 👁 Eye | right | Open the [Filters](#filters) page (same eye as in Settings). Lit while a filter is hiding aircraft. |
+| 🖼 Picture | lower right, next to Home | Choose the [background map](#background-maps): Off, Dark streets or Topo |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
-| 🕘 Clock | right, below the funnel | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
+| 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Zoom in / out by 2× |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
@@ -154,7 +155,13 @@ feed saw it). Zoom out to see the whole route.
 **Display → Background map** puts a real map under the radar:
 
 - **Dark streets**: roads, water and (optionally) place names on black, from
-  CARTO's "Dark Matter" map.
+  CARTO's "Dark Matter" map. CARTO now requires a free API key (request one
+  at [carto.com/basemaps](https://www.carto.com/basemaps/apikey/)); enter it
+  under **Display → CARTO key**, or save it as the only line of a file
+  `carto_key.txt` in the root of the SD card. **Without a key**, Dark streets
+  shows OpenStreetMap's standard map instead, darkened and tinted (its place
+  names are always on). A missing or wrong CARTO key shows up as tiles
+  stamped "API KEY REQUIRED".
 - **Topo**: contour lines, forests, roads and peaks, from OpenTopoMap.
 
 With **Tint map to theme color** on (the default) the map is redrawn in the
@@ -168,9 +175,10 @@ moves along with your fingers and is redrawn sharply when you let go.
 
 Tiles are saved on the [SD card](#sd-card) if there is one, and kept in
 memory otherwise. The map's credit line ("(c) OpenStreetMap contributors...")
-is shown at the bottom while a map is on; the map providers require it.
+is shown at the bottom while a map is on, as the map providers require. Like
+the buttons, it fades out after 10 seconds and comes back with any touch.
 
-Both map services are free community services for light personal use, which
+The map services are free community services for light personal use, which
 is how the radar uses them: it only downloads what you look at, and saves
 it. They're not meant for bulk downloading, so there is no "download a
 whole region" button.
@@ -198,7 +206,7 @@ ring if **Wake on alarm** is on. It stops by itself after 10 minutes.
 
 ## Settings reference
 
-Open with the gear button (or the funnel button for Filters).
+Open with the gear button (or the eye button for Filters).
 
 - Changes show up right away, so you can see what they do.
 - **<** goes back a level. On the main settings page it returns to the radar
@@ -243,7 +251,7 @@ proximity and favorite alerts.
 | Custom colors | Only with the Custom theme: opens the [Custom colors](#custom-colors) page | |
 | Brightness | Backlight level, 5–100 % | 80 % |
 | Distance units | km, statute miles (mi) or nautical miles (nm), for rings, the zoom readout and distances | mi |
-| Screen rotation (clockwise) | Turn the whole picture by 0°, 90°, 180° or 270°, e.g. when the board is mounted with its USB port on another side. North stays at the top of the rotated screen and touch follows the rotation. Asks to restart, which applies it. If you skip the restart, it applies at the next power-up. | 0° |
+| Screen rotation (clockwise) | Turn the whole picture by 0°, 90°, 180° or 270°, e.g. when the board is mounted with its USB port on another side. 0° is the board standing upright (what was 180° before v1.10; boards upgrading keep their orientation and the menu value is converted). North stays at the top of the rotated screen and touch follows the rotation. Asks to restart, which applies it. If you skip the restart, it applies at the next power-up. | 0° |
 | Auto-hide buttons after 10 s | Fade the radar buttons out when idle; touch to show them again | On |
 | Labels | **Off**: no labels, except the selected aircraft, emergencies and favorites. **Callsign**: one line. **Full**: callsign + altitude/climb/type. | Full |
 | Aircraft colors | **Theme**: one color. **By altitude**: color gradient by altitude. | By altitude |

@@ -28,6 +28,9 @@ struct Hud {
   lv_obj_t* status_label = nullptr;
   bool status_problem = false;   // offline/errors: keep everything visible
   lv_obj_t* filter = nullptr;
+  lv_obj_t* map_btn = nullptr;
+  lv_obj_t* credit = nullptr;
+  lv_obj_t* credit_label = nullptr;
   lv_obj_t* mute = nullptr;
   lv_obj_t* mute_label = nullptr;
   lv_obj_t* clock = nullptr;
@@ -127,6 +130,12 @@ void updateStatus() {
     lv_obj_invalidate(h.alt_key);  // colors follow the Custom theme
   }
 
+  if (h.credit) {
+    const core::tiles::Variant v = RadarView::get().mapVariant();
+    setHidden(h.credit, v == core::tiles::Variant::None);
+    if (v != core::tiles::Variant::None) lv_label_set_text(h.credit_label, core::tiles::attribution(v));
+  }
+
   if (h.mute_label) {
     lv_label_set_text(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
   }
@@ -186,6 +195,42 @@ void onAltKeyDraw(lv_event_t* e) {
   }
 }
 
+/** Small chooser for the background map, over the radar. */
+void openMapPicker() {
+  const Palette& p = pal();
+  lv_obj_t* scrim = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(scrim);
+  lv_obj_set_size(scrim, screenW(), screenH());
+  lv_obj_set_style_bg_color(scrim, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(scrim, 120, 0);
+  lv_obj_add_flag(scrim, LV_OBJ_FLAG_CLICKABLE);
+  onClick(scrim, [scrim] { lv_obj_delete_async(scrim); });  // tap outside: close
+
+  lv_obj_t* box = panel(scrim);
+  lv_obj_set_size(box, sc(420), LV_SIZE_CONTENT);
+  lv_obj_center(box);
+  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_all(box, sc(22), 0);
+  lv_obj_set_style_pad_row(box, sc(12), 0);
+  lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);  // taps on the box don't close it
+  label(box, "Background map", font(FontSize::L), p.text);
+
+  static const char* const kNames[] = {"Off", "Dark streets", "Topo"};
+  for (int i = 0; i < 3; ++i) {
+    const bool current = app::settings().map_style == i;
+    lv_obj_t* b = pillButton(box, current ? (std::string(LV_SYMBOL_OK "  ") + kNames[i]).c_str() : kNames[i],
+                             [scrim, i] {
+                               app::settings().map_style = static_cast<uint8_t>(i);
+                               app::settingsChanged();
+                               RadarView::get().markStaticDirty();
+                               lv_obj_delete_async(scrim);
+                             },
+                             current);
+    lv_obj_set_width(b, lv_pct(100));
+  }
+}
+
 void setStat(int i, const char* title, const char* value) {
   lv_label_set_text(h.stat_title[i], title);
   lv_label_set_text(h.stat_value[i], value);
@@ -198,6 +243,7 @@ void updateCard() {
   setHidden(h.card, !show);
   setHidden(h.zoom_in, show || rv.pickMode());
   setHidden(h.zoom_out, show || rv.pickMode());
+  setHidden(h.map_btn, show || rv.pickMode());
   if (!show) return;
 
   const core::Aircraft& a = t->ac;
@@ -525,13 +571,27 @@ void create(lv_obj_t* parent) {
   placePolar(h.gear, 45, 0.80f);
 
   // Quick access to Filters, between the gear and the "E" of the compass.
-  h.filter = iconButton(h.controls, "", d, [] { openSettings(Page::Filters); });
-  lv_obj_t* funnel = lv_image_create(h.filter);
-  lv_image_set_src(funnel, sprites::funnel(sc(30) | 1));
-  lv_obj_center(funnel);
-  lv_obj_set_style_image_recolor(funnel, p.text, 0);
-  lv_obj_set_style_image_recolor_opa(funnel, LV_OPA_COVER, 0);
+  // Same eye as the Filters entry in Settings.
+  h.filter = iconButton(h.controls, LV_SYMBOL_EYE_OPEN, d, [] { openSettings(Page::Filters); });
   placePolar(h.filter, 77, 0.80f);
+
+  // Background map picker, between the zoom-in and Home buttons.
+  h.map_btn = iconButton(h.controls, LV_SYMBOL_IMAGE, d, [] { openMapPicker(); });
+  placePolar(h.map_btn, 157, 0.80f);
+
+  // Map credit (the tile providers require it); fades with the buttons and
+  // comes back on any touch.
+  h.credit = panel(h.controls);
+  lv_obj_set_size(h.credit, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_hor(h.credit, sc(10), 0);
+  lv_obj_set_style_pad_ver(h.credit, sc(3), 0);
+  lv_obj_set_style_radius(h.credit, sc(8), 0);
+  lv_obj_set_style_bg_opa(h.credit, 170, 0);
+  lv_obj_set_style_border_width(h.credit, 0, 0);
+  lv_obj_align(h.credit, LV_ALIGN_CENTER, 0, static_cast<int32_t>(screenW() * 0.5f * 0.82f) - sc(64));
+  lv_obj_remove_flag(h.credit, LV_OBJ_FLAG_CLICKABLE);
+  h.credit_label = label(h.credit, "", sc(800) < 760 ? &lv_font_montserrat_14 : &lv_font_montserrat_16, p.text_dim);
+  setHidden(h.credit, true);
 
   // Clock face on/off, below the filter button.
   h.clock = iconButton(h.controls, "", d, [] {

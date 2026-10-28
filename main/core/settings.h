@@ -29,7 +29,8 @@ struct Settings {
   //   7: up to custom_alt_high_hue (v1.7.0)
   //   8: up to sd_cache (v1.8.0)
   //   9: up to wake_on_alarm (v1.9.1)
-  static constexpr uint16_t kVersion = 9;
+  //  10: up to carto_key (v1.10.0); rotation re-based (see below)
+  static constexpr uint16_t kVersion = 10;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -98,7 +99,10 @@ struct Settings {
   char type_filter[24] = "";        // e.g. "B738, A32*, C17" (empty = all types)
 
   // v1.4.0
-  uint8_t rotation = 0;             // screen orientation in quarter turns clockwise (0-3); applied at boot
+  // Screen orientation in quarter turns clockwise (0-3), applied at boot.
+  // 0 is the panel turned 180 deg (core::panelQuarterTurns()); before v1.10
+  // 0 was the panel's native orientation, and saved values are converted.
+  uint8_t rotation = 0;
   bool extended_trail = true;       // download the flight history of the tapped aircraft
 
   // v1.5.0: Custom theme colors (hue 0-359, saturation/brightness in %).
@@ -145,6 +149,9 @@ struct Settings {
 
   // v1.9.1
   bool wake_on_alarm = false;             // alarms ring and wake a sleeping screen (else only a tap wakes it)
+
+  // v1.10.0
+  char carto_key[64] = "";                // CARTO basemaps API key (dark street map); empty = use OSM
 };
 
 }  // namespace core

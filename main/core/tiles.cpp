@@ -12,9 +12,11 @@ constexpr double kEarthCircumferenceKm = 40075.016686;
 
 }  // namespace
 
-Variant variantFor(Style style, bool labels) {
+Variant variantFor(Style style, bool labels, bool have_carto_key) {
   switch (style) {
-    case Style::DarkStreets: return labels ? Variant::DarkLabels : Variant::DarkNoLabels;
+    case Style::DarkStreets:
+      if (!have_carto_key) return Variant::OsmStandard;
+      return labels ? Variant::DarkLabels : Variant::DarkNoLabels;
     case Style::Topo: return Variant::Topo;
     default: return Variant::None;
   }
@@ -24,9 +26,12 @@ int maxZoom(Variant v) { return v == Variant::Topo ? 17 : 18; }
 
 const char* dirName(Variant v) {
   switch (v) {
-    case Variant::DarkLabels: return "dark";
-    case Variant::DarkNoLabels: return "darknl";
+    // CARTO tiles saved before v1.10 ("dark", "darknl") carry an "API KEY
+    // REQUIRED" watermark, so keyed tiles use new folders.
+    case Variant::DarkLabels: return "cdark";
+    case Variant::DarkNoLabels: return "cdarknl";
     case Variant::Topo: return "topo";
+    case Variant::OsmStandard: return "osm";
     default: return "none";
   }
 }
@@ -37,25 +42,31 @@ const char* attribution(Variant v) {
     case Variant::DarkLabels:
     case Variant::DarkNoLabels: return "(c) OpenStreetMap contributors (c) CARTO";
     case Variant::Topo: return "(c) OpenStreetMap contributors, SRTM | (c) OpenTopoMap (CC-BY-SA)";
+    case Variant::OsmStandard: return "(c) OpenStreetMap contributors";
     default: return "";
   }
 }
 
-bool isLight(Variant v) { return v == Variant::Topo; }
+bool isLight(Variant v) { return v == Variant::Topo || v == Variant::OsmStandard; }
 
-std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative) {
-  char buf[128];
+std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative, const char* key) {
+  char buf[192];
   switch (v) {
     case Variant::DarkLabels:
     case Variant::DarkNoLabels: {
       const char* name = v == Variant::DarkLabels ? "dark_all" : "dark_nolabels";
-      std::snprintf(buf, sizeof(buf), "https://a.basemaps.cartocdn.com/%s%s/%d/%u/%u.png",
-                    alternative ? "rastertiles/" : "", name, z, static_cast<unsigned>(x), static_cast<unsigned>(y));
+      std::snprintf(buf, sizeof(buf), "https://a.basemaps.cartocdn.com/%s%s/%d/%u/%u.png%s%s",
+                    alternative ? "rastertiles/" : "", name, z, static_cast<unsigned>(x), static_cast<unsigned>(y),
+                    key && key[0] ? "?key=" : "", key ? key : "");
       break;
     }
     case Variant::Topo:
       std::snprintf(buf, sizeof(buf), "https://%s.tile.opentopomap.org/%d/%u/%u.png", alternative ? "b" : "a", z,
                     static_cast<unsigned>(x), static_cast<unsigned>(y));
+      break;
+    case Variant::OsmStandard:
+      std::snprintf(buf, sizeof(buf), "https://tile.openstreetmap.org/%d/%u/%u.png", z, static_cast<unsigned>(x),
+                    static_cast<unsigned>(y));
       break;
     default: return "";
   }

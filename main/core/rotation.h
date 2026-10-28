@@ -5,6 +5,13 @@
 namespace core {
 
 /**
+ * Quarter turns to apply to the panel for a Settings::rotation value. The
+ * menu's 0 deg is the panel turned 180 deg: the way up these boards usually
+ * stand.
+ */
+inline int panelQuarterTurns(int setting) { return (setting + 2) & 3; }
+
+/**
  * Maps a touch point from panel coordinates to the rotated UI's coordinates.
  * `quarter_turns` is the clockwise screen rotation (0-3), matching how the
  * display adapter maps UI pixels onto the panel; w/h are the panel size.

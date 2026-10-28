@@ -36,7 +36,8 @@ size_t validPrefix(uint16_t version) {
     case 6: return offsetof(core::Settings, clock_smooth_seconds);
     case 7: return offsetof(core::Settings, map_style);
     case 8: return offsetof(core::Settings, wake_on_alarm);
-    case 9: return sizeof(core::Settings);
+    case 9: return offsetof(core::Settings, carto_key);
+    case 10: return sizeof(core::Settings);
     default: return 0;
   }
 }
@@ -71,6 +72,8 @@ void settingsLoad(core::Settings* s) {
         std::memcpy(static_cast<void*>(s), raw.data() + offsetof(Blob, settings), copy);
         // v1.5.0 made miles the default; boards upgrading switch once.
         if (version < 5) s->units = core::Units::Mi;
+        // v1.10.0 re-based rotation by 180 deg; keep the board's orientation.
+        if (version < 10) s->rotation = static_cast<uint8_t>((s->rotation + 2) & 3);
         if (version != core::Settings::kVersion) {
           ESP_LOGI(TAG, "upgraded settings from version %u", version);
         }
@@ -79,6 +82,9 @@ void settingsLoad(core::Settings* s) {
       }
     }
   }
+
+  s->carto_key[sizeof(s->carto_key) - 1] = '\0';  // stored strings are never trusted
+  s->type_filter[sizeof(s->type_filter) - 1] = '\0';
 
   size_t n = sizeof(s->wifi_ssid);
   if (nvs_get_str(h, "ssid", s->wifi_ssid, &n) != ESP_OK) s->wifi_ssid[0] = '\0';

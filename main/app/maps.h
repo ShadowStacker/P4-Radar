@@ -41,6 +41,15 @@ bool popReady(uint64_t* key, uint16_t** pixels);
 /** Network task: one unit of work. `online` = may download. True if it did something. */
 bool service(bool online);
 
+/**
+ * CARTO API key in use: Settings::carto_key, or else the first line of
+ * carto_key.txt on the SD card. Empty = none (dark streets fall back to OSM).
+ */
+std::string cartoKey();
+bool hasCartoKey();
+/** Where the key came from, for the settings page ("settings", "SD card", ""). */
+const char* cartoKeySource();
+
 // --- SD card -------------------------------------------------------------------
 enum class SdState : uint8_t { Unknown, NoCard, Mounted, Unmounted };
 

@@ -291,7 +291,8 @@ void RadarView::frame() {
   // Background map: tiles in, picture recomposed when the view settles.
   {
     app::maps::Look look;
-    look.variant = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels);
+    look.variant = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels,
+                                           app::maps::hasCartoKey());
     look.tint = st.map_tint || st.theme == core::Theme::Night;  // Night stays red
     const lv_color32_t a = lv_color_to_32(pal().accent, LV_OPA_COVER);
     look.tint_r = a.red;
@@ -542,25 +543,6 @@ void RadarView::renderStatic(bool with_trails) {
         prev = cur;
       }
     }
-  }
-
-  // --- Map credit (required by the tile providers) ----------------------------
-  if (map_.active()) {
-    const auto v = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels);
-    const lv_font_t* f = sc(800) < 760 ? &lv_font_montserrat_14 : &lv_font_montserrat_16;
-    const char* credit = core::tiles::attribution(v);
-    lv_point_t sz;
-    lv_text_get_size(&sz, credit, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    const float ty = cy + R * 0.82f - sc(64);
-    lv_draw_rect_dsc_t bgd;
-    lv_draw_rect_dsc_init(&bgd);
-    bgd.bg_color = p.bg;
-    bgd.bg_opa = 170;  // readable on light maps too
-    bgd.radius = sc(8);
-    lv_area_t box = {static_cast<int32_t>(cx - sz.x / 2.0f) - sc(8), static_cast<int32_t>(ty - sz.y / 2.0f) - sc(2),
-                     static_cast<int32_t>(cx + sz.x / 2.0f) + sc(8), static_cast<int32_t>(ty + sz.y / 2.0f) + sc(2)};
-    lv_draw_rect(&layer, &bgd, &box);
-    drawTextCentered(&layer, credit, cx, ty, f, p.text_dim, 230);
   }
 
   // --- Home marker -----------------------------------------------------------

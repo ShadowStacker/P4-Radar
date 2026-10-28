@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "app/app.h"
+#include "core/rotation.h"
 #include "cJSON.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -43,9 +44,10 @@ extern "C" void app_main(void) {
   // The orientation is fixed when the display starts, so peek at it first.
   core::Settings boot_settings;
   plat::settingsLoad(&boot_settings);
-  lv_display_t* disp = plat::esp::displayStart(boot_settings.rotation);
+  const int quarter_turns = core::panelQuarterTurns(boot_settings.rotation);
+  lv_display_t* disp = plat::esp::displayStart(quarter_turns);
   if (plat::esp::lvglLock()) {
-    ui::installDisplayRotation(disp, boot_settings.rotation);
+    ui::installDisplayRotation(disp, quarter_turns);
     plat::esp::lvglUnlock();
   }
   plat::esp::bootScreen("Starting audio...");

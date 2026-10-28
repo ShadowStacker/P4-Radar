@@ -28,8 +28,6 @@ const lv_draw_buf_t* star(int32_t size);
 int32_t starBadgeSize();   // radar badge next to a favorite aircraft
 int32_t starButtonSize();  // star buttons in the info card and lists
 
-/** White filter-funnel icon, `size` px square (no such glyph in the fonts). Cached. */
-const lv_draw_buf_t* funnel(int32_t size);
 /** White clock-face icon, `size` px square. Cached. */
 const lv_draw_buf_t* clockIcon(int32_t size);
 

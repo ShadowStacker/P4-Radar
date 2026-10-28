@@ -48,6 +48,8 @@ class RadarView {
   void markStaticDirty() { static_dirty_ = true; }
 
   size_t visibleCount() const { return blips_.size(); }
+  /** Map shown under the radar (None when off). */
+  core::tiles::Variant mapVariant() const { return map_.variant(); }
 
   std::function<void()> on_selection_changed;
   std::function<void(core::LatLon)> on_long_press;

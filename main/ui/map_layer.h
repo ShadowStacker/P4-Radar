@@ -31,6 +31,7 @@ class MapLayer {
   bool draw(lv_layer_t* layer, const core::Viewport& vp) const;
 
   bool active() const { return look_.variant != core::tiles::Variant::None; }
+  core::tiles::Variant variant() const { return look_.variant; }
 
  private:
   struct Tile {

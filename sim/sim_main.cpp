@@ -624,9 +624,22 @@ int main(int argc, char** argv) {
     auto& st = app::settings();
     st.home_radius_km = 40;
     ui::RadarView::get().goHome(false);
-    st.map_style = 1;  // dark streets, tinted
+    st.map_style = 1;  // dark streets without a CARTO key: OpenStreetMap, darkened
     run(4000);
     shot((p + "45_map_dark_streets").c_str());
+    std::snprintf(st.carto_key, sizeof(st.carto_key), "sim-key");  // with a key: CARTO
+    run(4000);
+    shot((p + "45b_map_dark_streets_carto").c_str());
+    st.carto_key[0] = '\0';
+    tap(S(525), S(695));  // the map button
+    run(500);
+    shot((p + "51_map_picker").c_str());
+    lv_obj_clean(lv_layer_top());
+    st.autohide_buttons = true;  // an earlier scene turned it off
+    run(11000);  // buttons, status and map credit fade out
+    shot((p + "52_map_buttons_hidden").c_str());
+    tap(S(400), S(300));
+    run(600);
     st.map_style = 2;  // topo, tinted
     run(4000);
     shot((p + "46_map_topo_tinted").c_str());

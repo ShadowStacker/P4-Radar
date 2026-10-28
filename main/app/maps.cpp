@@ -43,6 +43,7 @@ std::deque<Ready> s_ready;
 std::unordered_map<uint64_t, uint32_t> s_failed;  // key -> when (ms); 404s never retried
 std::unordered_map<uint64_t, bool> s_not_found;
 SdStatus s_sd;
+std::string s_sd_key;  // from carto_key.txt on the card
 std::deque<SdAction> s_sd_actions;
 bool s_sd_tried = false;
 
@@ -141,6 +142,24 @@ void walk(const std::string& dir, bool remove_all, uint32_t* files, uint64_t* by
   closedir(d);
 }
 
+/** Reads carto_key.txt from the card root: first line, spaces trimmed. */
+void loadSdKey() {
+  std::string text;
+  FILE* f = std::fopen((std::string(plat::sdRoot()) + "/carto_key.txt").c_str(), "rb");
+  if (f != nullptr) {
+    char buf[128] = "";
+    if (std::fgets(buf, sizeof(buf), f)) text = buf;
+    std::fclose(f);
+  }
+  std::string key;
+  for (char c : text) {
+    if (c == '\r' || c == '\n') break;
+    if (c != ' ' && c != '\t') key.push_back(c);
+  }
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_sd_key = key;
+}
+
 void setSdFromPlatform(const plat::SdInfo& info) {
   std::lock_guard<std::mutex> lock(s_mu);
   s_sd.total_bytes = info.total_bytes;
@@ -229,7 +248,7 @@ bool service(bool online) {
     int code = -1;
     for (int alt = 0; alt < 2; ++alt) {
       png.clear();
-      code = plat::httpGetKeepAlive(core::tiles::url(v, z, x, y, alt).c_str(), &png, 10000);
+      code = plat::httpGetKeepAlive(core::tiles::url(v, z, x, y, alt, cartoKey().c_str()).c_str(), &png, 10000);
       if (code == 200) break;
     }
     if (code != 200 || png.empty()) {
@@ -272,6 +291,21 @@ bool service(bool online) {
   return true;
 }
 
+std::string cartoKey() {
+  const char* k = app::settings().carto_key;
+  if (k[0] != '\0') return k;
+  std::lock_guard<std::mutex> lock(s_mu);
+  return s_sd_key;
+}
+
+bool hasCartoKey() { return !cartoKey().empty(); }
+
+const char* cartoKeySource() {
+  if (app::settings().carto_key[0] != '\0') return "settings";
+  std::lock_guard<std::mutex> lock(s_mu);
+  return s_sd_key.empty() ? "" : "SD card";
+}
+
 SdStatus sdStatus() {
   std::lock_guard<std::mutex> lock(s_mu);
   return s_sd;
@@ -303,6 +337,7 @@ bool serviceSd() {
       plat::SdInfo info;
       plat::sdMount(&info);
       setSdFromPlatform(info);
+      if (info.mounted) loadSdKey();
       break;
     }
     case SdAction::Unmount:

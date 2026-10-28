@@ -10,6 +10,28 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.10.0] - 2026-10-28
+
+### Fixed
+- **"API KEY REQUIRED" on the Dark streets map.** CARTO now requires a free
+  API key for its maps. Enter one under Display → **CARTO key**, or put it
+  in `carto_key.txt` on the SD card. Without a key, Dark streets now shows
+  OpenStreetMap's standard map, darkened and tinted, instead of watermarked
+  tiles. Watermarked tiles already saved on the SD card are no longer used;
+  **Delete saved map tiles** frees their space.
+
+### Added
+- **Background map button** on the radar (lower right, next to Home):
+  pick Off, Dark streets or Topo from a small menu.
+
+### Changed
+- The **Filters button** on the radar is now an eye, matching Settings.
+- The **map credit** line fades out with the buttons and returns on any
+  touch.
+- **Screen orientation:** the default (0°) is now what used to be 180°, the
+  way the board stands upright. Boards upgrading keep their current
+  orientation; the menu value is converted (old 180° now shows as 0°).
+
 ## [v1.9.2] - 2026-10-28
 
 ### Changed
@@ -278,6 +300,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.10.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.10.0
 [v1.9.2]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.2
 [v1.9.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.1
 [v1.9.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.0

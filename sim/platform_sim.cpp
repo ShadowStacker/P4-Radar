@@ -134,7 +134,7 @@ std::string pngChunkSim(const char* type, const std::string& data) {
   return out;
 }
 
-std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty) {
+std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = false) {
   const int T = 256;
   std::string raw;
   raw.reserve((T * 3 + 1) * T);
@@ -147,7 +147,12 @@ std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty) {
       const double gx = (tx * T + x) * scale, gy = (ty * T + y) * scale;
       const double px = scale;  // one screen pixel in world units (line width)
       int r, g, b;
-      if (!topo) {
+      if (osm) {
+        r = 242; g = 239; b = 233;                                                           // land
+        if (std::sin(gx / 900.0) + std::cos(gy / 700.0) > 1.3) { r = 170; g = 211; b = 223; }  // water
+        if (std::fmod(gx, 410.0) < 1.5 * px || std::fmod(gy + 0.2 * gx, 530.0) < 1.5 * px) { r = g = b = 255; }
+        if (std::fmod(gx + 0.37 * gy, 3100.0) < 3 * px || std::fmod(gy, 2300.0) < 3 * px) { r = 248; g = 178; b = 156; }
+      } else if (!topo) {
         r = g = 14; b = 18;
         if (std::sin(gx / 900.0) + std::cos(gy / 700.0) > 1.3) { r = 20; g = 26; b = 40; }  // water
         const bool major = std::fmod(gx + 0.37 * gy, 3100.0) < 2.5 * px || std::fmod(gy, 2300.0) < 2.5 * px;
@@ -180,17 +185,18 @@ std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty) {
 int httpGet(const char* url, std::string* body, int, const char* const*) {
   const bool carto = std::strstr(url, "basemaps.cartocdn.com/") != nullptr;
   const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
-  if (carto || topo) {
+  const bool osm = std::strstr(url, "tile.openstreetmap.org/") != nullptr;
+  if (carto || topo || osm) {
     if (std::getenv("SIM_NO_TILES")) return -1;
     // .../<z>/<x>/<y>.png
     int z = 0;
     unsigned x = 0, y = 0;
-    const std::string u(url);
+    const std::string u = std::string(url).substr(0, std::string(url).find('?'));
     const size_t p3 = u.rfind('/');
     const size_t p2 = u.rfind('/', p3 - 1);
     const size_t p1 = u.rfind('/', p2 - 1);
     if (std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u.png", &z, &x, &y) != 3) return 404;
-    body->append(fakeTile(topo, z, x, y));
+    body->append(fakeTile(topo, z, x, y, osm));
     return 200;
   }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {

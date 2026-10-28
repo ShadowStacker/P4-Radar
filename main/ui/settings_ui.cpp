@@ -521,7 +521,30 @@ void pageDisplay() {
   static const char* const kMaps[] = {"Off", "Dark streets", "Topo", ""};
   choiceRow("Background map", kMaps, st.map_style > 2 ? 0 : st.map_style,
             [](int v) { app::settings().map_style = static_cast<uint8_t>(v); });
-  switchRow("Place names (street map)", &st.map_labels);
+  {
+    const char* src = app::maps::cartoKeySource();
+    const std::string key_text = src[0] ? fmtStr("CARTO key: set (%s)", src) : std::string("CARTO key: not set");
+    actionRow(LV_SYMBOL_EDIT, key_text.c_str(), [] {
+      textInput("CARTO API key (free at carto.com/basemaps)", app::settings().carto_key, InputKind::Text,
+                [](const std::string& text) {
+                  std::string key;
+                  for (char c : text) {
+                    if (c != ' ') key.push_back(c);
+                  }
+                  std::snprintf(app::settings().carto_key, sizeof(app::settings().carto_key), "%s", key.c_str());
+                  changed();
+                  showPage(Page::Display);
+                });
+    }, pal().accent);
+    lv_obj_t* note = label(s.list,
+                           "Dark streets uses CARTO's map with a free API key (or a carto_key.txt file on the SD "
+                           "card). Without one it shows OpenStreetMap's standard map, darkened.",
+                           font(FontSize::S), pal().text_dim);
+    lv_obj_set_width(note, lv_pct(90));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(note, sc(16), 0);
+  }
+  switchRow("Place names (dark streets with a CARTO key)", &st.map_labels);
   switchRow("Tint map to theme color", &st.map_tint);
   sliderRow("Map brightness", 10, 100, st.map_brightness,
             [](int v) { app::settings().map_brightness = static_cast<uint8_t>(v); },

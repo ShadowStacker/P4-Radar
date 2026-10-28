@@ -829,8 +829,15 @@ void testTiles() {
   CHECK(url(Variant::DarkNoLabels, 3, 1, 2, 1) == "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/3/1/2.png");
   CHECK(url(Variant::Topo, 5, 6, 7) == "https://a.tile.opentopomap.org/5/6/7.png");
   CHECK(sdPath("/sdcard", Variant::Topo, 5, 6, 7) == "/sdcard/tiles/topo/5/6/7.png");
-  CHECK(variantFor(Style::DarkStreets, false) == Variant::DarkNoLabels);
-  CHECK(variantFor(Style::Off, true) == Variant::None);
+  CHECK(variantFor(Style::DarkStreets, false, true) == Variant::DarkNoLabels);
+  CHECK(variantFor(Style::DarkStreets, true, false) == Variant::OsmStandard);  // no CARTO key
+  CHECK(variantFor(Style::Off, true, true) == Variant::None);
+  CHECK(url(Variant::DarkLabels, 3, 1, 2, 0, "abc123") ==
+        "https://a.basemaps.cartocdn.com/dark_all/3/1/2.png?key=abc123");
+  CHECK(url(Variant::OsmStandard, 3, 1, 2) == "https://tile.openstreetmap.org/3/1/2.png");
+  CHECK(isLight(Variant::OsmStandard) && !isLight(Variant::DarkLabels));
+  // Keyed CARTO tiles don't share folders with the watermarked ones saved before.
+  CHECK(sdPath("/sdcard", Variant::DarkLabels, 1, 0, 0) == "/sdcard/tiles/cdark/1/0/0.png");
 }
 
 void testMapRecolor() {

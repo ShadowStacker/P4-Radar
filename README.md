@@ -133,7 +133,8 @@ phone or captive portal is needed.
 |:-:|:-:|:-:|
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
-| ![](docs/images/45_map_dark_streets.png)<br>Dark street map* | ![](docs/images/46_map_topo_tinted.png)<br>Topo map, tinted* | ![](docs/images/49_settings_sd_card.png)<br>SD card page |
+| ![](docs/images/51_map_picker.png)<br>Map picker | ![](docs/images/45_map_dark_streets.png)<br>Dark street map* | ![](docs/images/46_map_topo_tinted.png)<br>Topo map, tinted* |
+| ![](docs/images/49_settings_sd_card.png)<br>SD card page | ![](docs/images/50_sleeping.png)<br>Asleep (tap to wake) | ![](docs/images/47_map_topo_original.png)<br>Topo, original colors* |
 | ![](docs/images/39_clock_face.png)<br>Clock face | ![](docs/images/40_settings_clock.png)<br>Clock & alarms | ![](docs/images/43_alarm_ringing.png)<br>Alarm ringing |
 | ![](docs/images/44_favorite_added_by_tail.png)<br>Favorite added by tail number | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme | ![](docs/images/42_settings_alarm_edit.png)<br>Editing an alarm |
 | ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/05_pinch_zoom.png)<br>Pinch zoom | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
@@ -285,8 +286,9 @@ it. Aircraft are pre-rendered at 72 headings and recolored when drawn.
 
 - Airline, route and airframe details come from [adsbdb.com](https://www.adsbdb.com)
   (route data by David Taylor and Jim Mason, aircraft data from PlaneBase).
-- Background maps: [CARTO](https://carto.com/basemaps) Dark Matter and
-  [OpenTopoMap](https://opentopomap.org), both from
+- Background maps: [CARTO](https://carto.com/basemaps) Dark Matter (with a
+  free API key), [OpenStreetMap](https://www.openstreetmap.org) standard tiles
+  and [OpenTopoMap](https://opentopomap.org), all from
   [OpenStreetMap](https://www.openstreetmap.org/copyright) data (topo also SRTM).
 - Aircraft positions come from free community feeds:
   [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) and
