@@ -10,6 +10,26 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.13.0] - 2026-10-28
+
+### Added
+- **Updates over Wi-Fi:** Settings → About → **Check for updates** looks up
+  the latest release on GitHub. **Install vX.Y.Z** downloads the right file
+  for your board and chip and restarts into it, with a progress bar.
+  Settings and favorites are kept.
+  - The running version isn't touched until the new one has fully
+    downloaded and passed its checks, so a power cut or dropped Wi-Fi just
+    leaves the old version running.
+  - A new version that crashes or resets within its first minute is rolled
+    back automatically.
+- Releases include `*-ota.bin` files: the update images the radar downloads.
+  They're not for USB flashing.
+
+### Changed
+- The flash is split into two app slots (needed for updates over Wi-Fi).
+  **Install v1.13.0 over USB once**; from then on, updates can come over
+  Wi-Fi. Settings are kept: their flash area didn't move.
+
 ## [v1.12.1] - 2026-10-28
 
 ### Changed

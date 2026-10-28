@@ -23,6 +23,7 @@
 #include "core/sound_synth.h"
 #include "core/tiles.h"
 #include "core/trace.h"
+#include "core/update.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "data/jpeg_fixtures.h"
@@ -1014,6 +1015,37 @@ void testSettingsText() {
   CHECK(st::isIcaoHex("abcdef") && !st::isIcaoHex("abcdeg") && !st::isIcaoHex("abcde") && !st::isIcaoHex("abcdef0"));
 }
 
+void testUpdate() {
+  namespace up = core::update;
+  int v[3];
+  CHECK(up::parseVersion("v1.12.1", v) && v[0] == 1 && v[1] == 12 && v[2] == 1);
+  CHECK(up::parseVersion("2.0.10", v) && v[2] == 10);
+  CHECK(up::parseVersion("1.2.3-beta", v));
+  CHECK(!up::parseVersion("1.2", v) && !up::parseVersion("abc", v) && !up::parseVersion("1.2.3x", v));
+  CHECK(up::compareVersions("v1.12.1", "1.12.1") == 0);
+  CHECK(up::compareVersions("1.9.0", "v1.12.0") < 0);  // numeric, not text
+  CHECK(up::compareVersions("v2.0.0", "1.99.99") > 0);
+  CHECK(up::compareVersions("junk", "1.0.0") < 0);
+  CHECK(up::assetName("4in-720x720-chip-v1", "v1.13.0") == "plane-radar-4in-720x720-chip-v1-v1.13.0-ota.bin");
+
+  const std::string json = R"({"tag_name":"v1.13.0","name":"v1.13.0","assets":[
+    {"name":"plane-radar-4in-720x720-chip-v1-v1.13.0.bin","size":6092304,
+     "browser_download_url":"https://github.com/x/releases/download/v1.13.0/usb.bin"},
+    {"name":"plane-radar-4in-720x720-chip-v3-v1.13.0-ota.bin","size":5999000,
+     "browser_download_url":"https://github.com/x/releases/download/v1.13.0/v3-ota.bin"},
+    {"name":"plane-radar-4in-720x720-chip-v1-v1.13.0-ota.bin","size":5990000,
+     "browser_download_url":"https://github.com/x/releases/download/v1.13.0/v1-ota.bin"}]})";
+  up::Release r;
+  CHECK(up::parseLatestRelease(json.data(), json.size(), "4in-720x720-chip-v1", &r));
+  CHECK(r.tag == "v1.13.0" && r.asset_url == "https://github.com/x/releases/download/v1.13.0/v1-ota.bin" &&
+        r.asset_size == 5990000);
+  // A release without an update image for this board (e.g. one from before updates over Wi-Fi).
+  CHECK(up::parseLatestRelease(json.data(), json.size(), "3.4in-800x800-chip-v1", &r));
+  CHECK(r.tag == "v1.13.0" && r.asset_url.empty());
+  CHECK(!up::parseLatestRelease("{\"message\":\"rate limited\"}", 26, "x", &r));
+  CHECK(!up::parseLatestRelease("not json", 8, "x", &r));
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -1031,6 +1063,7 @@ int main() {
   testClock();
   testRoute();
   testSettingsText();
+  testUpdate();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

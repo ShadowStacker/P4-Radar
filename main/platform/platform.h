@@ -115,6 +115,22 @@ void startTask(const char* name, std::function<void()> fn, size_t stack_bytes, i
 void sleepMs(uint32_t ms);
 void restart();
 const char* firmwareVersion();
+/** Board variant of this build, as in the release file names: "4in-720x720-chip-v1". */
+const char* firmwareVariant();
+/**
+ * Downloads an update image (app only) from `url` into the idle app slot and
+ * makes it the one that boots next. Calls progress(done, total) along the way
+ * (total 0 if unknown). Doesn't restart. False with a reason in `error`; the
+ * running firmware is never touched.
+ */
+bool installFirmware(const char* url, const std::function<void(size_t done, size_t total)>& progress,
+                     std::string* error);
+/**
+ * The running firmware works. After an update over Wi-Fi the new version
+ * starts on probation: if it resets before confirming, the board goes back
+ * to the previous one.
+ */
+void confirmFirmware();
 /**
  * Large, long-lived buffers (images, canvases): PSRAM on the device, 64-byte
  * aligned. Internal RAM is reserved for the RTOS, Wi-Fi and display DMA.

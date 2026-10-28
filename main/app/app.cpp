@@ -396,6 +396,7 @@ void networkLoop() {
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }
+    if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
         (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
@@ -549,6 +550,13 @@ bool serviceSdFiles() {
 }
 
 void tick(uint32_t now_ms) {
+  // A fresh update has run a minute without crashing: keep it (otherwise the
+  // next reset goes back to the previous version).
+  static bool s_confirmed = false;
+  if (!s_confirmed && now_ms > 60000) {
+    s_confirmed = true;
+    plat::confirmFirmware();
+  }
   applySettingsFile();
   checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();

@@ -222,6 +222,12 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     return 200;
   }
   if (std::strstr(url, "adsbdb.com") != nullptr) return 404;
+  if (std::strstr(url, "api.github.com/repos/") != nullptr) {
+    // A newer release with an update image for the simulated board.
+    *body = R"({"tag_name":"v1.13.0","assets":[{"name":"plane-radar-4in-720x720-chip-v1-v1.13.0-ota.bin",)"
+            R"("size":6000000,"browser_download_url":"https://github.com/sim/v1.13.0-ota.bin"}]})";
+    return 200;
+  }
   const char* name = std::strstr(url, "/trace_full_");
   if (name == nullptr || !sim::g_trace_server) return -1;
   std::string hex(name + std::strlen("/trace_full_"));
@@ -318,7 +324,17 @@ uint64_t micros() {
                                    .count());
 }
 
-const char* firmwareVersion() { return "sim"; }
+const char* firmwareVersion() { return "1.12.1"; }
+const char* firmwareVariant() { return "4in-720x720-chip-v1"; }
+bool installFirmware(const char*, const std::function<void(size_t, size_t)>& progress, std::string* error) {
+  if (std::getenv("SIM_OTA_FAIL")) {
+    *error = "Download interrupted - try again";
+    return false;
+  }
+  for (size_t done = 0; done <= 6000000; done += 1500000) progress(done, 6000000);
+  return true;
+}
+void confirmFirmware() {}
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }
 void freeLarge(void* p) { std::free(p); }
 

@@ -1195,6 +1195,23 @@ void pageAbout() {
   lv_obj_t* feed = infoRow("Feed", "");
   lv_obj_t* mem = infoRow("Free memory", "");
 
+  section("FIRMWARE UPDATE");
+  lv_obj_t* upd = infoRow("Latest version", "");
+  lv_label_set_long_mode(upd, LV_LABEL_LONG_WRAP);
+  actionRow(LV_SYMBOL_REFRESH, "Check for updates", [] { app::checkForUpdate(); }, pal().accent);
+  lv_obj_t* install = actionRow(LV_SYMBOL_DOWNLOAD, "Install update", [] {
+    const app::UpdateStatus u = app::updateStatus();
+    if (u.state != app::UpdateState::Available) return;
+    confirm(fmtStr("Install %s?", u.latest).c_str(),
+            fmtStr("Downloads about %u MB from GitHub and restarts. Takes a few minutes; keep the power on. "
+                   "Settings and favorites are kept, and if the new version doesn't start, the radar "
+                   "goes back to this one.",
+                   static_cast<unsigned>((u.total + 500000) / 1000000))
+                .c_str(),
+            "Install", [] { app::installUpdate(); });
+  }, pal().accent);
+  lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
+
   section("MAINTENANCE");
   actionRow(LV_SYMBOL_REFRESH, "Restart", [] {
     app::settingsFlush();
@@ -1212,7 +1229,27 @@ void pageAbout() {
   label(s.list, "Plane Radar P4 - aircraft data from community\nADS-B feeds; runways from OurAirports.",
         font(FontSize::S), pal().text_dim);
 
-  s.tick = [wifi, feed, mem] {
+  s.tick = [wifi, feed, mem, upd, install] {
+    const app::UpdateStatus u = app::updateStatus();
+    std::string text;
+    switch (u.state) {
+      case app::UpdateState::Idle: text = "Not checked"; break;
+      case app::UpdateState::Checking: text = "Checking..."; break;
+      case app::UpdateState::UpToDate: text = fmtStr("%s - up to date", u.latest); break;
+      case app::UpdateState::Available: text = fmtStr("%s available", u.latest); break;
+      case app::UpdateState::NoImage: text = fmtStr("%s - flash it over USB (no update file for this board)", u.latest); break;
+      case app::UpdateState::Failed: text = u.error; break;
+      case app::UpdateState::Installing: text = "Installing..."; break;
+      case app::UpdateState::Installed: text = "Installed - restarting"; break;
+    }
+    lv_label_set_text(upd, text.c_str());
+    if (u.state == app::UpdateState::Available) {
+      lv_label_set_text(lv_obj_get_child(install, 1), fmtStr("Install %s", u.latest).c_str());
+      lv_obj_remove_flag(install, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
+    }
+
     const plat::WifiStatus ws = plat::wifiStatus();
     lv_label_set_text(wifi, ws.state == plat::WifiState::Connected
                                 ? fmtStr("%s, %d dBm", ws.ip, ws.rssi).c_str()

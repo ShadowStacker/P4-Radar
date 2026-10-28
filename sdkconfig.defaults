@@ -7,8 +7,11 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# Updates over Wi-Fi: a new version that doesn't start properly (crashes or
+# resets before it confirms itself) goes back to the previous one.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="1.12.1"
+CONFIG_APP_PROJECT_VER="1.13.0"
 
 # ---- CPU / memory -------------------------------------------------------------
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y

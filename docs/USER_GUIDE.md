@@ -478,6 +478,9 @@ what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 | Wi-Fi | IP address and signal strength |
 | Feed | Aircraft count and seconds since the last successful update, or the last error |
 | Free memory | Internal RAM and PSRAM free (useful for bug reports) |
+| Latest version | Result of the last update check |
+| Check for updates | Looks up the latest release on GitHub |
+| Install vX.Y.Z | Appears when a newer version is available; see [Updating over Wi-Fi](#updating-over-wi-fi) |
 | Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
 
@@ -504,6 +507,28 @@ Favorite events also show an on-screen notice ("RCH471 is nearby") even when
 their sound is off. The **Sound** master switch silences everything.
 
 ---
+
+## Updating over Wi-Fi
+
+From v1.13.0 on, the radar can update itself: **Settings > About > Check
+for updates**. If there's a newer release, tap **Install vX.Y.Z** and confirm.
+It downloads about 6 MB from GitHub, shows the progress, and restarts into
+the new version. This takes a few minutes; keep the power on.
+
+- **Your settings and favorites are kept.**
+- **It's safe to interrupt.** The new version is written next to the running
+  one, which isn't touched until the download is complete and checked. If
+  the power goes out or Wi-Fi drops mid-download, the radar keeps running the
+  old version; just try again.
+- **A bad update undoes itself.** A new version that crashes or resets in its
+  first minute is rolled back to the previous one at the next start.
+- The radar picks the file for its own board and chip revision, so it can't
+  install the wrong one.
+
+**Coming from v1.12.x or older:** update over USB once to v1.13.0 (see below).
+Older versions can't update themselves, and v1.13.0 splits the flash into
+two app slots. Your settings are kept: they sit at the same place as in
+v1.12.x.
 
 ## Flashing the firmware
 

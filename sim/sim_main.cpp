@@ -138,7 +138,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     if (g_step_hook) g_step_hook();
     g_traffic->advance(step / 1000.0);
     feedTraffic();
-    if (!app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
+    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!app::maps::serviceSd() && !app::serviceSdFiles()) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
@@ -874,6 +874,28 @@ int main(int argc, char** argv) {
                 fav_file_ok ? "OK" : "FAILED");
     if (!fav_ok || !fav_file_ok) return 1;
     shot((p + "54_settings_from_sd").c_str());
+  }
+
+  // Firmware update from the About page (GitHub and the installer are faked).
+  {
+    ui::openSettings(ui::Page::About);
+    run(300);
+    app::checkForUpdate();
+    run(1500);
+    const app::UpdateStatus u = app::updateStatus();
+    const bool found = u.state == app::UpdateState::Available && std::strcmp(u.latest, "v1.13.0") == 0;
+    std::printf("update check: %s\n", found ? "OK" : "FAILED");
+    if (!found) return 1;
+    lv_obj_scroll_to_y(lv_obj_get_child(lv_screen_active(), 3), S(260), LV_ANIM_OFF);
+    run(300);
+    shot((p + "55_update_available").c_str());
+    app::installUpdate();
+    run(600);
+    const bool installed = app::updateStatus().state == app::UpdateState::Installed;
+    std::printf("update install: %s\n", installed ? "OK" : "FAILED");
+    if (!installed) return 1;
+    shot((p + "56_update_installed").c_str());
+    run(3000);  // restarts (the simulator just logs it)
   }
 
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,

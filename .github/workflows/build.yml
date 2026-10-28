@@ -114,6 +114,8 @@ jobs:
           for board in 3.4in-800x800 4in-720x720; do
             for chip in chip-v3 chip-v1; do
               cp "artifacts/plane-radar-$board-$chip/plane-radar-merged.bin" "dist/plane-radar-$board-$chip-${VERSION}.bin"
+              # App only, for updates over Wi-Fi (Settings > About > Check for updates).
+              cp "artifacts/plane-radar-$board-$chip/plane_radar_p4.bin" "dist/plane-radar-$board-$chip-${VERSION}-ota.bin"
               # Symbol files, so crash backtraces from this exact build can be decoded.
               cp "artifacts/plane-radar-$board-$chip/plane_radar_p4.elf" "dist/symbols-$board-$chip-${VERSION}.elf"
             done
@@ -167,6 +169,10 @@ jobs:
           `ESP-ROM:esp32p4-eco2-...` means revision v1.x (use `chip-v1`); a v3.x chip
           (use `chip-v3`) reports a newer ROM, and esptool shows "revision v3.x".
           If the board isn't detected: hold BOOT, tap RESET, release BOOT.
+
+          The `*-ota.bin` files are for updates over Wi-Fi: the radar downloads the
+          right one itself from **Settings > About > Check for updates**. Don't flash
+          them over USB (they have no bootloader).
 
           The `symbols-*.elf` files aren't for flashing. They decode crash backtraces
           (`idf.py monitor` or `riscv32-esp-elf-addr2line -pfiaC -e symbols-....elf <addresses>`).

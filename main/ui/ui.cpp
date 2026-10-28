@@ -37,6 +37,13 @@ void buildRadarScreen() {
 lv_obj_t* s_alarm_box = nullptr;
 lv_obj_t* s_alarm_time = nullptr;
 
+// Firmware update in progress: a full-screen box with a progress bar.
+lv_obj_t* s_update_box = nullptr;
+lv_obj_t* s_update_bar = nullptr;
+lv_obj_t* s_update_text = nullptr;
+app::UpdateState s_update_shown = app::UpdateState::Idle;
+uint32_t s_restart_at_ms = 0;
+
 std::string clockText() {
   const int64_t now = plat::unixTimeMs() / 1000;
   const std::tm t = core::localTime(now);
@@ -96,6 +103,62 @@ void updateAlarmDialog() {
   }, true);
 }
 
+void updateUpdateBox() {
+  const app::UpdateStatus u = app::updateStatus();
+  const bool busy = u.state == app::UpdateState::Installing || u.state == app::UpdateState::Installed;
+  if (!busy) {
+    if (s_update_box) {
+      lv_obj_delete(s_update_box);
+      s_update_box = s_update_bar = s_update_text = nullptr;
+      if (u.state == app::UpdateState::Failed && u.install_failed) {
+        toast((std::string(LV_SYMBOL_WARNING "  Update failed: ") + u.error).c_str(), 6000);
+      }
+    }
+    s_update_shown = u.state;
+    return;
+  }
+  const Palette& p = pal();
+  if (s_update_box == nullptr) {
+    s_update_box = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_update_box);
+    lv_obj_set_size(s_update_box, screenW(), screenH());
+    lv_obj_set_style_bg_color(s_update_box, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_update_box, 230, 0);
+    lv_obj_add_flag(s_update_box, LV_OBJ_FLAG_CLICKABLE);  // nothing else can be used meanwhile
+    lv_obj_set_flex_flow(s_update_box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(s_update_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(s_update_box, sc(22), 0);
+    label(s_update_box, (std::string(LV_SYMBOL_DOWNLOAD "  Updating to ") + u.latest).c_str(), font(FontSize::L),
+          p.accent);
+    s_update_bar = lv_bar_create(s_update_box);
+    lv_obj_set_size(s_update_bar, sc(440), sc(22));
+    lv_bar_set_range(s_update_bar, 0, 1000);
+    lv_obj_set_style_bg_color(s_update_bar, p.panel_border, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_update_bar, p.accent, LV_PART_INDICATOR);
+    s_update_text = label(s_update_box, "", font(FontSize::M), p.text);
+    label(s_update_box, "Keep the power on", font(FontSize::S), p.text_dim);
+  }
+  char text[64];
+  if (u.state == app::UpdateState::Installed) {
+    lv_bar_set_value(s_update_bar, 1000, LV_ANIM_OFF);
+    std::snprintf(text, sizeof(text), "Installed - restarting...");
+    if (s_update_shown != app::UpdateState::Installed) {
+      app::settingsFlush();  // the SD card copy is written meanwhile by the network task
+      s_restart_at_ms = plat::millis() + 2500;
+    } else if (s_restart_at_ms != 0 && static_cast<int32_t>(plat::millis() - s_restart_at_ms) >= 0) {
+      s_restart_at_ms = 0;
+      plat::restart();
+    }
+  } else if (u.total > 0) {
+    lv_bar_set_value(s_update_bar, static_cast<int32_t>(u.done * 1000 / u.total), LV_ANIM_OFF);
+    std::snprintf(text, sizeof(text), "%.1f of %.1f MB", u.done / 1e6, u.total / 1e6);
+  } else {
+    std::snprintf(text, sizeof(text), "Connecting...");
+  }
+  lv_label_set_text(s_update_text, text);
+  s_update_shown = u.state;
+}
+
 // While asleep: a black, full-screen layer that takes the waking tap, so the
 // tap can't also press whatever is under it.
 lv_obj_t* s_sleep_layer = nullptr;
@@ -145,6 +208,7 @@ void onAppTimer(lv_timer_t*) {
   logHealth();
   updateSleepLayer();
   updateAlarmDialog();
+  updateUpdateBox();
   // Any touch on any screen keeps the backlight up.
   if (lv_display_get_inactive_time(s_disp) < 400) app::userActivity();
   app::tick(plat::millis());

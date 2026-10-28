@@ -1,7 +1,13 @@
 # Name,   Type, SubType, Offset,   Size
-# The settings (nvs) sit after the app on purpose: the release image is
-# flashed at 0x0 and covers everything up to the end of the app, so anything
-# below 0x10000 would be erased by every update.
-factory,  app,  factory, 0x10000,  0x700000
+# Two app slots for updates over Wi-Fi: the running one stays intact while the
+# other is written. ota_0 is where the USB image (flashed at 0x0) puts the app.
+#
+# The settings (nvs) sit after ota_0 on purpose: the USB image covers
+# everything up to the end of the app, so anything below 0x10000 is erased by
+# a USB flash. That includes otadata, which is fine: a blank otadata boots
+# ota_0, the app that was just flashed.
+otadata,  data, ota,     0xd000,   0x2000
+ota_0,    app,  ota_0,   0x10000,  0x700000
 nvs,      data, nvs,     0x710000, 0x10000
 phy_init, data, phy,     0x720000, 0x1000
+ota_1,    app,  ota_1,   0x730000, 0x700000

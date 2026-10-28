@@ -162,6 +162,34 @@ void testAlarm(int index);
 /** Minutes until a snoozed alarm rings again, or -1. */
 int snoozeMinutesLeft();
 
+// --- Firmware updates from GitHub releases ---------------------------------------
+enum class UpdateState : uint8_t {
+  Idle,
+  Checking,
+  UpToDate,
+  Available,  // `latest` can be installed
+  NoImage,    // newer release, but without an update image for this board (flash it over USB)
+  Failed,     // see `error`
+  Installing,
+  Installed,  // restart to run it
+};
+
+struct UpdateStatus {
+  UpdateState state = UpdateState::Idle;
+  bool install_failed = false;  // Failed came from an install, not a check
+  char latest[24] = "";         // "v1.13.0"
+  char error[72] = "";
+  size_t done = 0, total = 0;   // bytes, while installing
+};
+
+/** Asks the poller to look up the latest release. */
+void checkForUpdate();
+/** Downloads and installs the release found by the last check (state Available). */
+void installUpdate();
+UpdateStatus updateStatus();
+/** Network task: runs a pending check or install. True if it did something. */
+bool serviceUpdate();
+
 /** Plays a sound if the user enabled that category. */
 void sound(core::Sound s);
 
