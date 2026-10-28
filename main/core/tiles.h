@@ -11,12 +11,12 @@ namespace core::tiles {
  * Web map tiles (256 px, Web Mercator, z/x/y) for the background map.
  * Variant = what is actually downloaded: a style plus its options.
  */
-enum class Variant : uint8_t { None = 0, DarkLabels, DarkNoLabels, Topo, OsmStandard, kCount };
+enum class Variant : uint8_t { None = 0, DarkLabels, DarkNoLabels, Topo, OsmStandard, FaaSectional, kCount };
 
 constexpr int kTileSize = 256;
 
 /** Map styles offered in Settings (Display -> Background map). */
-enum class Style : uint8_t { Off = 0, DarkStreets = 1, Topo = 2 };
+enum class Style : uint8_t { Off = 0, DarkStreets = 1, Topo = 2, FaaSectional = 3 };
 
 /**
  * The dark street map comes from CARTO, which needs a (free) API key; without
@@ -24,12 +24,16 @@ enum class Style : uint8_t { Off = 0, DarkStreets = 1, Topo = 2 };
  */
 Variant variantFor(Style style, bool labels, bool have_carto_key);
 int maxZoom(Variant v);
+/** Coarsest zoom the source has; wider views fetch these tiles and shrink them. */
+int minZoom(Variant v);
 /** Short directory name on the SD card (8.3-safe). */
 const char* dirName(Variant v);
 /** Credit line that must be shown with the map. */
 const char* attribution(Variant v);
 /** True for light maps (topo, OSM): tinting inverts them so they stay dark. */
 bool isLight(Variant v);
+/** Charts keep their colors: the theme tint would hide what they show. */
+bool keepColors(Variant v);
 
 /** Tile download URLs, best first (the second is a fallback path). `key` = CARTO API key. */
 std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative = 0, const char* key = "");

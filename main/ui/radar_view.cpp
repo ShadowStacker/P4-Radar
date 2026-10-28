@@ -266,6 +266,7 @@ void RadarView::onTimer(lv_timer_t* t) {
 }
 
 void RadarView::frame() {
+  const uint64_t t0 = plat::micros();
   const uint32_t now = plat::millis();
   const uint32_t dt = now - last_frame_ms_;
   last_frame_ms_ = now;
@@ -293,13 +294,15 @@ void RadarView::frame() {
     app::maps::Look look;
     look.variant = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels,
                                            app::maps::hasCartoKey());
-    look.tint = st.map_tint || st.theme == core::Theme::Night;  // Night stays red
+    // Night stays red; charts keep their colors (the tint would hide them).
+    look.tint = (st.map_tint || st.theme == core::Theme::Night) && !core::tiles::keepColors(look.variant);
     const lv_color32_t a = lv_color_to_32(pal().accent, LV_OPA_COVER);
     look.tint_r = a.red;
     look.tint_g = a.green;
     look.tint_b = a.blue;
     look.brightness = st.map_brightness;
     if (map_.update(vp_, look, busy, pal().bg)) static_dirty_ = true;
+    light_map_ = map_.active() && core::tiles::isLight(look.variant) && !look.tint;
   }
 
   // Lazy follow: re-center only when the aircraft drifts away from the middle,
@@ -330,7 +333,10 @@ void RadarView::frame() {
   const bool want_trails = st.show_trails && !busy;
   if (static_dirty_ || view_changed || (want_trails && !static_has_trails_) ||
       (want_trails && tracks_version_ != static_tracks_version_)) {
+    const uint64_t s0 = plat::micros();
     renderStatic(want_trails);
+    stats_.static_us += plat::micros() - s0;
+    stats_.static_renders++;
   }
 
   prepareBlips(now);
@@ -341,6 +347,26 @@ void RadarView::frame() {
   const bool smooth_clock = st.clock_mode && st.clock_seconds && st.clock_smooth_seconds;
   const uint32_t period = (st.sweep_enabled || busy || interacting_ || smooth_clock) ? kFastFrameMs : kSlowFrameMs;
   lv_timer_set_period(timer_, period);
+
+  stats_.frames++;
+  stats_.blips += static_cast<uint32_t>(blips_.size());
+  for (const Blip& b : blips_) stats_.labels += b.label ? 1 : 0;
+  stats_.frame_us += plat::micros() - t0;
+
+  // Performance line in the serial log every 30 s (for diagnosing lag).
+  static uint32_t s_log_ms = 0;
+  if (now - s_log_ms >= 30000) {
+    if (s_log_ms != 0 && stats_.frames > 0) {
+      const Stats& x = stats_;
+      std::printf("perf: %.1f fps, frame %.1f ms, static %.1f ms x%u, overlay %.1f ms, %u aircraft, %u labels, %.0f km\n",
+                  x.frames / ((now - s_log_ms) / 1000.0f), x.frame_us / 1000.0f / x.frames,
+                  x.static_renders ? x.static_us / 1000.0f / x.static_renders : 0.0f,
+                  static_cast<unsigned>(x.static_renders), x.overlay_us / 1000.0f / x.frames,
+                  static_cast<unsigned>(x.blips / x.frames), static_cast<unsigned>(x.labels / x.frames), vp_.radiusKm());
+    }
+    s_log_ms = now;
+    stats_ = {};
+  }
 }
 
 void RadarView::syncTrace() {
@@ -664,8 +690,15 @@ void RadarView::prepareBlips(uint32_t now) {
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
   sweep_center_ = distPx(home.x, home.y, cx, cy) < R * 2.5f ? home : core::PointF{cx, cy};
 
-  const lv_font_t* f = font(FontSize::S);
-  (void)f;
+  // Small symbols when zoomed far out or crowded, with some hysteresis so
+  // they don't flip back and forth.
+  {
+    const double rkm = vp_.radiusKm();
+    const size_t n = tracks_.size();
+    if (!small_sprites_ && (rkm > 150 || n > 150)) small_sprites_ = true;
+    else if (small_sprites_ && rkm < 120 && n < 110) small_sprites_ = false;
+  }
+
   for (size_t i = 0; i < tracks_.size(); ++i) {
     const core::Track& t = tracks_[i];
     const core::LatLon pos = core::positionAt(t, now);
@@ -679,6 +712,7 @@ void RadarView::prepareBlips(uint32_t now) {
     b.emergency = t.ac.emergency;
     b.favorite = core::containsHex(favorites_, t.ac.hex);
     b.kind = static_cast<uint8_t>(sprites::kindFor(t.ac.category, t.ac.on_ground));
+    b.small = small_sprites_ && !b.selected && !b.emergency && !b.favorite;
     b.heading = t.ac.heading_deg;
     b.color = useAltitudeColors(st) ? altitudeColor(t.ac.alt_ft, t.ac.on_ground)
                                                           : p.aircraft;
@@ -765,7 +799,23 @@ void RadarView::placeLabels() {
   // Symbols are obstacles too, so labels don't cover other aircraft.
   for (const Blip& b : blips_) {
     if (b.kind == 0xFF) continue;
-    placed.push_back(boxAround(b.x, b.y, sprites::size(static_cast<sprites::Kind>(b.kind)) * 0.4f));
+    placed.push_back(boxAround(b.x, b.y, sprites::size(static_cast<sprites::Kind>(b.kind), b.small) * 0.4f));
+  }
+
+  // Ordinary labels: try the aircraft nearest the center first, and only so
+  // many. With hundreds of aircraft on screen only a few labels fit anyway,
+  // and trying them all costs (aircraft x obstacles) checks every frame.
+  constexpr int kMaxLabelTries = 60;
+  std::vector<Blip*> order;
+  order.reserve(blips_.size());
+  for (Blip& b : blips_) {
+    if (b.label && b.kind != 0xFF && !(b.selected || b.emergency || b.favorite)) order.push_back(&b);
+  }
+  if (order.size() > static_cast<size_t>(kMaxLabelTries)) {
+    std::nth_element(order.begin(), order.begin() + kMaxLabelTries, order.end(), [cx, cy](const Blip* a, const Blip* b) {
+      return distPx(a->x, a->y, cx, cy) < distPx(b->x, b->y, cx, cy);
+    });
+    for (size_t i = kMaxLabelTries; i < order.size(); ++i) order[i]->label = false;
   }
 
   // Selected and emergency labels get first pick of positions.
@@ -779,7 +829,7 @@ void RadarView::placeLabels() {
       if (b.line2[0]) lv_text_get_size(&s2, b.line2, f2, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
       const int32_t w = std::max(s1.x, s2.x) + 2;
       const int32_t h = b.line2[0] ? lh * 2 : lh;
-      const int32_t half = sprites::size(static_cast<sprites::Kind>(b.kind)) / 2 + sc(4);
+      const int32_t half = sprites::size(static_cast<sprites::Kind>(b.kind), b.small) / 2 + sc(4);
       const int32_t bx = static_cast<int32_t>(b.x), by = static_cast<int32_t>(b.y);
       const lv_area_t cand[4] = {
           {bx + half, by - h / 2, bx + half + w, by + h / 2},          // right
@@ -815,7 +865,10 @@ void RadarView::placeLabels() {
 }
 
 void RadarView::onDrawOverlay(lv_event_t* e) {
-  static_cast<RadarView*>(lv_event_get_user_data(e))->drawOverlay(lv_event_get_layer(e));
+  auto* self = static_cast<RadarView*>(lv_event_get_user_data(e));
+  const uint64_t t0 = plat::micros();
+  self->drawOverlay(lv_event_get_layer(e));
+  self->stats_.overlay_us += plat::micros() - t0;
 }
 
 void RadarView::drawSweep(lv_layer_t* layer) {
@@ -949,7 +1002,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
       continue;
     }
     const auto kind = static_cast<sprites::Kind>(b.kind);
-    const int32_t sz = sprites::size(kind);
+    const int32_t sz = sprites::size(kind, b.small);
     const lv_area_t box = boxAround(b.x, b.y, sz / 2.0f + sc(16));
     if (areasOverlap(box, clip)) {
       if (b.emergency) {
@@ -962,7 +1015,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
       if (b.selected) {
         drawCircle(layer, b.x, b.y, sz * 0.78f, b.favorite ? p.favorite : p.select, LV_OPA_COVER, sc(3));
       }
-      const lv_draw_buf_t* img = sprites::get(kind, b.heading);
+      const lv_draw_buf_t* img = sprites::get(kind, b.heading, b.small);
       if (img != nullptr) {
         lv_draw_image_dsc_t d;
         lv_draw_image_dsc_init(&d);
@@ -993,6 +1046,17 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
       }
     }
     if (b.label && areasOverlap(b.label_area, clip)) {
+      if (light_map_) {
+        // Light map in its own colors (FAA chart, untinted topo): a dark
+        // backing keeps the light label text readable.
+        lv_draw_rect_dsc_t bg;
+        lv_draw_rect_dsc_init(&bg);
+        bg.bg_color = p.bg;
+        bg.bg_opa = static_cast<lv_opa_t>(b.opa * 170 / 255);
+        bg.radius = sc(4);
+        const lv_area_t a = {b.label_area.x1 - sc(3), b.label_area.y1, b.label_area.x2 + sc(2), b.label_area.y2};
+        lv_draw_rect(layer, &bg, &a);
+      }
       const lv_color_t c1 = b.emergency ? p.danger : (b.favorite ? p.favorite : (b.selected ? p.select : p.label));
       drawText(layer, b.line1, b.label_area.x1, b.label_area.y1, f1, c1, b.opa);
       if (b.line2[0]) {

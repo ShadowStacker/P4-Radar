@@ -134,7 +134,7 @@ std::string pngChunkSim(const char* type, const std::string& data) {
   return out;
 }
 
-std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = false) {
+std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = false, bool faa = false) {
   const int T = 256;
   std::string raw;
   raw.reserve((T * 3 + 1) * T);
@@ -147,7 +147,14 @@ std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = fals
       const double gx = (tx * T + x) * scale, gy = (ty * T + y) * scale;
       const double px = scale;  // one screen pixel in world units (line width)
       int r, g, b;
-      if (osm) {
+      if (faa) {
+        // Sectional-ish: tan terrain tints, blue Class B rings, magenta airways.
+        r = 230; g = 226; b = 205;
+        if (std::sin(gx / 1700.0) * std::cos(gy / 1500.0) > 0.35) { r = 214; g = 222; b = 190; }
+        const double d = std::hypot(std::fmod(gx, 9000.0) - 4500.0, std::fmod(gy, 9000.0) - 4500.0);
+        if (std::fabs(std::fmod(d, 900.0) - 450.0) < 2.5 * px) { r = 40; g = 90; b = 190; }
+        if (std::fmod(std::fabs(gx - 0.6 * gy), 4100.0) < 2.5 * px) { r = 170; g = 60; b = 150; }
+      } else if (osm) {
         r = 242; g = 239; b = 233;                                                           // land
         if (std::sin(gx / 900.0) + std::cos(gy / 700.0) > 1.3) { r = 170; g = 211; b = 223; }  // water
         if (std::fmod(gx, 410.0) < 1.5 * px || std::fmod(gy + 0.2 * gx, 530.0) < 1.5 * px) { r = g = b = 255; }
@@ -186,7 +193,8 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
   const bool carto = std::strstr(url, "basemaps.cartocdn.com/") != nullptr;
   const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
   const bool osm = std::strstr(url, "tile.openstreetmap.org/") != nullptr;
-  if (carto || topo || osm) {
+  const bool faa = std::strstr(url, "VFR_Sectional/MapServer/tile/") != nullptr;
+  if (carto || topo || osm || faa) {
     if (std::getenv("SIM_NO_TILES")) return -1;
     // .../<z>/<x>/<y>.png
     int z = 0;
@@ -195,8 +203,12 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     const size_t p3 = u.rfind('/');
     const size_t p2 = u.rfind('/', p3 - 1);
     const size_t p1 = u.rfind('/', p2 - 1);
-    if (std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u.png", &z, &x, &y) != 3) return 404;
-    body->append(fakeTile(topo, z, x, y, osm));
+    // .../z/x/y.png, or ArcGIS .../tile/z/y/x
+    if (faa ? std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u", &z, &y, &x) != 3
+            : std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u.png", &z, &x, &y) != 3) {
+      return 404;
+    }
+    body->append(fakeTile(topo, z, x, y, osm, faa));
     return 200;
   }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
@@ -298,6 +310,13 @@ void sdUnmount() { s_sd_mounted = false; }
 // at the start of the run, then advancing with the virtual clock.
 int64_t unixTimeMs() { return 1793120965000LL + sim::g_ms; }
 bool timeValid() { return true; }
+
+// Real (host) time, for profiling only.
+uint64_t micros() {
+  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                   std::chrono::steady_clock::now().time_since_epoch())
+                                   .count());
+}
 
 const char* firmwareVersion() { return "sim"; }
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }

@@ -20,7 +20,8 @@ namespace {
 
 constexpr size_t kMaxTiles = 40;            // decoded tiles kept (128 KB each)
 constexpr int kMaxAdoptPerFrame = 4;        // keep frames short while tiles stream in
-constexpr uint32_t kComposeEveryMs = 250;   // while tiles are still arriving
+constexpr uint32_t kComposeEveryMs = 250;   // while tiles are still arriving...
+constexpr uint32_t kComposeEveryManyMs = 800;  // ...when the view needs many (zoomed out)
 constexpr int kFallbackLevels = 4;          // draw a parent tile while a tile loads
 
 bool sameView(const core::Viewport& vp, const core::LatLon& c, double kmpp) {
@@ -171,7 +172,8 @@ bool MapLayer::update(const core::Viewport& vp, const app::maps::Look& look, boo
   // frame of a gesture: draw() shifts and scales the last picture meanwhile.
   const uint32_t now = plat::millis();
   const bool view_changed = !pic_valid_ || !sameView(vp, pic_center_, pic_kmpp_);
-  if (!busy && (view_changed || pic_dirty_) && (view_changed || now - last_compose_ms_ >= kComposeEveryMs)) {
+  const uint32_t every = needed_.size() > 16 ? kComposeEveryManyMs : kComposeEveryMs;
+  if (!busy && (view_changed || pic_dirty_) && (view_changed || now - last_compose_ms_ >= every)) {
     compose(vp, bg);
     last_compose_ms_ = now;
     return true;
@@ -191,7 +193,7 @@ void MapLayer::drawTile(lv_layer_t* layer, const core::Viewport& vp, uint64_t ke
   const float xr = vp.project({0, core::tiles::tileLon(x + 1, z)}).x;
   // Mercator rows aren't evenly spaced in latitude: at small scales draw the
   // tile in horizontal strips, each placed by its own latitudes.
-  const int strips = z >= 9 ? 1 : (z >= 6 ? 4 : 8);
+  const int strips = z >= 6 ? 1 : (z == 5 ? 2 : 4);  // keeps the error around 1-2 px
   for (int s = 0; s < strips; ++s) {
     const double ry0 = static_cast<double>(s) / strips, ry1 = static_cast<double>(s + 1) / strips;
     const float yt = vp.project({core::tiles::tileLat(y + ry0, z), 0}).y;
@@ -265,6 +267,7 @@ bool MapLayer::draw(lv_layer_t* layer, const core::Viewport& vp) const {
     const core::PointF c = vp.project(pic_center_);
     const float s = static_cast<float>(pic_kmpp_ / vp.kmPerPx());
     d.scale_x = d.scale_y = static_cast<int32_t>(std::lround(s * 256));
+    d.antialias = 0;  // only during the gesture: speed over smoothness
     d.pivot.x = W / 2;
     d.pivot.y = H / 2;
     const int32_t x1 = static_cast<int32_t>(std::lround(c.x)) - W / 2;

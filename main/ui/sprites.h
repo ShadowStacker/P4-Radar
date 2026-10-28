@@ -15,10 +15,13 @@ constexpr int kRotationSteps = 72;  // 5 degree increments
  */
 void init(int scale_pct = 100);
 
-/** White ARGB8888 sprite for the heading (degrees, 0 = north). */
-const lv_draw_buf_t* get(Kind kind, float heading_deg);
+/**
+ * White ARGB8888 sprite for the heading (degrees, 0 = north). `small` is a
+ * ~60 % set for crowded, zoomed-out views (much cheaper to draw).
+ */
+const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small = false);
 /** Sprite edge length in px (sprites are square, centered on the aircraft). */
-int32_t size(Kind kind);
+int32_t size(Kind kind, bool small = false);
 
 /**
  * White five-pointed star, `size` px square, for favorites (the built-in

@@ -87,7 +87,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 |---|---|---|
 | ⚙ Gear | top right | Open Settings |
 | 👁 Eye | right | Open the [Filters](#filters) page (same eye as in Settings). Lit while a filter is hiding aircraft. |
-| 🖼 Picture | lower right, next to Home | Choose the [background map](#background-maps): Off, Dark streets or Topo |
+| 🖼 Picture | lower right, next to Home | Choose the [background map](#background-maps): Off, Dark streets, Topo or FAA sectional |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
@@ -163,6 +163,14 @@ feed saw it). Zoom out to see the whole route.
   names are always on). A missing or wrong CARTO key shows up as tiles
   stamped "API KEY REQUIRED".
 - **Topo**: contour lines, forests, roads and peaks, from OpenTopoMap.
+- **FAA sectional** ("FAA" in Display settings): the FAA's VFR Sectional
+  charts (airspace, airports, frequencies, terrain), from the FAA's own
+  online chart service. US only. They're always shown in their own colors
+  (**Tint** doesn't apply); use **Map brightness** to tone them down.
+  Aircraft labels get a dark backing so they stay readable. Charts are
+  printed at 1:500,000, so when you zoom in close they're simply enlarged,
+  and when zoomed far out (beyond about 150 mi) the chart pieces are shrunk.
+  **Not for navigation.**
 
 With **Tint map to theme color** on (the default) the map is redrawn in the
 theme's color, so it looks like part of the radar; topo is inverted so its
@@ -264,7 +272,7 @@ proximity and favorite alerts.
 | Range rings | Distance rings and crosshair around home | On |
 | Runways | Draw airport runways | On |
 | Airport codes | Label airports with their code | On |
-| Background map | **Off**, **Dark streets** (roads, water and place names on black) or **Topo** (terrain contours, forests and roads). See [Background maps](#background-maps). | Off |
+| Background map | **Off**, **Streets** (dark street map), **Topo** (terrain contours, forests and roads) or **FAA** (VFR sectional charts). See [Background maps](#background-maps). | Off |
 | Place names (street map) | Show town and road names on the dark street map | On |
 | Tint map to theme color | Recolor the map in the theme's color (green, amber, blue, red at night). Topo is inverted so it stays dark. Off shows the map's own colors, dimmed. | On |
 | Map brightness | How bright the map is behind the radar, 10–100 % | 60 % |
@@ -521,7 +529,7 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | No aircraft, but everything else works | Check **Filters** (the status pill says "filtered"). Also zoom out; there may simply be no traffic nearby. |
 | Airline or route is wrong | Routes come from adsbdb.com's community list by flight number, and can be stale. Corrections can be reported on [adsbdb's GitHub](https://github.com/mrjackwills/adsbdb/issues). |
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
-| Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
+| Animation feels slow | The radar sweep is the most expensive animation: lower **Sweep trail** (0 = clean bar is cheapest), turn off Smooth trail fade, or turn the sweep off. Zoomed far out with hundreds of aircraft, symbols get smaller automatically. The serial log prints a `perf:` line every 30 s (frame rate and where the time goes); send it along when reporting slowness. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
 | Background map stays blank | It needs Wi-Fi the first time an area is viewed (or saved tiles on the SD card). The serial log shows `map: tile ... -> HTTP <code>` for tiles that failed. |
 | SD card says "No card" | Insert it with the power off, or tap **Look for a card again**. It must be FAT32. |

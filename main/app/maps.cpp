@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 #include "app/app.h"
+#include "core/jpeg.h"
 #include "core/png.h"
 #include "platform/platform.h"
 
@@ -268,11 +269,14 @@ bool service(bool online) {
   }
 
   core::png::Image img;
-  if (!core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img) ||
+  const auto* bytes = reinterpret_cast<const uint8_t*>(png.data());
+  const bool decoded = core::jpeg::isJpeg(bytes, png.size()) ? core::jpeg::decode(bytes, png.size(), &img)
+                                                             : core::png::decode(bytes, png.size(), &img);
+  if (!decoded ||
       img.width != core::tiles::kTileSize || img.height != core::tiles::kTileSize) {
     std::lock_guard<std::mutex> lock(s_mu);
     s_not_found[key] = true;  // not a tile we can use
-    std::printf("map: tile %d/%u/%u is not a 256 px PNG\n", z, static_cast<unsigned>(x), static_cast<unsigned>(y));
+    std::printf("map: tile %d/%u/%u is not a 256 px PNG or JPEG\n", z, static_cast<unsigned>(x), static_cast<unsigned>(y));
     return true;
   }
   if (from_net && sdUsable()) writeFile(core::tiles::sdPath(plat::sdRoot(), v, z, x, y), png);

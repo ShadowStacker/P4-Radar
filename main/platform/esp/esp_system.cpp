@@ -33,6 +33,8 @@ int64_t unixTimeMs() {
 // The board has no battery-backed clock, so before SNTP it counts from 1970.
 bool timeValid() { return std::time(nullptr) > 1735689600; }  // 2025-01-01
 
+uint64_t micros() { return static_cast<uint64_t>(esp_timer_get_time()); }
+
 uint32_t millis() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
 
 void startTask(const char* name, std::function<void()> fn, size_t stack_bytes, int priority) {

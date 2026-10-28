@@ -14,8 +14,10 @@ namespace ui::sprites {
 namespace {
 
 constexpr int kKinds = static_cast<int>(Kind::kCount);
-lv_draw_buf_t* s_bufs[kKinds][kRotationSteps] = {};
-int32_t s_size[kKinds] = {};
+// [0] full size, [1] small (used when zoomed out with many aircraft).
+lv_draw_buf_t* s_bufs[2][kKinds][kRotationSteps] = {};
+int32_t s_size[2][kKinds] = {};
+constexpr int kSmallPct = 62;
 
 struct V {
   float x, y;
@@ -109,7 +111,7 @@ void drawGround(lv_layer_t* layer, float cx, float cy, float scale) {
 
 }  // namespace
 
-int32_t size(Kind kind) { return s_size[static_cast<int>(kind)]; }
+int32_t size(Kind kind, bool small) { return s_size[small ? 1 : 0][static_cast<int>(kind)]; }
 
 void init(int scale_pct) {
   static int s_scale = 0;
@@ -117,10 +119,12 @@ void init(int scale_pct) {
   if (scale_pct > 200) scale_pct = 200;
   if (scale_pct == s_scale) return;
   s_scale = scale_pct;
-  for (auto& kind : s_bufs) {
-    for (lv_draw_buf_t*& b : kind) {
-      if (b != nullptr) destroyImageBuf(b);
-      b = nullptr;
+  for (auto& set : s_bufs) {
+    for (auto& kind : set) {
+      for (lv_draw_buf_t*& b : kind) {
+        if (b != nullptr) destroyImageBuf(b);
+        b = nullptr;
+      }
     }
   }
 
@@ -130,27 +134,30 @@ void init(int scale_pct) {
   lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
   lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
 
-  for (int k = 0; k < kKinds; ++k) {
-    const int32_t sz = (base[k] * scale_pct / 100) | 1;  // odd size -> exact center pixel
-    s_size[k] = sz;
-    const float c = sz / 2.0f;
-    const float scale = sz * 0.47f;
-    for (int i = 0; i < kRotationSteps; ++i) {
-      lv_draw_buf_t* buf = createImageBuf(sz, sz, LV_COLOR_FORMAT_ARGB8888);
-      if (buf == nullptr) continue;
-      lv_draw_buf_clear(buf, nullptr);
-      lv_canvas_set_draw_buf(canvas, buf);
-      lv_layer_t layer;
-      lv_canvas_init_layer(canvas, &layer);
-      const float hdg = i * (360.0f / kRotationSteps);
-      switch (static_cast<Kind>(k)) {
-        case Kind::Light: drawTris(&layer, kProp, sizeof(kProp) / sizeof(kProp[0]), c, c, scale, hdg); break;
-        case Kind::Rotor: drawRotor(&layer, c, c, scale, hdg); break;
-        case Kind::Ground: drawGround(&layer, c, c, scale); break;
-        default: drawTris(&layer, kJet, sizeof(kJet) / sizeof(kJet[0]), c, c, scale, hdg); break;
+  for (int set = 0; set < 2; ++set) {
+    for (int k = 0; k < kKinds; ++k) {
+      const int pct = set == 0 ? scale_pct : scale_pct * kSmallPct / 100;
+      const int32_t sz = (base[k] * pct / 100) | 1;  // odd size -> exact center pixel
+      s_size[set][k] = sz;
+      const float c = sz / 2.0f;
+      const float scale = sz * 0.47f;
+      for (int i = 0; i < kRotationSteps; ++i) {
+        lv_draw_buf_t* buf = createImageBuf(sz, sz, LV_COLOR_FORMAT_ARGB8888);
+        if (buf == nullptr) continue;
+        lv_draw_buf_clear(buf, nullptr);
+        lv_canvas_set_draw_buf(canvas, buf);
+        lv_layer_t layer;
+        lv_canvas_init_layer(canvas, &layer);
+        const float hdg = i * (360.0f / kRotationSteps);
+        switch (static_cast<Kind>(k)) {
+          case Kind::Light: drawTris(&layer, kProp, sizeof(kProp) / sizeof(kProp[0]), c, c, scale, hdg); break;
+          case Kind::Rotor: drawRotor(&layer, c, c, scale, hdg); break;
+          case Kind::Ground: drawGround(&layer, c, c, scale); break;
+          default: drawTris(&layer, kJet, sizeof(kJet) / sizeof(kJet[0]), c, c, scale, hdg); break;
+        }
+        lv_canvas_finish_layer(canvas, &layer);
+        s_bufs[set][k][i] = buf;
       }
-      lv_canvas_finish_layer(canvas, &layer);
-      s_bufs[k][i] = buf;
     }
   }
   lv_obj_delete(canvas);
@@ -247,11 +254,11 @@ const lv_draw_buf_t* clockIcon(int32_t size) {
   return buf;
 }
 
-const lv_draw_buf_t* get(Kind kind, float heading_deg) {
+const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small) {
   float h = std::fmod(heading_deg, 360.0f);
   if (h < 0) h += 360.0f;
   const int idx = static_cast<int>(std::lround(h / (360.0f / kRotationSteps))) % kRotationSteps;
-  return s_bufs[static_cast<int>(kind)][idx];
+  return s_bufs[small ? 1 : 0][static_cast<int>(kind)][idx];
 }
 
 Kind kindFor(const char* category, bool on_ground) {

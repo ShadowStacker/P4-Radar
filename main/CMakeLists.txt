@@ -1,5 +1,6 @@
 file(GLOB_RECURSE APP_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tjpgd/*.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/data/*.cpp"

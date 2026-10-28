@@ -18,11 +18,22 @@ Variant variantFor(Style style, bool labels, bool have_carto_key) {
       if (!have_carto_key) return Variant::OsmStandard;
       return labels ? Variant::DarkLabels : Variant::DarkNoLabels;
     case Style::Topo: return Variant::Topo;
+    case Style::FaaSectional: return Variant::FaaSectional;
     default: return Variant::None;
   }
 }
 
-int maxZoom(Variant v) { return v == Variant::Topo ? 17 : 18; }
+int maxZoom(Variant v) {
+  switch (v) {
+    case Variant::Topo: return 17;
+    case Variant::FaaSectional: return 12;  // sectionals are 1:500,000 scans; closer is just enlarged
+    default: return 18;
+  }
+}
+
+int minZoom(Variant v) { return v == Variant::FaaSectional ? 8 : 1; }
+
+bool keepColors(Variant v) { return v == Variant::FaaSectional; }
 
 const char* dirName(Variant v) {
   switch (v) {
@@ -32,6 +43,7 @@ const char* dirName(Variant v) {
     case Variant::DarkNoLabels: return "cdarknl";
     case Variant::Topo: return "topo";
     case Variant::OsmStandard: return "osm";
+    case Variant::FaaSectional: return "faavfr";
     default: return "none";
   }
 }
@@ -43,11 +55,12 @@ const char* attribution(Variant v) {
     case Variant::DarkNoLabels: return "(c) OpenStreetMap contributors (c) CARTO";
     case Variant::Topo: return "(c) OpenStreetMap contributors, SRTM | (c) OpenTopoMap (CC-BY-SA)";
     case Variant::OsmStandard: return "(c) OpenStreetMap contributors";
+    case Variant::FaaSectional: return "FAA VFR Sectional - not for navigation";
     default: return "";
   }
 }
 
-bool isLight(Variant v) { return v == Variant::Topo || v == Variant::OsmStandard; }
+bool isLight(Variant v) { return v == Variant::Topo || v == Variant::OsmStandard || v == Variant::FaaSectional; }
 
 std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative, const char* key) {
   char buf[192];
@@ -67,6 +80,15 @@ std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative, const
     case Variant::OsmStandard:
       std::snprintf(buf, sizeof(buf), "https://tile.openstreetmap.org/%d/%u/%u.png", z, static_cast<unsigned>(x),
                     static_cast<unsigned>(y));
+      break;
+    case Variant::FaaSectional:
+      // The FAA's own ArcGIS tile service (Aeronautical Information Services);
+      // ArcGIS orders the path z/row/column. Saved tiles keep the .png name
+      // whatever the image format; the decoder looks at the bytes.
+      std::snprintf(buf, sizeof(buf),
+                    "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/VFR_Sectional/MapServer/"
+                    "tile/%d/%u/%u",
+                    z, static_cast<unsigned>(y), static_cast<unsigned>(x));
       break;
     default: return "";
   }
@@ -106,7 +128,7 @@ int zoomFor(Variant v, double km_per_px, double lat) {
   // Ground size of one tile pixel at zoom 0 is circumference * cos(lat) / 256.
   const double px0 = kEarthCircumferenceKm * std::cos(degToRad(lat)) / kTileSize;
   int z = static_cast<int>(std::lround(std::log2(px0 / km_per_px)));
-  if (z < 1) z = 1;
+  if (z < minZoom(v)) z = minZoom(v);
   if (z > maxZoom(v)) z = maxZoom(v);
   return z;
 }

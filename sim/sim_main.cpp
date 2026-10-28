@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -126,10 +127,13 @@ void feedTraffic() {
   app::ingest(200, g_traffic->json(c, r * 1.25 + 5));
 }
 
+std::function<void()> g_step_hook;  // bench: runs before every step
+
 /** Advances virtual time, feeding traffic and running LVGL. */
 void run(uint32_t ms, uint32_t step = 16) {
   for (uint32_t t = 0; t < ms; t += step) {
     sim::g_ms += step;
+    if (g_step_hook) g_step_hook();
     g_traffic->advance(step / 1000.0);
     feedTraffic();
     if (!app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
@@ -230,8 +234,69 @@ bool findAircraftOnScreen(int* x, int* y) {
 
 }  // namespace
 
+/** Timing at several zooms with heavy traffic: --bench. Host-CPU numbers;
+ *  compare them with each other, not with the device. */
+int runBench() {
+  sim::g_preset_wifi = true;
+  app::init();
+  auto& st = app::settings();
+  sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 450, 420);
+  g_traffic = &traffic;
+  ui::init(g_disp);
+  run(2000);
+  auto& rv = ui::RadarView::get();
+  std::printf("%-6s %-7s %6s %6s %8s %9s %9s %8s\n", "map", "radius", "blips", "labels", "frame_us",
+              "static_us", "overlay_us", "lvgl_us");
+  // BENCH_MAP / BENCH_RADIUS limit the run to one case (for profilers).
+  const int only_map = std::getenv("BENCH_MAP") ? std::atoi(std::getenv("BENCH_MAP")) : -1;
+  const double only_r = std::getenv("BENCH_RADIUS") ? std::atof(std::getenv("BENCH_RADIUS")) : -1;
+  for (int map = 0; map <= 2; ++map) {
+    if (only_map >= 0 && map != only_map) continue;
+    for (double r : {10.0, 40.0, 100.0, 200.0, 400.0}) {
+      if (only_r > 0 && r != only_r) continue;
+      st.map_style = static_cast<uint8_t>(map);
+      st.home_radius_km = r;
+      rv.goHome(false);
+      run(8000);  // tiles and traffic settle
+      rv.stats() = {};
+      g_render_ms_total = 0;
+      g_render_count = 0;
+      g_step_hook = [&rv] { rv.markStaticDirty(); };  // measure a static render every frame
+      run(3000);
+      g_step_hook = nullptr;
+      const auto& x = rv.stats();
+      const unsigned f = x.frames ? x.frames : 1;
+      std::printf("%-6d %-7.0f %6u %6u %8llu %9llu %9llu %8.0f\n", map, r, x.blips / f, x.labels / f,
+                  static_cast<unsigned long long>(x.frame_us / f),
+                  static_cast<unsigned long long>(x.static_renders ? x.static_us / x.static_renders : 0),
+                  static_cast<unsigned long long>(x.overlay_us / f), g_render_ms_total * 1000 / std::max(1, g_render_count));
+    }
+    if (only_r > 0) continue;
+    // A pinch out while zoomed out (busy frames: static layer every frame).
+    st.home_radius_km = 100;
+    rv.goHome(false);
+    run(6000);
+    rv.stats() = {};
+    g_render_ms_total = 0;
+    g_render_count = 0;
+    pinch(S(400), S(400), S(220), S(60), 40);
+    const auto& x = rv.stats();
+    const unsigned f = x.frames ? x.frames : 1;
+    std::printf("%-6d %-7s %6u %6u %8llu %9llu %9llu %8.0f  (pinch)\n", map, "pinch", x.blips / f, x.labels / f,
+                static_cast<unsigned long long>(x.frame_us / f),
+                static_cast<unsigned long long>(x.static_renders ? x.static_us / x.static_renders : 0),
+                static_cast<unsigned long long>(x.overlay_us / f), g_render_ms_total * 1000 / std::max(1, g_render_count));
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
+  bool bench = false;
   for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--bench") == 0) {
+      bench = true;
+      continue;
+    }
     if (std::strcmp(argv[i], "--size") == 0 && i + 1 < argc) g_size = std::atoi(argv[++i]);
     else if (std::strcmp(argv[i], "--rotate") == 0 && i + 1 < argc) g_rotate = std::atoi(argv[++i]) / 90;
     else sim::g_out_dir = argv[i];
@@ -257,6 +322,8 @@ int main(int argc, char** argv) {
   lv_indev_t* indev = lv_indev_create();
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, touchRead);
+
+  if (bench) return runBench();
 
   sim::g_preset_wifi = false;  // start like a fresh device
   app::init();
@@ -647,6 +714,15 @@ int main(int argc, char** argv) {
     st.map_brightness = 55;
     run(3000);
     shot((p + "47_map_topo_original").c_str());
+    st.map_style = 3;  // FAA sectional: always its own colors
+    st.map_tint = true;
+    st.map_brightness = 70;
+    run(4000);
+    shot((p + "53_map_faa_sectional").c_str());
+    st.map_style = 2;
+    st.map_tint = false;
+    st.map_brightness = 55;
+    run(3000);
     // Pan: the picture moves with the finger before the new tiles are composed.
     drag(S(400), S(400), S(520), S(330), 10);
     run(2500);

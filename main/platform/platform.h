@@ -21,6 +21,8 @@
 namespace plat {
 
 uint32_t millis();
+/** Microsecond counter for profiling (wraps). */
+uint64_t micros();
 
 // --- Settings persistence ----------------------------------------------------
 /** Loads settings; leaves defaults in place for anything not stored. */

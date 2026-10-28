@@ -51,6 +51,18 @@ class RadarView {
   /** Map shown under the radar (None when off). */
   core::tiles::Variant mapVariant() const { return map_.variant(); }
 
+  /** Where frame time goes (accumulated since the last reset). */
+  struct Stats {
+    uint32_t frames = 0;
+    uint32_t static_renders = 0;
+    uint64_t frame_us = 0;    // frame(): everything but drawing the overlay
+    uint64_t static_us = 0;   // renderStatic()
+    uint64_t overlay_us = 0;  // drawOverlay()
+    uint32_t blips = 0;       // aircraft drawn (summed over frames)
+    uint32_t labels = 0;      // labels drawn (summed over frames)
+  };
+  Stats& stats() { return stats_; }
+
   std::function<void()> on_selection_changed;
   std::function<void(core::LatLon)> on_long_press;
 
@@ -71,6 +83,7 @@ class RadarView {
     bool selected;
     bool emergency;
     bool favorite;
+    bool small;  // drawn with the small sprite set
     bool label;
     lv_area_t label_area;
     char line1[12];
@@ -117,6 +130,9 @@ class RadarView {
   double static_kmpp_ = 0;
   uint32_t static_tracks_version_ = 0;
 
+  // Crowded, zoomed-out views switch to smaller symbols (cheaper and clearer).
+  bool small_sprites_ = false;
+
   // Sweep
   float sweep_deg_ = 0;
   uint32_t last_frame_ms_ = 0;
@@ -125,6 +141,8 @@ class RadarView {
   // Selection / follow
   std::string selected_hex_;
   MapLayer map_;
+  bool light_map_ = false;  // a light map in its own colors is showing (labels get a backing)
+  Stats stats_;
 
   // Downloaded flight history of the selected aircraft
   std::string trace_req_hex_;

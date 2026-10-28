@@ -12,7 +12,7 @@ namespace sim {
 /** Deterministic synthetic air traffic that serializes to readsb JSON. */
 class FakeTraffic {
  public:
-  FakeTraffic(core::LatLon home, uint32_t seed);
+  FakeTraffic(core::LatLon home, uint32_t seed, int count = 46, double spread_km = 150);
 
   void advance(double dt_s);
   /** readsb/adsb.fi style response for aircraft within radius of center. */
@@ -39,6 +39,7 @@ class FakeTraffic {
   void spawn(Plane& p, bool near_home);
 
   core::LatLon home_;
+  double spread_km_;
   std::mt19937 rng_;
   std::vector<Plane> planes_;
 };

@@ -10,6 +10,31 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.11.0] - 2026-10-28
+
+### Added
+- **FAA sectional background map** (map button, or Display → Background
+  map → FAA): VFR Sectional charts from the FAA's online chart service, in
+  their own colors, dimmable. Aircraft labels get a dark backing on light
+  maps. US only, not for navigation.
+- JPEG map tiles are supported (the FAA serves charts as JPEG), using ChaN's
+  TJpgDec.
+- A `perf:` line in the serial log every 30 s: frame rate, frame/draw times
+  and aircraft count, for diagnosing slowness.
+
+### Changed
+- **Smoother when zoomed out with lots of traffic:**
+  - Aircraft symbols switch to a smaller set when zoomed out past about
+    90 mi or with more than ~150 aircraft. They draw about twice as fast
+    and are easier to tell apart.
+  - Label placement only tries the 60 aircraft nearest the center. It used
+    to check every aircraft against every other one, every frame.
+  - With a background map: fewer recomposes while tiles stream in, fewer
+    strips per tile at wide zooms, and cheaper scaling during pinches.
+  - In the simulator benchmark (450 aircraft, 250 mi), the aircraft layer
+    takes about 30% less time per frame, and pinch frames with a map
+    25-40% less.
+
 ## [v1.10.0] - 2026-10-28
 
 ### Fixed
@@ -300,6 +325,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.11.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.11.0
 [v1.10.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.10.0
 [v1.9.2]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.2
 [v1.9.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.1

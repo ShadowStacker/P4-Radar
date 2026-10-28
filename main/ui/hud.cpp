@@ -216,8 +216,8 @@ void openMapPicker() {
   lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);  // taps on the box don't close it
   label(box, "Background map", font(FontSize::L), p.text);
 
-  static const char* const kNames[] = {"Off", "Dark streets", "Topo"};
-  for (int i = 0; i < 3; ++i) {
+  static const char* const kNames[] = {"Off", "Dark streets", "Topo", "FAA sectional"};
+  for (int i = 0; i < 4; ++i) {
     const bool current = app::settings().map_style == i;
     lv_obj_t* b = pillButton(box, current ? (std::string(LV_SYMBOL_OK "  ") + kNames[i]).c_str() : kNames[i],
                              [scrim, i] {

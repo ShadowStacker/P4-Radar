@@ -24,8 +24,9 @@ const char* kAirlines[] = {"KLM", "EZY", "RYR", "DLH", "BAW", "TRA", "UAE", "AFR
 
 }  // namespace
 
-FakeTraffic::FakeTraffic(core::LatLon home, uint32_t seed) : home_(home), rng_(seed) {
-  planes_.resize(46);
+FakeTraffic::FakeTraffic(core::LatLon home, uint32_t seed, int count, double spread_km)
+    : home_(home), spread_km_(spread_km), rng_(seed) {
+  planes_.resize(count);
   for (size_t i = 0; i < planes_.size(); ++i) spawn(planes_[i], i < 12);
 
   // A handful of military aircraft (dbFlags bit 0 in the feed).
@@ -75,7 +76,7 @@ void FakeTraffic::spawn(Plane& p, bool near_home) {
                   'A' + static_cast<char>(rng_() % 26), 'A' + static_cast<char>(rng_() % 26));
     p.reg = buf;
   }
-  const double dist = near_home ? 4 + u(rng_) * 35 : 20 + u(rng_) * 130;
+  const double dist = near_home ? 4 + u(rng_) * 35 : 20 + u(rng_) * (spread_km_ - 20);
   p.pos = core::destination(home_, u(rng_) * 360.0, dist);
   p.track = u(rng_) * 360.0;
   p.gs = t.min_gs + u(rng_) * (t.max_gs - t.min_gs);
@@ -96,7 +97,7 @@ void FakeTraffic::advance(double dt_s) {
     p.track = std::fmod(p.track + p.turn * dt_s + 360.0, 360.0);
     p.pos = core::destination(p.pos, p.track, p.gs * core::kKmPerNm / 3600.0 * dt_s);
     p.alt = std::fmax(500.0, std::fmin(41000.0, p.alt + p.vrate / 60.0 * dt_s));
-    if (core::distanceKm(home_, p.pos) > 220) spawn(p, false);
+    if (core::distanceKm(home_, p.pos) > spread_km_ + 70) spawn(p, false);
   }
 }
 

@@ -518,8 +518,8 @@ void pageDisplay() {
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
-  static const char* const kMaps[] = {"Off", "Dark streets", "Topo", ""};
-  choiceRow("Background map", kMaps, st.map_style > 2 ? 0 : st.map_style,
+  static const char* const kMaps[] = {"Off", "Streets", "Topo", "FAA", ""};
+  choiceRow("Background map", kMaps, st.map_style > 3 ? 0 : st.map_style,
             [](int v) { app::settings().map_style = static_cast<uint8_t>(v); });
   {
     const char* src = app::maps::cartoKeySource();

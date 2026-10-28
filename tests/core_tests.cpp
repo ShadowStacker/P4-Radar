@@ -15,6 +15,7 @@
 #include "core/filter.h"
 #include "core/geo.h"
 #include "core/inflate.h"
+#include "core/jpeg.h"
 #include "core/png.h"
 #include "core/rotation.h"
 #include "core/route.h"
@@ -23,6 +24,7 @@
 #include "core/trace.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
+#include "data/jpeg_fixtures.h"
 
 namespace {
 
@@ -799,6 +801,26 @@ void testPng() {
   CHECK(!core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img, 100));
 }
 
+void testJpeg() {
+  core::png::Image img;
+  CHECK(core::jpeg::isJpeg(kJpegBaseline, sizeof(kJpegBaseline)));
+  CHECK(core::jpeg::decode(kJpegBaseline, sizeof(kJpegBaseline), &img));
+  CHECK(img.width == 32 && img.height == 24);
+  int worst = 0;
+  for (int y = 0; y < 24 && img.width == 32; ++y) {
+    for (int x = 0; x < 32; ++x) {
+      const uint8_t* o = &img.rgba[(y * 32 + x) * 4];
+      const int want[3] = {x * 8, y * 10, ((x / 8 + y / 8) % 2) ? 128 : 40};
+      for (int c = 0; c < 3; ++c) worst = std::max(worst, std::abs(o[c] - want[c]));
+      worst = std::max(worst, 255 - o[3] == 0 ? 0 : 999);
+    }
+  }
+  CHECK(worst <= 24);  // lossy, and sharp checker edges ring a little
+  CHECK(!core::jpeg::decode(kJpegProgressive, sizeof(kJpegProgressive), &img));  // unsupported: fails cleanly
+  CHECK(!core::jpeg::decode(kJpegBaseline, sizeof(kJpegBaseline) / 3, &img));    // truncated
+  CHECK(!core::jpeg::decode(kJpegBaseline, sizeof(kJpegBaseline), &img, 100));   // too large
+}
+
 void testTiles() {
   using namespace core::tiles;
   // Redmond, OR at zoom 10: tile 167/371 (values from the standard slippy-map formula).
@@ -832,6 +854,12 @@ void testTiles() {
   CHECK(variantFor(Style::DarkStreets, false, true) == Variant::DarkNoLabels);
   CHECK(variantFor(Style::DarkStreets, true, false) == Variant::OsmStandard);  // no CARTO key
   CHECK(variantFor(Style::Off, true, true) == Variant::None);
+  CHECK(variantFor(Style::FaaSectional, true, false) == Variant::FaaSectional);
+  CHECK(url(Variant::FaaSectional, 9, 82, 183) ==
+        "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/VFR_Sectional/MapServer/tile/9/183/82");
+  CHECK(zoomFor(Variant::FaaSectional, 2.0, 45.0) == 8);     // wide view: coarsest zoom it has
+  CHECK(zoomFor(Variant::FaaSectional, 0.001, 45.0) == 12);  // close: enlarged
+  CHECK(keepColors(Variant::FaaSectional) && !keepColors(Variant::Topo));
   CHECK(url(Variant::DarkLabels, 3, 1, 2, 0, "abc123") ==
         "https://a.basemaps.cartocdn.com/dark_all/3/1/2.png?key=abc123");
   CHECK(url(Variant::OsmStandard, 3, 1, 2) == "https://tile.openstreetmap.org/3/1/2.png");
@@ -914,6 +942,7 @@ int main() {
   testRotation();
   testPng();
   testTiles();
+  testJpeg();
   testMapRecolor();
   testClock();
   testRoute();
