@@ -66,6 +66,28 @@ bool wifiScanResults(std::vector<WifiNetwork>* out);
  */
 int httpGet(const char* url, std::string* body, int timeout_ms, const char* const* headers = nullptr);
 
+/**
+ * Like httpGet(), but keeps the connection open for the next call to the
+ * same host (map tiles: one TLS handshake instead of one per tile). Only
+ * call from one task.
+ */
+int httpGetKeepAlive(const char* url, std::string* body, int timeout_ms);
+
+// --- SD card (call from the network task only) ---------------------------------
+struct SdInfo {
+  bool mounted = false;
+  uint64_t total_bytes = 0;
+  uint64_t free_bytes = 0;
+  char error[48] = "";  // why mounting failed ("No card", "Not FAT formatted", ...)
+};
+/** Mounts the card (no-op if mounted); fills `info` either way. */
+bool sdMount(SdInfo* info);
+void sdUnmount();
+/** Current state and free space. */
+SdInfo sdInfo();
+/** Directory the card is mounted at ("/sdcard"). */
+const char* sdRoot();
+
 // --- Time ----------------------------------------------------------------------
 /** Wall-clock time in ms since 1970 (UTC). Meaningless until timeValid(). */
 int64_t unixTimeMs();

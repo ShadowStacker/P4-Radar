@@ -13,6 +13,7 @@ troubleshooting. For what changed in each version, see the
   - [Buttons](#buttons)
   - [The aircraft info card](#the-aircraft-info-card)
   - [Flight history](#flight-history)
+  - [Background maps](#background-maps)
   - [Clock and alarms](#clock-and-alarms)
 - [Settings reference](#settings-reference)
   - [Wi-Fi](#wi-fi) · [Location](#location) · [Display](#display) ·
@@ -147,6 +148,32 @@ feed saw it). Zoom out to see the whole route.
   the normal trail still works.
 - Turn it off with **Display → Flight history on tap**.
 
+### Background maps
+
+**Display → Background map** puts a real map under the radar:
+
+- **Dark streets**: roads, water and (optionally) place names on black, from
+  CARTO's "Dark Matter" map.
+- **Topo**: contour lines, forests, roads and peaks, from OpenTopoMap.
+
+With **Tint map to theme color** on (the default) the map is redrawn in the
+theme's color, so it looks like part of the radar; topo is inverted so its
+white background turns dark. **Map brightness** keeps it in the background.
+
+Map pieces (tiles) are downloaded for the area on screen as you pan and zoom.
+The closest ones load first, and a blurry larger-scale version stands in
+until the sharp one arrives. While you drag or pinch, the last map picture
+moves along with your fingers and is redrawn sharply when you let go.
+
+Tiles are saved on the [SD card](#sd-card) if there is one, and kept in
+memory otherwise. The map's credit line ("(c) OpenStreetMap contributors...")
+is shown at the bottom while a map is on; the map providers require it.
+
+Both map services are free community services for light personal use, which
+is how the radar uses them: it only downloads what you look at, and saves
+it. They're not meant for bulk downloading, so there is no "download a
+whole region" button.
+
 ### Clock and alarms
 
 Tap the clock button to turn the radar into a clock. The compass headings
@@ -227,6 +254,11 @@ proximity and favorite alerts.
 | Range rings | Distance rings and crosshair around home | On |
 | Runways | Draw airport runways | On |
 | Airport codes | Label airports with their code | On |
+| Background map | **Off**, **Dark streets** (roads, water and place names on black) or **Topo** (terrain contours, forests and roads). See [Background maps](#background-maps). | Off |
+| Place names (street map) | Show town and road names on the dark street map | On |
+| Tint map to theme color | Recolor the map in the theme's color (green, amber, blue, red at night). Topo is inverted so it stays dark. Off shows the map's own colors, dimmed. | On |
+| Map brightness | How bright the map is behind the radar, 10–100 % | 60 % |
+| SD card | Opens the [SD card](#sd-card) page | |
 | Airport code style | **ICAO** (`KRDM`; fields with only a local code such as `S39` use their IATA code, `PRZ`) or **IATA** (`RDM`, wherever one exists) | ICAO |
 | Radar sweep | The rotating beam animation | On |
 | Sweep speed | Revolutions per minute, 4–60 | 15 rpm |
@@ -328,6 +360,28 @@ filtered)". Changes take effect at once.
 
 Filters combine. For example, *Helicopters* only + *Hide above 3,000 ft* shows
 low-flying helicopters.
+
+### SD card
+
+Map tiles you look at are saved on a microSD card (if one is inserted), so
+they appear instantly next time and work **without internet** for those
+areas. The card is optional; without one, the map still works and keeps the
+most recent tiles in memory until the next restart.
+
+| Option | What it does | Default |
+|---|---|---|
+| Card | Size and free space, *No card*, or why it couldn't be read | |
+| Saved map tiles | How many tiles are saved and how much space they use | |
+| Save map tiles to the card | Turn saving (and reading) tiles on the card on or off | On |
+| Count saved tiles | Count again | |
+| Delete saved map tiles | Removes the `tiles` folder's contents; maps download again as needed | |
+| Look for a card again | For a card inserted while the radar is running | |
+| Unmount (safe to remove) | Stops using the card so it can be taken out | |
+
+Use a **FAT32**-formatted card (most cards up to 32 GB come that way; format
+larger ones as FAT32 on a computer). The radar never formats a card. Tiles go
+in a `tiles` folder, so the card can hold other files too. A whole city's
+worth of tiles at a few zoom levels is typically a few tens of megabytes.
 
 ### Favorites
 
@@ -458,6 +512,8 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | Small airports missing | They appear below about 35 km of zoom. Check **Runways** and **Airport codes** in Display. |
 | Animation feels slow | Lower the sweep trail, turn off Smooth trail fade or Trails, or turn the sweep off. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
+| Background map stays blank | It needs Wi-Fi the first time an area is viewed (or saved tiles on the SD card). The serial log shows `map: tile ... -> HTTP <code>` for tiles that failed. |
+| SD card says "No card" | Insert it with the power off, or tap **Look for a card again**. It must be FAT32. |
 | Clock shows "Waiting for the time..." | It hasn't reached an internet time server yet. Check Wi-Fi; the time is set within a few seconds of connecting. |
 | Clock is off by whole hours | Choose your **Time zone** in Clock & alarms. |
 | Freezes while rotated (v1.4.0–v1.5.0) | Fixed in v1.5.1; flash it. Your rotation setting is kept. |

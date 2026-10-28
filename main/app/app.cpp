@@ -12,6 +12,7 @@
 
 #include "core/adsb.h"
 #include "core/filter.h"
+#include "app/maps.h"
 #include "core/inflate.h"
 #include "core/route.h"
 #include "core/trace.h"
@@ -251,8 +252,10 @@ void networkLoop() {
     const uint32_t interval = s_settings.poll_interval_s * 1000u;
     const bool due = first || now - last_fetch >= interval ||
                      (s_refresh_requested.load() && now - last_fetch >= kMinFetchSpacingMs);
+    // The SD card and saved map tiles work without Wi-Fi.
+    if (maps::serviceSd()) continue;
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
-      plat::sleepMs(100);
+      if (!maps::service(false)) plat::sleepMs(100);
       continue;
     }
     if (!first && now - last_fetch >= kMinFetchSpacingMs && (serviceFavoriteLookup() || serviceRoute() || serviceTrace())) {
@@ -260,7 +263,9 @@ void networkLoop() {
       continue;
     }
     if (!due) {
-      plat::sleepMs(100);
+      // Map tiles fill the gaps between traffic updates (different servers,
+      // so the ADS-B rate limit doesn't apply).
+      if (!maps::service(true)) plat::sleepMs(100);
       continue;
     }
     first = false;

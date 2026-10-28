@@ -10,6 +10,27 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.8.0] - 2026-10-28
+
+### Added
+- **Background maps** (Display → Background map): **Dark streets** (CARTO
+  Dark Matter) or **Topo** (OpenTopoMap) under the radar.
+  - Tinted to the theme color by default (topo inverted to stay dark), or
+    the map's own colors; adjustable **Map brightness**; street-map place
+    names can be switched off.
+  - Tiles load closest-first with a blurry stand-in until each arrives;
+    during pans and pinches the map moves with your fingers and is redrawn
+    sharply afterwards.
+  - The required map credit is shown at the bottom of the radar.
+- **SD card support** with its own page (Settings → SD card): map tiles you
+  view are saved on a FAT32 microSD card, so they load instantly and work
+  offline for those areas. Shows card size and free space, saved tiles, and
+  has delete, rescan and safe-unmount buttons. The card is optional.
+
+### Notes
+- The first view of a new area needs Wi-Fi; a screenful of tiles takes a few
+  seconds to download.
+
 ## [v1.7.0] - 2026-10-28
 
 ### Added
@@ -235,6 +256,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.8.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.8.0
 [v1.7.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.7.0
 [v1.6.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.6.0
 [v1.5.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.1

@@ -27,7 +27,8 @@ struct Settings {
   //   5: up to show_route_info (v1.5.0)
   //   6: up to alarms (v1.6.0)
   //   7: up to custom_alt_high_hue (v1.7.0)
-  static constexpr uint16_t kVersion = 7;
+  //   8: up to sd_cache (v1.8.0)
+  static constexpr uint16_t kVersion = 8;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -133,6 +134,13 @@ struct Settings {
   uint16_t custom_alt_low_hue = 20;
   uint16_t custom_alt_mid_hue = 140;
   uint16_t custom_alt_high_hue = 300;
+
+  // v1.8.0: background map (core::tiles::Style) and SD card
+  uint8_t map_style = 0;                  // 0 off, 1 dark streets, 2 topo
+  bool map_labels = true;                 // place names on the dark street map
+  bool map_tint = true;                   // recolor the map in the theme color
+  uint8_t map_brightness = 60;            // %
+  bool sd_cache = true;                   // keep downloaded map tiles on the SD card
 };
 
 }  // namespace core

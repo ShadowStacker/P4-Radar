@@ -15,9 +15,11 @@
 #include "core/filter.h"
 #include "core/geo.h"
 #include "core/inflate.h"
+#include "core/png.h"
 #include "core/rotation.h"
 #include "core/route.h"
 #include "core/sound_synth.h"
+#include "core/tiles.h"
 #include "core/trace.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
@@ -628,6 +630,224 @@ void testClock() {
   CHECK(std::strcmp(buf, "19:45") == 0);
 }
 
+// Minimal PNG writer for the decoder tests: raw packed rows, a chosen filter
+// per row (applied here), zlib via compress2, CRCs via zlib's crc32.
+std::string pngChunk(const char* type, const std::string& data) {
+  std::string out;
+  const uint32_t n = static_cast<uint32_t>(data.size());
+  for (int i = 3; i >= 0; --i) out.push_back(static_cast<char>(n >> (i * 8)));
+  std::string td = std::string(type, 4) + data;
+  out += td;
+  const uLong crc = crc32(0, reinterpret_cast<const Bytef*>(td.data()), static_cast<uInt>(td.size()));
+  for (int i = 3; i >= 0; --i) out.push_back(static_cast<char>(crc >> (i * 8)));
+  return out;
+}
+
+int paethRef(int a, int b, int c) {
+  const int p = a + b - c, pa = std::abs(p - a), pb = std::abs(p - b), pc = std::abs(p - c);
+  return (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+}
+
+std::string makePng(int w, int h, int color, int depth, const std::vector<std::string>& rows, int bpp,
+                    const std::string& plte = "", const std::string& trns = "") {
+  std::string raw;
+  std::string prev(rows[0].size(), '\0');
+  for (int y = 0; y < h; ++y) {
+    const int f = y % 5;  // every filter type
+    const std::string& r = rows[y];
+    std::string fr(r.size(), '\0');
+    for (size_t i = 0; i < r.size(); ++i) {
+      const int x = static_cast<uint8_t>(r[i]);
+      const int a = i >= static_cast<size_t>(bpp) ? static_cast<uint8_t>(r[i - bpp]) : 0;
+      const int b = static_cast<uint8_t>(prev[i]);
+      const int c = i >= static_cast<size_t>(bpp) ? static_cast<uint8_t>(prev[i - bpp]) : 0;
+      int v = x;
+      if (f == 1) v = x - a;
+      if (f == 2) v = x - b;
+      if (f == 3) v = x - ((a + b) >> 1);
+      if (f == 4) v = x - paethRef(a, b, c);
+      fr[i] = static_cast<char>(v & 0xFF);
+    }
+    raw.push_back(static_cast<char>(f));
+    raw += fr;
+    prev = r;
+  }
+  std::string z(compressBound(raw.size()), '\0');
+  uLongf zn = z.size();
+  compress2(reinterpret_cast<Bytef*>(&z[0]), &zn, reinterpret_cast<const Bytef*>(raw.data()), raw.size(), 6);
+  z.resize(zn);
+  std::string ihdr;
+  for (uint32_t v : {static_cast<uint32_t>(w), static_cast<uint32_t>(h)}) {
+    for (int i = 3; i >= 0; --i) ihdr.push_back(static_cast<char>(v >> (i * 8)));
+  }
+  ihdr += std::string{static_cast<char>(depth), static_cast<char>(color), 0, 0, 0};
+  std::string png = "\x89PNG\r\n\x1a\n";
+  png += pngChunk("IHDR", ihdr);
+  if (!plte.empty()) png += pngChunk("PLTE", plte);
+  if (!trns.empty()) png += pngChunk("tRNS", trns);
+  // Split the data over two IDAT chunks, as encoders may.
+  png += pngChunk("IDAT", z.substr(0, z.size() / 2));
+  png += pngChunk("IDAT", z.substr(z.size() / 2));
+  png += pngChunk("IEND", "");
+  return png;
+}
+
+void testPng() {
+  const int w = 13, h = 11;  // odd sizes exercise partial bytes
+  auto pix = [](int x, int y, int ch) { return static_cast<uint8_t>((x * 37 + y * 91 + ch * 53) & 0xFF); };
+  core::png::Image img;
+
+  // RGBA
+  std::vector<std::string> rows;
+  for (int y = 0; y < h; ++y) {
+    std::string r;
+    for (int x = 0; x < w; ++x) {
+      for (int c = 0; c < 4; ++c) r.push_back(static_cast<char>(pix(x, y, c)));
+    }
+    rows.push_back(r);
+  }
+  std::string png = makePng(w, h, 6, 8, rows, 4);
+  CHECK(core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img));
+  int bad = 0;
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      for (int c = 0; c < 4; ++c) bad += img.rgba[(y * w + x) * 4 + c] != pix(x, y, c);
+    }
+  }
+  CHECK(img.width == w && img.height == h && bad == 0);
+
+  // RGB
+  rows.clear();
+  for (int y = 0; y < h; ++y) {
+    std::string r;
+    for (int x = 0; x < w; ++x) {
+      for (int c = 0; c < 3; ++c) r.push_back(static_cast<char>(pix(x, y, c)));
+    }
+    rows.push_back(r);
+  }
+  png = makePng(w, h, 2, 8, rows, 3);
+  CHECK(core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img));
+  bad = 0;
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      for (int c = 0; c < 3; ++c) bad += img.rgba[(y * w + x) * 4 + c] != pix(x, y, c);
+      bad += img.rgba[(y * w + x) * 4 + 3] != 255;
+    }
+  }
+  CHECK(bad == 0);
+
+  // Gray and gray+alpha
+  for (int color : {0, 4}) {
+    rows.clear();
+    for (int y = 0; y < h; ++y) {
+      std::string r;
+      for (int x = 0; x < w; ++x) {
+        r.push_back(static_cast<char>(pix(x, y, 0)));
+        if (color == 4) r.push_back(static_cast<char>(pix(x, y, 1)));
+      }
+      rows.push_back(r);
+    }
+    png = makePng(w, h, color, 8, rows, color == 4 ? 2 : 1);
+    CHECK(core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img));
+    bad = 0;
+    for (int y = 0; y < h; ++y) {
+      for (int x = 0; x < w; ++x) {
+        const uint8_t* o = &img.rgba[(y * w + x) * 4];
+        bad += o[0] != pix(x, y, 0) || o[2] != pix(x, y, 0) || o[3] != (color == 4 ? pix(x, y, 1) : 255);
+      }
+    }
+    CHECK(bad == 0);
+  }
+
+  // Palette at 8, 4, 2 and 1 bits, with transparency for entry 0.
+  for (int depth : {8, 4, 2, 1}) {
+    const int colors = 1 << (depth > 4 ? 5 : depth);
+    std::string plte;
+    for (int i = 0; i < colors; ++i) {
+      plte.push_back(static_cast<char>(i * 7));
+      plte.push_back(static_cast<char>(255 - i * 5));
+      plte.push_back(static_cast<char>(i * 3 + 1));
+    }
+    auto idx = [&](int x, int y) { return (x * 3 + y * 5) % colors; };
+    rows.clear();
+    for (int y = 0; y < h; ++y) {
+      std::string r((w * depth + 7) / 8, '\0');
+      for (int x = 0; x < w; ++x) {
+        const int per = 8 / depth;
+        const int shift = (per - 1 - x % per) * depth;
+        r[x / per] = static_cast<char>(static_cast<uint8_t>(r[x / per]) | (idx(x, y) << shift));
+      }
+      rows.push_back(r);
+    }
+    png = makePng(w, h, 3, depth, rows, 1, plte, std::string(1, '\x40'));
+    CHECK(core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img));
+    bad = 0;
+    for (int y = 0; y < h; ++y) {
+      for (int x = 0; x < w; ++x) {
+        const uint8_t* o = &img.rgba[(y * w + x) * 4];
+        const int i = idx(x, y);
+        bad += o[0] != static_cast<uint8_t>(i * 7) || o[1] != static_cast<uint8_t>(255 - i * 5) ||
+               o[3] != (i == 0 ? 0x40 : 255);
+      }
+    }
+    CHECK(bad == 0);
+  }
+
+  // Rejections: truncated data, not a PNG, too large.
+  CHECK(!core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size() / 2, &img));
+  CHECK(!core::png::decode(reinterpret_cast<const uint8_t*>("GIF89a....."), 11, &img));
+  CHECK(!core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img, 100));
+}
+
+void testTiles() {
+  using namespace core::tiles;
+  // Redmond, OR at zoom 10: tile 167/371 (values from the standard slippy-map formula).
+  CHECK(tileX(-121.15, 10) == 167);
+  CHECK(tileY(44.254, 10) == 371);
+  CHECK_NEAR(tileLon(167, 10), -121.289, 0.01);
+  CHECK(tileLat(371, 10) >= 44.254 && tileLat(372, 10) <= 44.254);
+  CHECK_NEAR(tileLat(0, 1), 85.0511, 1e-3);
+  CHECK_NEAR(tileLat(1, 1), 0.0, 1e-9);
+
+  // ~1 screen px per tile px: at 45 deg, zoom 10 tiles have ~108 m pixels.
+  CHECK(zoomFor(Variant::DarkLabels, 0.108, 45.0) == 10);
+  CHECK(zoomFor(Variant::DarkLabels, 0.216, 45.0) == 9);
+  CHECK(zoomFor(Variant::Topo, 0.0001, 45.0) == 17);   // capped
+  CHECK(zoomFor(Variant::DarkLabels, 500.0, 45.0) == 1);
+
+  const uint64_t k = key(Variant::Topo, 12, 669, 1485);
+  Variant v;
+  int z;
+  uint32_t x, y;
+  unpack(k, &v, &z, &x, &y);
+  CHECK(v == Variant::Topo && z == 12 && x == 669 && y == 1485);
+  unpack(parentKey(k, 2), &v, &z, &x, &y);
+  CHECK(z == 10 && x == 167 && y == 371);
+  CHECK(key(Variant::DarkLabels, 12, 669, 1485) != k);
+
+  CHECK(url(Variant::DarkLabels, 3, 1, 2) == "https://a.basemaps.cartocdn.com/dark_all/3/1/2.png");
+  CHECK(url(Variant::DarkNoLabels, 3, 1, 2, 1) == "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/3/1/2.png");
+  CHECK(url(Variant::Topo, 5, 6, 7) == "https://a.tile.opentopomap.org/5/6/7.png");
+  CHECK(sdPath("/sdcard", Variant::Topo, 5, 6, 7) == "/sdcard/tiles/topo/5/6/7.png");
+  CHECK(variantFor(Style::DarkStreets, false) == Variant::DarkNoLabels);
+  CHECK(variantFor(Style::Off, true) == Variant::None);
+}
+
+void testMapRecolor() {
+  // Pixels: black, white, mid gray, transparent white.
+  const uint8_t rgba[] = {0, 0, 0, 255, 255, 255, 255, 255, 128, 128, 128, 255, 255, 255, 255, 0};
+  uint16_t out[4];
+  core::tiles::recolor(rgba, 4, false, true, 0, 255, 0, 100, out);
+  CHECK(out[0] == 0);              // dark map: black stays black
+  CHECK(out[1] == (63 << 5));      // white -> full tint (green)
+  CHECK((out[2] >> 11) == 0 && ((out[2] >> 5) & 63) > 20 && ((out[2] >> 5) & 63) < 63);
+  CHECK(out[3] == 0);              // transparent -> black
+  core::tiles::recolor(rgba, 4, true, true, 0, 255, 0, 100, out);  // light map: inverted
+  CHECK(out[0] == (63 << 5) && out[1] == 0);
+  core::tiles::recolor(rgba, 4, false, false, 0, 255, 0, 50, out);
+  CHECK(out[1] == ((127 >> 3) << 11 | (127 >> 2) << 5 | (127 >> 3)));  // original colors at half brightness
+}
+
 void testRotation() {
   const int W = 720, H = 720;
   for (int q = 0; q < 4; ++q) {
@@ -685,6 +905,9 @@ int main() {
   testInflate();
   testTrace();
   testRotation();
+  testPng();
+  testTiles();
+  testMapRecolor();
   testClock();
   testRoute();
   testSounds();

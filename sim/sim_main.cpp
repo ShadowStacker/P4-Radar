@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "app/app.h"
+#include "app/maps.h"
 #include "core/clock.h"
 #include "platform/platform.h"
 #include "core/filter.h"
@@ -132,6 +133,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     g_traffic->advance(step / 1000.0);
     feedTraffic();
     if (!app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
+    if (!app::maps::serviceSd()) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -585,6 +587,38 @@ int main(int argc, char** argv) {
   ui::RadarView::get().goHome(false);
   run(800);
   shot((p + "34_central_oregon_12km").c_str());
+
+  // Background maps over Central Oregon, saved to the (simulated) SD card.
+  {
+    auto& st = app::settings();
+    st.home_radius_km = 40;
+    ui::RadarView::get().goHome(false);
+    st.map_style = 1;  // dark streets, tinted
+    run(4000);
+    shot((p + "45_map_dark_streets").c_str());
+    st.map_style = 2;  // topo, tinted
+    run(4000);
+    shot((p + "46_map_topo_tinted").c_str());
+    st.map_tint = false;
+    st.map_brightness = 55;
+    run(3000);
+    shot((p + "47_map_topo_original").c_str());
+    // Pan: the picture moves with the finger before the new tiles are composed.
+    drag(S(400), S(400), S(520), S(330), 10);
+    run(2500);
+    shot((p + "48_map_after_pan").c_str());
+    ui::openSettings(ui::Page::SdCard);
+    run(1500);
+    shot((p + "49_settings_sd_card").c_str());
+    const app::maps::SdStatus sd = app::maps::sdStatus();
+    std::printf("sd check: %s (%u tiles, %llu bytes)\n", sd.counted && sd.tiles > 10 ? "OK" : "FAILED",
+                static_cast<unsigned>(sd.tiles), static_cast<unsigned long long>(sd.tile_bytes));
+    if (!(sd.counted && sd.tiles > 10)) return 1;
+    ui::closeSettings();
+    st.map_style = 0;
+    st.map_tint = true;
+    run(300);
+  }
 
   std::printf("frames: %d, avg lv_timer_handler %.2f ms (host CPU)\n", g_render_count,
               g_render_ms_total / std::max(1, g_render_count));

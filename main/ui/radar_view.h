@@ -8,6 +8,7 @@
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "lvgl.h"
+#include "ui/map_layer.h"
 
 namespace ui {
 
@@ -121,6 +122,8 @@ class RadarView {
 
   // Selection / follow
   std::string selected_hex_;
+  MapLayer map_;
+
   // Downloaded flight history of the selected aircraft
   std::string trace_req_hex_;
   core::trace::Trace trace_;

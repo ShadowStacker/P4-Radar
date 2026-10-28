@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "app/app.h"
+#include "app/maps.h"
 #include "core/adsb.h"
 #include "core/clock.h"
 #include "core/filter.h"
@@ -274,6 +275,13 @@ void pageMain() {
     navRowImage(sprites::clockIcon(sc(30) | 1), "Clock & alarms", next[0] ? fmtStr(LV_SYMBOL_BELL " %s", next) : "",
                 Page::Clock);
   }
+  {
+    const app::maps::SdStatus sd = app::maps::sdStatus();
+    navRow(LV_SYMBOL_SD_CARD, "SD card",
+           sd.state == app::maps::SdState::Mounted ? fmtStr("%.1f GB free", sd.free_bytes / 1e9)
+                                                   : std::string(sd.state == app::maps::SdState::Unknown ? "..." : "No card"),
+           Page::SdCard);
+  }
   navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -510,6 +518,15 @@ void pageDisplay() {
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
+  static const char* const kMaps[] = {"Off", "Dark streets", "Topo", ""};
+  choiceRow("Background map", kMaps, st.map_style > 2 ? 0 : st.map_style,
+            [](int v) { app::settings().map_style = static_cast<uint8_t>(v); });
+  switchRow("Place names (street map)", &st.map_labels);
+  switchRow("Tint map to theme color", &st.map_tint);
+  sliderRow("Map brightness", 10, 100, st.map_brightness,
+            [](int v) { app::settings().map_brightness = static_cast<uint8_t>(v); },
+            [](int v) { return fmtStr("%d%%", v); });
+  navRow(LV_SYMBOL_SD_CARD, "SD card", "", Page::SdCard);
   static const char* const kCodeStyles[] = {"ICAO (KRDM)", "IATA (RDM)", ""};
   choiceRow("Airport code style", kCodeStyles, st.airport_codes > 1 ? 0 : st.airport_codes,
             [](int v) { app::settings().airport_codes = static_cast<uint8_t>(v); });
@@ -868,6 +885,60 @@ void pageAlarmEdit() {
   actionRow(LV_SYMBOL_BELL, "Test this alarm", [] { app::testAlarm(s.alarm_index); }, p.accent);
 }
 
+// ---------------------------------------------------------------------------
+// SD card
+
+std::string bytesText(uint64_t b) {
+  if (b >= 1000000000ULL) return fmtStr("%.1f GB", b / 1e9);
+  if (b >= 1000000ULL) return fmtStr("%.0f MB", b / 1e6);
+  return fmtStr("%.0f KB", b / 1e3);
+}
+
+void pageSdCard() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  lv_obj_t* card = infoRow("Card", "");
+  lv_obj_t* saved = infoRow("Saved map tiles", "");
+  auto refresh = [card, saved] {
+    const app::maps::SdStatus sd = app::maps::sdStatus();
+    switch (sd.state) {
+      case app::maps::SdState::Mounted:
+        lv_label_set_text(card, fmtStr("%s, %s free", bytesText(sd.total_bytes).c_str(),
+                                       bytesText(sd.free_bytes).c_str()).c_str());
+        break;
+      case app::maps::SdState::Unmounted: lv_label_set_text(card, "Unmounted - safe to remove"); break;
+      case app::maps::SdState::NoCard: lv_label_set_text(card, sd.error[0] ? sd.error : "No card"); break;
+      default: lv_label_set_text(card, "Checking..."); break;
+    }
+    if (sd.busy) lv_label_set_text(saved, "Working...");
+    else if (sd.state != app::maps::SdState::Mounted) lv_label_set_text(saved, "-");
+    else if (!sd.counted) lv_label_set_text(saved, "Not counted");
+    else lv_label_set_text(saved, fmtStr("%u (%s)", static_cast<unsigned>(sd.tiles), bytesText(sd.tile_bytes).c_str()).c_str());
+  };
+  s.tick = refresh;
+  const app::maps::SdStatus sd = app::maps::sdStatus();
+  if (sd.state == app::maps::SdState::Mounted && !sd.counted && !sd.busy) app::maps::sdRequest(app::maps::SdAction::Count);
+
+  switchRow("Save map tiles to the card", &st.sd_cache);
+  actionRow(LV_SYMBOL_REFRESH, "Count saved tiles", [] { app::maps::sdRequest(app::maps::SdAction::Count); }, p.accent);
+  actionRow(LV_SYMBOL_TRASH, "Delete saved map tiles", [] {
+    confirm("Delete saved map tiles?", "Maps will download again as you look at them.", "Delete",
+            [] { app::maps::sdRequest(app::maps::SdAction::Clear); });
+  }, p.warn);
+  actionRow(LV_SYMBOL_SD_CARD, "Look for a card again", [] { app::maps::sdRequest(app::maps::SdAction::Mount); },
+            p.accent);
+  actionRow(LV_SYMBOL_EJECT, "Unmount (safe to remove)", [] { app::maps::sdRequest(app::maps::SdAction::Unmount); },
+            p.text);
+  lv_obj_t* note = label(s.list,
+                         "Map tiles you look at are saved on the card, so they appear instantly next time and "
+                         "work without internet for those areas. Use a FAT32-formatted microSD card. Insert it "
+                         "with the power off, or tap \"Look for a card again\".",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
 void pageSound() {
   auto& st = app::settings();
   switchRow("Sound", &st.sound_enabled);
@@ -1141,6 +1212,7 @@ const char* pageTitle(Page p) {
     case Page::Clock: return "Clock & alarms";
     case Page::TimeZone: return "Time zone";
     case Page::AlarmEdit: return "Alarm";
+    case Page::SdCard: return "SD card";
     default: return "Settings";
   }
 }
@@ -1167,6 +1239,7 @@ void showPage(Page page) {
     case Page::Clock: pageClock(); break;
     case Page::TimeZone: pageTimeZone(); break;
     case Page::AlarmEdit: pageAlarmEdit(); break;
+    case Page::SdCard: pageSdCard(); break;
     default: pageMain(); break;
   }
   if (s.tick) s.tick();

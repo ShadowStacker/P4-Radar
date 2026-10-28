@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "app/app.h"
+#include "app/maps.h"
 #include "core/clock.h"
 #include "data/airports.h"
 #include "platform/platform.h"
@@ -158,6 +159,7 @@ void RadarView::create(lv_obj_t* parent) {
   app::setQueryArea(query_center_, query_radius_km_);
 
   static_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
+  map_.create(parent);
   canvas_ = lv_canvas_create(parent);
   lv_canvas_set_draw_buf(canvas_, static_buf_);
   lv_obj_set_pos(canvas_, 0, 0);
@@ -185,6 +187,7 @@ void RadarView::destroy() {
   overlay_ = nullptr;
   destroyImageBuf(static_buf_);
   static_buf_ = nullptr;
+  map_.destroy();
   gesture_ = Gesture::None;
   interacting_ = false;
   static_dirty_ = true;
@@ -285,6 +288,19 @@ void RadarView::frame() {
 
   syncTrace();
 
+  // Background map: tiles in, picture recomposed when the view settles.
+  {
+    app::maps::Look look;
+    look.variant = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels);
+    look.tint = st.map_tint || st.theme == core::Theme::Night;  // Night stays red
+    const lv_color32_t a = lv_color_to_32(pal().accent, LV_OPA_COVER);
+    look.tint_r = a.red;
+    look.tint_g = a.green;
+    look.tint_b = a.blue;
+    look.brightness = st.map_brightness;
+    if (map_.update(vp_, look, busy, pal().bg)) static_dirty_ = true;
+  }
+
   // Lazy follow: re-center only when the aircraft drifts away from the middle,
   // so the static layer does not have to re-render every frame.
   if (follow_ && !busy) {
@@ -373,8 +389,10 @@ void RadarView::renderStatic(bool with_trails) {
   lv_layer_t layer;
   lv_canvas_init_layer(canvas_, &layer);
 
-  // Soft radial glow toward the center.
-  for (int i = 0; i < 4; ++i) drawCircle(&layer, cx, cy, R * (0.98f - i * 0.22f), p.bg_center, 45);
+  // Background map if enabled (and loaded), else a soft radial glow.
+  if (!map_.draw(&layer, vp_)) {
+    for (int i = 0; i < 4; ++i) drawCircle(&layer, cx, cy, R * (0.98f - i * 0.22f), p.bg_center, 45);
+  }
 
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
   const float home_dist = distPx(home.x, home.y, cx, cy);
@@ -524,6 +542,25 @@ void RadarView::renderStatic(bool with_trails) {
         prev = cur;
       }
     }
+  }
+
+  // --- Map credit (required by the tile providers) ----------------------------
+  if (map_.active()) {
+    const auto v = core::tiles::variantFor(static_cast<core::tiles::Style>(st.map_style), st.map_labels);
+    const lv_font_t* f = sc(800) < 760 ? &lv_font_montserrat_14 : &lv_font_montserrat_16;
+    const char* credit = core::tiles::attribution(v);
+    lv_point_t sz;
+    lv_text_get_size(&sz, credit, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const float ty = cy + R * 0.82f - sc(64);
+    lv_draw_rect_dsc_t bgd;
+    lv_draw_rect_dsc_init(&bgd);
+    bgd.bg_color = p.bg;
+    bgd.bg_opa = 170;  // readable on light maps too
+    bgd.radius = sc(8);
+    lv_area_t box = {static_cast<int32_t>(cx - sz.x / 2.0f) - sc(8), static_cast<int32_t>(ty - sz.y / 2.0f) - sc(2),
+                     static_cast<int32_t>(cx + sz.x / 2.0f) + sc(8), static_cast<int32_t>(ty + sz.y / 2.0f) + sc(2)};
+    lv_draw_rect(&layer, &bgd, &box);
+    drawTextCentered(&layer, credit, cx, ty, f, p.text_dim, 230);
   }
 
   // --- Home marker -----------------------------------------------------------

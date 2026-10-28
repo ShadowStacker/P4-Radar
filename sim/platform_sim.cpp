@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -120,9 +121,78 @@ bool wifiScanResults(std::vector<WifiNetwork>* out) {
   return true;
 }
 
+// Fake map tiles: procedural "streets" (dark) or "topo" (light) PNGs whose
+// features line up across tiles. Served as palette/RGB PNGs like the real ones.
+std::string pngChunkSim(const char* type, const std::string& data) {
+  std::string out;
+  const uint32_t n = static_cast<uint32_t>(data.size());
+  for (int i = 3; i >= 0; --i) out.push_back(static_cast<char>(n >> (i * 8)));
+  const std::string td = std::string(type, 4) + data;
+  out += td;
+  const uLong crc = crc32(0, reinterpret_cast<const Bytef*>(td.data()), static_cast<uInt>(td.size()));
+  for (int i = 3; i >= 0; --i) out.push_back(static_cast<char>(crc >> (i * 8)));
+  return out;
+}
+
+std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty) {
+  const int T = 256;
+  std::string raw;
+  raw.reserve((T * 3 + 1) * T);
+  // World pixel coordinates scaled to a zoom-independent unit, so features
+  // keep their place on the ground at every zoom.
+  const double scale = std::ldexp(1.0, 14 - z);
+  for (int y = 0; y < T; ++y) {
+    raw.push_back(0);
+    for (int x = 0; x < T; ++x) {
+      const double gx = (tx * T + x) * scale, gy = (ty * T + y) * scale;
+      const double px = scale;  // one screen pixel in world units (line width)
+      int r, g, b;
+      if (!topo) {
+        r = g = 14; b = 18;
+        if (std::sin(gx / 900.0) + std::cos(gy / 700.0) > 1.3) { r = 20; g = 26; b = 40; }  // water
+        const bool major = std::fmod(gx + 0.37 * gy, 3100.0) < 2.5 * px || std::fmod(gy, 2300.0) < 2.5 * px;
+        const bool minor = std::fmod(gx, 410.0) < 1.2 * px || std::fmod(gy + 0.2 * gx, 530.0) < 1.2 * px;
+        if (minor && z >= 11) { r = g = 48; b = 52; }
+        if (major) { r = g = 96; b = 100; }
+      } else {
+        r = 242; g = 239; b = 230;
+        const double hgt = 300 * std::sin(gx / 2600.0) + 260 * std::cos(gy / 2100.0) + gx / 900.0;
+        if (std::sin(gx / 1500.0) * std::cos(gy / 1300.0) > 0.45) { r = 205; g = 228; b = 190; }  // forest
+        if (std::fmod(hgt + 10000.0, 40.0) < 2.5) { r = 190; g = 160; b = 125; }                  // contours
+        if (std::fmod(gx + 0.5 * gy, 2900.0) < 2.0 * px) { r = 225; g = 120; b = 70; }           // roads
+      }
+      raw.push_back(static_cast<char>(r));
+      raw.push_back(static_cast<char>(g));
+      raw.push_back(static_cast<char>(b));
+    }
+  }
+  std::string zbuf(compressBound(raw.size()), '\0');
+  uLongf zn = zbuf.size();
+  compress2(reinterpret_cast<Bytef*>(&zbuf[0]), &zn, reinterpret_cast<const Bytef*>(raw.data()), raw.size(), 1);
+  zbuf.resize(zn);
+  std::string ihdr = {0, 0, 1, 0, 0, 0, 1, 0, 8, 2, 0, 0, 0};  // 256x256, 8-bit RGB
+  return std::string("\x89PNG\r\n\x1a\n", 8) + pngChunkSim("IHDR", ihdr) + pngChunkSim("IDAT", zbuf) +
+         pngChunkSim("IEND", "");
+}
+
 // Only the trace endpoint is simulated (traffic is fed directly). Bodies are
 // gzip-compressed like the real servers send them.
 int httpGet(const char* url, std::string* body, int, const char* const*) {
+  const bool carto = std::strstr(url, "basemaps.cartocdn.com/") != nullptr;
+  const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
+  if (carto || topo) {
+    if (std::getenv("SIM_NO_TILES")) return -1;
+    // .../<z>/<x>/<y>.png
+    int z = 0;
+    unsigned x = 0, y = 0;
+    const std::string u(url);
+    const size_t p3 = u.rfind('/');
+    const size_t p2 = u.rfind('/', p3 - 1);
+    const size_t p1 = u.rfind('/', p2 - 1);
+    if (std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u.png", &z, &x, &y) != 3) return 404;
+    body->append(fakeTile(topo, z, x, y));
+    return 200;
+  }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
     if (!sim::g_route_server) return -1;
     std::string hex(ac + std::strlen("adsbdb.com/v0/aircraft/"));
@@ -179,6 +249,44 @@ void startTask(const char*, std::function<void()> fn, size_t, int) { std::thread
 void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
 void restart() { std::printf("[sim] restart requested\n"); }
+
+int httpGetKeepAlive(const char* url, std::string* body, int timeout_ms) {
+  return httpGet(url, body, timeout_ms);
+}
+
+// SD card: a folder next to the screenshots, "inserted" unless SIM_NO_SD is set.
+namespace {
+bool s_sd_mounted = false;
+std::string s_sd_root;
+}  // namespace
+
+const char* sdRoot() {
+  s_sd_root = sim::g_out_dir + "/sdcard";
+  return s_sd_root.c_str();
+}
+
+SdInfo sdInfo() {
+  SdInfo info;
+  info.mounted = s_sd_mounted;
+  if (s_sd_mounted) {
+    info.total_bytes = 31914983424ULL;  // a "32 GB" card
+    info.free_bytes = 30000000000ULL;
+  } else {
+    std::snprintf(info.error, sizeof(info.error), "%s", std::getenv("SIM_NO_SD") ? "No card" : "Unmounted");
+  }
+  return info;
+}
+
+bool sdMount(SdInfo* info) {
+  if (!s_sd_mounted && !std::getenv("SIM_NO_SD")) {
+    const std::string cmd = std::string("mkdir -p '") + sdRoot() + "'";
+    s_sd_mounted = std::system(cmd.c_str()) == 0;
+  }
+  if (info) *info = sdInfo();
+  return s_sd_mounted;
+}
+
+void sdUnmount() { s_sd_mounted = false; }
 
 // Fixed, repeatable wall clock: 2026-10-27 17:09:25 UTC (10:09:25 Pacific)
 // at the start of the run, then advancing with the virtual clock.

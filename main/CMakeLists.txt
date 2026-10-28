@@ -8,6 +8,6 @@ file(GLOB_RECURSE APP_SOURCES
 idf_component_register(
   SRCS "main.cpp" ${APP_SOURCES}
   INCLUDE_DIRS "."
-  REQUIRES nvs_flash esp_netif esp_event esp_http_client esp_timer esp_app_format esp_lcd esp_mm json mbedtls)
+  REQUIRES nvs_flash esp_netif esp_event esp_http_client esp_timer esp_app_format esp_lcd esp_mm fatfs sdmmc esp_driver_sdmmc json mbedtls)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

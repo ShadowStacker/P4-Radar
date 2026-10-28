@@ -70,6 +70,9 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - Double-tap zooms in. The **＋/−** buttons also zoom.
 - **Home** button flies back to your home location and zoom. Quick buttons
   for **Filters**, **Mute** and the **Clock** face sit around the edge.
+- **Background maps**: dark street map or topo map under the radar, tinted
+  to the theme, with tiles saved on an optional microSD card for instant and
+  offline use.
 - **Clock mode**: the bezel turns into a clock dial with hour, minute and
   seconds hands over the live radar. Set the time zone and up to four alarms
   (with snooze) in **Clock & alarms**.
@@ -129,6 +132,7 @@ phone or captive portal is needed.
 |:-:|:-:|:-:|
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
+| ![](docs/images/45_map_dark_streets.png)<br>Dark street map* | ![](docs/images/46_map_topo_tinted.png)<br>Topo map, tinted* | ![](docs/images/49_settings_sd_card.png)<br>SD card page |
 | ![](docs/images/39_clock_face.png)<br>Clock face | ![](docs/images/40_settings_clock.png)<br>Clock & alarms | ![](docs/images/43_alarm_ringing.png)<br>Alarm ringing |
 | ![](docs/images/44_favorite_added_by_tail.png)<br>Favorite added by tail number | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme | ![](docs/images/42_settings_alarm_edit.png)<br>Editing an alarm |
 | ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/05_pinch_zoom.png)<br>Pinch zoom | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
@@ -137,6 +141,9 @@ phone or captive portal is needed.
 | ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/17_pick_home.png)<br>Pick home on the map |
 | ![](docs/images/11_settings_location.png)<br>Location | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
 | ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
+
+\* Simulator screenshots use generated stand-in map tiles; on the device the
+real CARTO / OpenTopoMap maps appear.
 
 ## Hardware
 
@@ -277,6 +284,9 @@ it. Aircraft are pre-rendered at 72 headings and recolored when drawn.
 
 - Airline, route and airframe details come from [adsbdb.com](https://www.adsbdb.com)
   (route data by David Taylor and Jim Mason, aircraft data from PlaneBase).
+- Background maps: [CARTO](https://carto.com/basemaps) Dark Matter and
+  [OpenTopoMap](https://opentopomap.org), both from
+  [OpenStreetMap](https://www.openstreetmap.org/copyright) data (topo also SRTM).
 - Aircraft positions come from free community feeds:
   [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) and
   [adsb.lol](https://adsb.lol). Please keep the polling interval reasonable

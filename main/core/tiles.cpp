@@ -1,0 +1,155 @@
+#include "core/tiles.h"
+
+#include <cmath>
+#include <cstdio>
+
+namespace core::tiles {
+
+namespace {
+
+constexpr double kMaxLat = 85.05112878;
+constexpr double kEarthCircumferenceKm = 40075.016686;
+
+}  // namespace
+
+Variant variantFor(Style style, bool labels) {
+  switch (style) {
+    case Style::DarkStreets: return labels ? Variant::DarkLabels : Variant::DarkNoLabels;
+    case Style::Topo: return Variant::Topo;
+    default: return Variant::None;
+  }
+}
+
+int maxZoom(Variant v) { return v == Variant::Topo ? 17 : 18; }
+
+const char* dirName(Variant v) {
+  switch (v) {
+    case Variant::DarkLabels: return "dark";
+    case Variant::DarkNoLabels: return "darknl";
+    case Variant::Topo: return "topo";
+    default: return "none";
+  }
+}
+
+// The built-in fonts have no (c) glyph, hence "(c)".
+const char* attribution(Variant v) {
+  switch (v) {
+    case Variant::DarkLabels:
+    case Variant::DarkNoLabels: return "(c) OpenStreetMap contributors (c) CARTO";
+    case Variant::Topo: return "(c) OpenStreetMap contributors, SRTM | (c) OpenTopoMap (CC-BY-SA)";
+    default: return "";
+  }
+}
+
+bool isLight(Variant v) { return v == Variant::Topo; }
+
+std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative) {
+  char buf[128];
+  switch (v) {
+    case Variant::DarkLabels:
+    case Variant::DarkNoLabels: {
+      const char* name = v == Variant::DarkLabels ? "dark_all" : "dark_nolabels";
+      std::snprintf(buf, sizeof(buf), "https://a.basemaps.cartocdn.com/%s%s/%d/%u/%u.png",
+                    alternative ? "rastertiles/" : "", name, z, static_cast<unsigned>(x), static_cast<unsigned>(y));
+      break;
+    }
+    case Variant::Topo:
+      std::snprintf(buf, sizeof(buf), "https://%s.tile.opentopomap.org/%d/%u/%u.png", alternative ? "b" : "a", z,
+                    static_cast<unsigned>(x), static_cast<unsigned>(y));
+      break;
+    default: return "";
+  }
+  return buf;
+}
+
+std::string sdPath(const std::string& root, Variant v, int z, uint32_t x, uint32_t y) {
+  char buf[96];
+  std::snprintf(buf, sizeof(buf), "/tiles/%s/%d/%u/%u.png", dirName(v), z, static_cast<unsigned>(x),
+                static_cast<unsigned>(y));
+  return root + buf;
+}
+
+// key: variant 4 bits | z 5 bits | x 27 bits | y 27 bits (enough for z <= 26)
+uint64_t key(Variant v, int z, uint32_t x, uint32_t y) {
+  return (uint64_t(static_cast<uint8_t>(v)) << 59) | (uint64_t(z & 31) << 54) | (uint64_t(x & 0x7FFFFFF) << 27) |
+         uint64_t(y & 0x7FFFFFF);
+}
+
+void unpack(uint64_t k, Variant* v, int* z, uint32_t* x, uint32_t* y) {
+  *v = static_cast<Variant>((k >> 59) & 15);
+  *z = static_cast<int>((k >> 54) & 31);
+  *x = static_cast<uint32_t>((k >> 27) & 0x7FFFFFF);
+  *y = static_cast<uint32_t>(k & 0x7FFFFFF);
+}
+
+uint64_t parentKey(uint64_t k, int levels) {
+  Variant v;
+  int z;
+  uint32_t x, y;
+  unpack(k, &v, &z, &x, &y);
+  if (levels > z) levels = z;
+  return key(v, z - levels, x >> levels, y >> levels);
+}
+
+int zoomFor(Variant v, double km_per_px, double lat) {
+  // Ground size of one tile pixel at zoom 0 is circumference * cos(lat) / 256.
+  const double px0 = kEarthCircumferenceKm * std::cos(degToRad(lat)) / kTileSize;
+  int z = static_cast<int>(std::lround(std::log2(px0 / km_per_px)));
+  if (z < 1) z = 1;
+  if (z > maxZoom(v)) z = maxZoom(v);
+  return z;
+}
+
+uint32_t tileX(double lon, int z) {
+  const double n = std::ldexp(1.0, z);
+  double x = std::floor((lon + 180.0) / 360.0 * n);
+  if (x < 0) x = 0;
+  if (x > n - 1) x = n - 1;
+  return static_cast<uint32_t>(x);
+}
+
+uint32_t tileY(double lat, int z) {
+  if (lat > kMaxLat) lat = kMaxLat;
+  if (lat < -kMaxLat) lat = -kMaxLat;
+  const double n = std::ldexp(1.0, z);
+  const double r = degToRad(lat);
+  double y = std::floor((1.0 - std::log(std::tan(r) + 1.0 / std::cos(r)) / kPi) / 2.0 * n);
+  if (y < 0) y = 0;
+  if (y > n - 1) y = n - 1;
+  return static_cast<uint32_t>(y);
+}
+
+double tileLon(uint32_t x, int z) { return x / std::ldexp(1.0, z) * 360.0 - 180.0; }
+
+double tileLat(double y, int z) {
+  const double n = kPi - 2.0 * kPi * y / std::ldexp(1.0, z);
+  return radToDeg(std::atan(std::sinh(n)));
+}
+
+void recolor(const uint8_t* rgba, int pixels, bool light_map, bool tint, uint8_t tr, uint8_t tg, uint8_t tb,
+             int brightness, uint16_t* out) {
+  for (int i = 0; i < pixels; ++i, rgba += 4) {
+    int r, g, b;
+    if (tint) {
+      int l = (rgba[0] * 54 + rgba[1] * 183 + rgba[2] * 19) >> 8;
+      if (light_map) l = 255 - l;
+      l = (l - 12) * 2;
+      l = l < 0 ? 0 : (l > 255 ? 255 : l);
+      l = l * brightness / 100;
+      r = tr * l / 255;
+      g = tg * l / 255;
+      b = tb * l / 255;
+    } else {
+      r = rgba[0] * brightness / 100;
+      g = rgba[1] * brightness / 100;
+      b = rgba[2] * brightness / 100;
+    }
+    // Transparent pixels (rare in tiles) go to black.
+    r = r * rgba[3] / 255;
+    g = g * rgba[3] / 255;
+    b = b * rgba[3] / 255;
+    out[i] = static_cast<uint16_t>(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+  }
+}
+
+}  // namespace core::tiles

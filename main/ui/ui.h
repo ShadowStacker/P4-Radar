@@ -6,7 +6,7 @@ namespace ui {
 
 enum class Page {
   Main, Wifi, Location, Display, Sound, Traffic, Filters, Favorites, About,
-  CustomTheme, Clock, TimeZone, AlarmEdit,
+  CustomTheme, Clock, TimeZone, AlarmEdit, SdCard,
 };
 
 /** Builds the whole UI. Call with the LVGL lock held. */
