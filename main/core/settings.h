@@ -36,8 +36,8 @@ struct Settings {
   char wifi_pass[65] = "";
 
   // Location
-  double home_lat = 52.3676;  // Amsterdam, same default as the original project
-  double home_lon = 4.9041;
+  double home_lat = 44.2541;  // Roberts Field (RDM), Redmond, Oregon
+  double home_lon = -121.1500;
   float home_radius_km = 25.0f;  // zoom level the Home button returns to
   bool home_set = false;         // false until the user picks a location
 

@@ -10,6 +10,13 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.9.2] - 2026-10-28
+
+### Changed
+- The default home location is now **Roberts Field (RDM)**, Redmond,
+  Oregon, instead of Amsterdam. Only new or reset boards use the default;
+  a home you've set is kept.
+
 ## [v1.9.1] - 2026-10-28
 
 ### Added
@@ -271,6 +278,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.9.2]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.2
 [v1.9.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.1
 [v1.9.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.0
 [v1.8.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.8.0

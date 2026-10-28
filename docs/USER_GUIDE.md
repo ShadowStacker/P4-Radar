@@ -226,7 +226,7 @@ attempts (up to every 30 s).
 
 | Option | What it does | Default |
 |---|---|---|
-| Latitude / Longitude | Your current home point | Amsterdam |
+| Latitude / Longitude | Your current home point | Roberts Field (RDM), Redmond, Oregon |
 | Pick on the map | Closes settings and shows a crosshair. Drag the map under it, then tap **Set home**. This also saves the current zoom as the Home zoom. | |
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
 | Use an airport | Jump home to an airport by ICAO (`KRDM`), IATA (`RDM`) or FAA code (`S39`, `BDN`) | |
