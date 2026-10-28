@@ -28,7 +28,8 @@ struct Settings {
   //   6: up to alarms (v1.6.0)
   //   7: up to custom_alt_high_hue (v1.7.0)
   //   8: up to sd_cache (v1.8.0)
-  static constexpr uint16_t kVersion = 8;
+  //   9: up to wake_on_alarm (v1.9.1)
+  static constexpr uint16_t kVersion = 9;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -141,6 +142,9 @@ struct Settings {
   bool map_tint = true;                   // recolor the map in the theme color
   uint8_t map_brightness = 60;            // %
   bool sd_cache = true;                   // keep downloaded map tiles on the SD card
+
+  // v1.9.1
+  bool wake_on_alarm = false;             // alarms ring and wake a sleeping screen (else only a tap wakes it)
 };
 
 }  // namespace core

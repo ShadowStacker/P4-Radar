@@ -761,6 +761,8 @@ void pageClock() {
       showPage(Page::AlarmEdit);
     });
   }
+  switchRow("Wake on alarm (when asleep)", &st.wake_on_alarm);
+
   const int snooze = app::snoozeMinutesLeft();
   if (snooze >= 0) {
     infoRow("Snoozed", fmtStr("rings again in %d min", snooze));
@@ -770,7 +772,8 @@ void pageClock() {
     }, p.warn);
   }
   lv_obj_t* note = label(s.list,
-                         "Tap an alarm to set its time and days. Alarms ring even when sound is off. "
+                         "Tap an alarm to set its time and days. Alarms ring even when sound is off. While the "
+                         "screen is asleep they ring and wake it only if Wake on alarm is on. "
                          "The clock is set from the internet, so it needs Wi-Fi after power-up.",
                          font(FontSize::S), p.text_dim);
   lv_obj_set_width(note, lv_pct(90));

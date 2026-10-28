@@ -10,12 +10,20 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.9.1] - 2026-10-28
+
+### Added
+- **Wake on alarm** (Clock & alarms), **off by default**: while the screen is
+  asleep, alarms now pass silently and only a tap wakes it. Switch it on to
+  have alarms ring and wake the screen as in v1.9.0.
+
 ## [v1.9.0] - 2026-10-28
 
 ### Added
 - **Sleep button** (power symbol, left side of the radar): turns the screen
   off and mutes sounds. A single tap anywhere wakes it, without pressing
-  anything underneath. Alarms still ring and wake it.
+  anything underneath. Alarms still ring and wake it (from v1.9.1 only with
+  Wake on alarm on).
 
 ## [v1.8.0] - 2026-10-28
 
@@ -263,6 +271,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.9.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.1
 [v1.9.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.9.0
 [v1.8.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.8.0
 [v1.7.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.7.0

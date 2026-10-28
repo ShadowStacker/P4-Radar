@@ -131,8 +131,8 @@ void startRinging(int index) {
   s_next_beep_ms = s_ring_started_ms;
   s_snoozed = -1;
   s_snooze_until_s = 0;
-  s_sleeping = false;  // an alarm wakes a sleeping screen
-  userActivity();      // and a dimmed one
+  s_sleeping = false;  // only reached when asleep with "Wake on alarm" on
+  userActivity();      // wakes a dimmed screen too
   applyHardware();
 }
 
@@ -150,10 +150,19 @@ void checkAlarms(uint32_t now_ms) {
           a.enabled = false;
           settingsChanged();
         }
-        if (s_ringing < 0) startRinging(i);
+        // Asleep without "Wake on alarm": the alarm passes silently; only a
+        // tap wakes the screen.
+        if (s_ringing < 0 && (!s_sleeping || s_settings.wake_on_alarm)) startRinging(i);
       }
     }
-    if (s_snoozed >= 0 && unix_s >= s_snooze_until_s && s_ringing < 0) startRinging(s_snoozed);
+    if (s_snoozed >= 0 && unix_s >= s_snooze_until_s && s_ringing < 0) {
+      if (!s_sleeping || s_settings.wake_on_alarm) {
+        startRinging(s_snoozed);
+      } else {
+        s_snoozed = -1;  // snoozed, then put to sleep: drop it
+        s_snooze_until_s = 0;
+      }
+    }
   }
   if (s_ringing >= 0) {
     if (now_ms - s_ring_started_ms > core::kAlarmRingMinutes * 60000u) {

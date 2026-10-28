@@ -88,7 +88,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | ⚙ Gear | top right | Open Settings |
 | ⏷ Funnel | right | Open the [Filters](#filters) page. Lit while a filter is hiding aircraft. |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
-| ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep, and alarms still ring and wake the screen. |
+| ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the funnel | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Zoom in / out by 2× |
@@ -191,7 +191,8 @@ automatically.
 When an alarm goes off, a full-screen notice shows the time with **Snooze 9
 min** and **Stop**. The screen wakes up if it was dimmed, and the alarm beeps
 every 2 seconds at no less than 70 % volume, **even if sound is switched
-off**. It stops by itself after 10 minutes.
+off**. If you've put the screen to sleep with the power button, alarms only
+ring if **Wake on alarm** is on. It stops by itself after 10 minutes.
 
 ---
 
@@ -299,6 +300,7 @@ slider.
 | Date window | The day and date at three o'clock | On |
 | Hand colors | Hue and saturation for the hour and minute hands, and separately for the seconds hand. Saturation 0 = white. (The Night theme keeps them red.) | White hands, red seconds |
 | Alarms 1–4 | Each shows its time and days. The switch turns it on or off; tap the row to edit it. | All off, 7:00 AM Mon–Fri |
+| Wake on alarm (when asleep) | With the screen asleep (power button): **On** = alarms ring and wake the screen; **Off** = alarms pass silently and only a tap wakes it. Doesn't affect alarms while the screen is on. | Off |
 | Cancel snooze | Shown while an alarm is snoozed, with the minutes left | |
 
 **Editing an alarm:** **Hour** and **Minute** sliders (changing them switches

@@ -550,7 +550,8 @@ void create(lv_obj_t* parent) {
   }
   placePolar(h.clock, 103, 0.80f);
 
-  // Sleep, mirroring the clock button: screen off and quiet until a tap.
+  // Sleep, mirroring the clock button: screen off and quiet until a tap
+  // (or an alarm, with Wake on alarm on).
   h.sleep = iconButton(h.controls, LV_SYMBOL_POWER, d, [] { app::setSleeping(true); });
   placePolar(h.sleep, -103, 0.80f);
 

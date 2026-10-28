@@ -581,6 +581,25 @@ int main(int argc, char** argv) {
     std::printf("snooze check: %s\n", snoozed ? "OK" : "FAILED");
     if (!snoozed) return 1;
     app::stopAlarm();
+
+    // Asleep: with "Wake on alarm" off (default) the alarm passes silently and
+    // the screen stays off; with it on, the alarm rings and wakes the screen.
+    for (int wake = 0; wake < 2; ++wake) {
+      st.wake_on_alarm = wake == 1;
+      const std::tm next = core::localTime(plat::unixTimeMs() / 1000 + 60);
+      st.alarms[0].hour = static_cast<uint8_t>(next.tm_hour);
+      st.alarms[0].minute = static_cast<uint8_t>(next.tm_min);
+      app::setSleeping(true);
+      run(62000);
+      const bool ok = wake ? (app::alarmRinging() == 0 && !app::sleeping())
+                           : (app::alarmRinging() < 0 && app::sleeping());
+      std::printf("wake on alarm %s check: %s\n", wake ? "on" : "off", ok ? "OK" : "FAILED");
+      if (!ok) return 1;
+      app::stopAlarm();
+      app::setSleeping(false);
+      run(300);
+    }
+    st.wake_on_alarm = false;
     st.alarms[0].enabled = false;
     st.clock_mode = false;
     ui::RadarView::get().markStaticDirty();

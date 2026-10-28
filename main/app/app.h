@@ -34,8 +34,9 @@ uint32_t settingsGeneration();
 /** Called periodically from the UI task (handles debounced save, dimming). */
 void tick(uint32_t now_ms);
 /**
- * Sleep: backlight off and sounds muted (alarms still ring and wake it).
- * The UI wakes it on the next tap.
+ * Sleep: backlight off and sounds muted. The UI wakes it on the next tap.
+ * Alarms ring and wake it only with settings().wake_on_alarm; otherwise they
+ * pass silently while asleep.
  */
 void setSleeping(bool on);
 bool sleeping();

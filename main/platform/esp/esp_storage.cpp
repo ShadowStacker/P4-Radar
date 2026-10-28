@@ -35,7 +35,8 @@ size_t validPrefix(uint16_t version) {
     case 5: return offsetof(core::Settings, clock_mode);
     case 6: return offsetof(core::Settings, clock_smooth_seconds);
     case 7: return offsetof(core::Settings, map_style);
-    case 8: return sizeof(core::Settings);
+    case 8: return offsetof(core::Settings, wake_on_alarm);
+    case 9: return sizeof(core::Settings);
     default: return 0;
   }
 }
