@@ -19,12 +19,17 @@ struct Info {
   char airline[40] = "";  // "Ryanair"
   char owner[40] = "";    // registered owner (used when there's no airline)
   char model[40] = "";    // "Boeing 737-8AS"
+  char mode_s[8] = "";    // ICAO 24-bit address, lowercase ("4ca7b5")
+  char registration[12] = "";
+  char icao_type[5] = ""; // "B738"
   bool has_route = false;
   Airport origin;
   Airport destination;
 };
 
 std::string aircraftUrl(const char* hex, const char* callsign);
+/** Looks an airframe up by registration ("N123AB", "EI-DAC") or ICAO hex. */
+std::string lookupUrl(const char* registration_or_hex);
 std::string callsignUrl(const char* callsign);
 std::string airlineUrl(const char* icao_prefix);
 

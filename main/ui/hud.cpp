@@ -31,6 +31,7 @@ struct Hud {
   lv_obj_t* mute = nullptr;
   lv_obj_t* mute_label = nullptr;
   lv_obj_t* clock = nullptr;
+  lv_obj_t* alt_key = nullptr;    // altitude color scale under the status pill
   lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
   lv_obj_t* sweep = nullptr;
@@ -119,6 +120,12 @@ void updateStatus() {
   lv_obj_set_style_text_color(h.status_label, dot, 0);
   h.status_problem = !lv_color_eq(dot, p.accent);
 
+  if (h.alt_key) {
+    const auto& st = app::settings();
+    setHidden(h.alt_key, st.color_mode != core::ColorMode::Altitude || st.theme == core::Theme::Night);
+    lv_obj_invalidate(h.alt_key);  // colors follow the Custom theme
+  }
+
   if (h.mute_label) {
     lv_label_set_text(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
   }
@@ -142,6 +149,39 @@ void updateStatus() {
   if (h.sweep) {
     if (app::settings().sweep_enabled) lv_obj_add_state(h.sweep, LV_STATE_CHECKED);
     else lv_obj_remove_state(h.sweep, LV_STATE_CHECKED);
+  }
+}
+
+/** Draws the altitude scale: a gradient bar with 0 / 10k / 20k / 30k / 40k ft below it. */
+void onAltKeyDraw(lv_event_t* e) {
+  lv_layer_t* layer = lv_event_get_layer(e);
+  lv_obj_t* obj = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+  lv_area_t c;
+  lv_obj_get_content_coords(obj, &c);
+  const int32_t w = lv_area_get_width(&c);
+  const int32_t bar_h = sc(8) > 4 ? sc(8) : 4;
+  constexpr int kSteps = 40;
+  lv_draw_rect_dsc_t d;
+  lv_draw_rect_dsc_init(&d);
+  for (int i = 0; i < kSteps; ++i) {
+    d.bg_color = altitudeColor(i * 40000 / (kSteps - 1), false);
+    lv_area_t a = {c.x1 + w * i / kSteps, c.y1, c.x1 + w * (i + 1) / kSteps - 1, c.y1 + bar_h - 1};
+    lv_draw_rect(layer, &d, &a);
+  }
+  const lv_font_t* f = sc(800) < 760 ? &lv_font_montserrat_14 : &lv_font_montserrat_16;
+  static const char* const kLabels[] = {"0 ft", "10k", "20k", "30k", "40k"};
+  lv_draw_label_dsc_t ld;
+  lv_draw_label_dsc_init(&ld);
+  ld.font = f;
+  ld.color = pal().text_dim;
+  for (int i = 0; i < 5; ++i) {
+    ld.text = kLabels[i];
+    lv_point_t sz;
+    lv_text_get_size(&sz, kLabels[i], f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    // End labels sit inside the bar's ends; the others are centered on their mark.
+    const int32_t x = i == 0 ? c.x1 : (i == 4 ? c.x2 - sz.x : c.x1 + w * i / 4 - sz.x / 2);
+    lv_area_t a = {x, c.y1 + bar_h + sc(3), x + sz.x + 1, c.y1 + bar_h + sc(3) + sz.y};
+    lv_draw_label(layer, &ld, &a);
   }
 }
 
@@ -463,6 +503,19 @@ void create(lv_obj_t* parent) {
     const plat::WifiStatus ws = plat::wifiStatus();
     openSettings(ws.state == plat::WifiState::Connected ? Page::About : Page::Wifi);
   });
+
+  // Tiny altitude color key under the pill (fades with it).
+  h.alt_key = lv_obj_create(h.controls);
+  lv_obj_remove_style_all(h.alt_key);
+  lv_obj_set_size(h.alt_key, sc(330), sc(50));
+  lv_obj_align(h.alt_key, LV_ALIGN_TOP_MID, 0, sc(134));
+  lv_obj_set_style_bg_color(h.alt_key, pal().panel, 0);
+  lv_obj_set_style_bg_opa(h.alt_key, 170, 0);
+  lv_obj_set_style_radius(h.alt_key, sc(12), 0);
+  lv_obj_set_style_pad_hor(h.alt_key, sc(14), 0);
+  lv_obj_set_style_pad_ver(h.alt_key, sc(7), 0);
+  lv_obj_remove_flag(h.alt_key, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(h.alt_key, onAltKeyDraw, LV_EVENT_DRAW_MAIN, nullptr);
 
   const int32_t d = sc(76);
   h.gear = iconButton(h.controls, LV_SYMBOL_SETTINGS, d, [] { openSettings(Page::Main); });

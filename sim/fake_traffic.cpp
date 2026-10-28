@@ -1,5 +1,6 @@
 #include "fake_traffic.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -119,11 +120,15 @@ void FakeTraffic::setEmergency(bool on) {
   }
 }
 
-std::string FakeTraffic::routeJson(const std::string& hex) const {
+std::string FakeTraffic::routeJson(const std::string& key) const {
+  // Like adsbdb: look up by ICAO hex or by registration (any case).
   const Plane* plane = nullptr;
   for (const Plane& p : planes_) {
-    if (p.hex == hex) plane = &p;
+    std::string reg = p.reg;
+    for (char& c : reg) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (p.hex == key || (!reg.empty() && reg == key)) plane = &p;
   }
+  const std::string& hex = plane ? plane->hex : key;
   if (plane == nullptr || plane->military) return "";
   struct Airline {
     const char* icao;

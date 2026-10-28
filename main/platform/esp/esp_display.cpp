@@ -9,8 +9,12 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "bsp/touch.h"
+#include "esp_cache.h"
+#include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_lv_adapter.h"
 #include "core/rotation.h"
 #include "platform/esp/esp_platform.h"
@@ -54,6 +58,30 @@ void touchRead(lv_indev_t* indev, lv_indev_data_t* data) {
   }
 }
 
+/**
+ * Blanks the panel's frame buffers. They start out holding whatever was in
+ * PSRAM, and the tear-free mode only redraws changed areas, so stale pixels
+ * could otherwise show around the first frames.
+ */
+void clearFrameBuffers(esp_lcd_panel_handle_t panel) {
+  void* fb[3] = {};
+  const int n = CONFIG_BSP_LCD_DPI_BUFFER_NUMS < 3 ? CONFIG_BSP_LCD_DPI_BUFFER_NUMS : 3;
+  esp_err_t err = ESP_FAIL;
+  if (n == 1) err = esp_lcd_dpi_panel_get_frame_buffer(panel, 1, &fb[0]);
+  if (n == 2) err = esp_lcd_dpi_panel_get_frame_buffer(panel, 2, &fb[0], &fb[1]);
+  if (n == 3) err = esp_lcd_dpi_panel_get_frame_buffer(panel, 3, &fb[0], &fb[1], &fb[2]);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "can't access frame buffers to clear them: %s", esp_err_to_name(err));
+    return;
+  }
+  const size_t bytes = static_cast<size_t>(BSP_LCD_H_RES) * BSP_LCD_V_RES * 2;  // RGB565
+  for (int i = 0; i < n; ++i) {
+    if (fb[i] == nullptr) continue;
+    std::memset(fb[i], 0, bytes);
+    esp_cache_msync(fb[i], bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+  }
+}
+
 }  // namespace
 
 int touchPoints(TouchPoint* out, int max) {
@@ -83,6 +111,7 @@ lv_display_t* displayStart(int quarter_turns) {
   ESP_ERROR_CHECK(bsp_display_new(nullptr, &panel, &io));  // also sets up the backlight PWM
   bsp_display_brightness_set(0);  // stay dark until the first frame is ready
   s_backlight_ready = true;
+  clearFrameBuffers(panel);
 
   esp_lv_adapter_display_config_t disp_cfg;
   std::memset(&disp_cfg, 0, sizeof(disp_cfg));
@@ -139,10 +168,16 @@ void bootScreen(const char* status) {
     lv_obj_align(s_label, LV_ALIGN_CENTER, 0, 30);
   }
   lv_label_set_text(s_label, status);
+  const bool first = bsp_display_brightness_get() == 0;
+  if (first) lv_refr_now(nullptr);  // draw it now, not on the next LVGL tick
   lvglUnlock();
-  // Light the panel as soon as there is something to show; a dark screen
-  // gives no clue where boot stopped.
-  if (bsp_display_brightness_get() == 0) bsp_display_brightness_set(60);
+  // Light the panel once the boot screen is really on it (a dark screen
+  // gives no clue where boot stopped). Wait for the panel to pick up the new
+  // frame, so the first thing visible is never stale memory.
+  if (first) {
+    vTaskDelay(pdMS_TO_TICKS(60));
+    bsp_display_brightness_set(60);
+  }
 }
 
 bool lvglLock() { return esp_lv_adapter_lock(-1) == ESP_OK; }

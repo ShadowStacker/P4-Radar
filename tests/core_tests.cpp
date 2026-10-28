@@ -544,6 +544,10 @@ void testRoute() {
   CHECK(core::route::airlinePrefix("PHABC").empty());
   CHECK(core::route::aircraftUrl("4ca7b5", "RYR12AB ") == "https://api.adsbdb.com/v0/aircraft/4CA7B5?callsign=RYR12AB");
   CHECK(core::route::aircraftUrl("~1234ab", "") == "https://api.adsbdb.com/v0/aircraft/1234AB");
+  // Tail-number lookups keep the dash and read back the ICAO address.
+  CHECK(core::route::lookupUrl(" ei-dac") == "https://api.adsbdb.com/v0/aircraft/EI-DAC");
+  CHECK(std::strcmp(in.mode_s, "4ca7b5") == 0);  // lowercased
+  CHECK(std::strcmp(in.registration, "EI-DAC") == 0 && std::strcmp(in.icao_type, "B738") == 0);
 }
 
 void testClock() {

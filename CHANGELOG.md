@@ -10,6 +10,26 @@ for your board size **and** your ESP32-P4 chip revision. See
 Upgrading keeps your Wi-Fi, home location, settings and favorites, unless an
 entry below says otherwise.
 
+## [v1.7.0] - 2026-10-28
+
+### Added
+- **Clock hand colors** (Clock & alarms): hue and saturation for the hour and
+  minute hands and for the seconds hand.
+- **Smooth seconds hand** option: sweeps instead of ticking.
+- **Date window** switch (Clock & alarms).
+- **Altitude colors in the Custom theme**: pick the hue at the ground, at
+  10,000 ft and at 40,000 ft.
+- **Altitude key**: a small color scale (0–40k ft) under the status pill
+  when aircraft are colored by altitude. It fades out with the buttons.
+- **Add a favorite by tail number** (Favorites → Add by tail number): type a
+  registration or ICAO hex address; it's looked up on adsbdb.com.
+
+### Fixed
+- **Cyan flashes at power-up.** The backlight came on before the display was
+  running, showing the panel's uninitialized picture. The bootloader now
+  holds the backlight off, the screen memory is cleared, and the backlight
+  turns on only after the boot screen has been drawn.
+
 ## [v1.6.0] - 2026-10-27
 
 ### Added
@@ -215,6 +235,7 @@ First release.
   sound, traffic and about.
 - Known issue: only boots on ESP32-P4 chip revision v1.x (fixed in v1.0.1).
 
+[v1.7.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.7.0
 [v1.6.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.6.0
 [v1.5.1]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/ShadowStacker/P4-Radar/releases/tag/v1.5.0

@@ -60,6 +60,7 @@ You can redo any of this later from **Settings** (the gear button).
 | **Red pulsing ring** | Emergency: squawk 7500 (hijack), 7600 (radio failure) or 7700 (general emergency). |
 | **Gold ring + star** | One of your [favorites](#favorites). |
 | **Runways and codes** | Airports from the built-in database. Large airports show below 250 km of zoom, medium below 70 km, small fields below 35 km. Faint thin runways are unpaved, or placed approximately (strips with no surveyed coordinates). Codes are ICAO (`KRDM`), but fields with only a local code use their IATA code if they have one (Prineville `S39` shows as `PRZ`). See **Airport code style**. |
+| **Altitude key** (under the status pill) | The altitude color scale from 0 to 40,000 ft. Shown when **Aircraft colors** is **By altitude**; it fades out with the buttons. |
 | **Status pill** (top) | Aircraft count, filtered count, zoom radius, and any problem (Wi-Fi, feed errors, stale data). Tap it: it opens Wi-Fi when offline, About when online. |
 
 Between data updates (every 5 s by default) aircraft keep moving along their
@@ -249,6 +250,7 @@ slider.
 | Rings and compass brightness | How bright the range rings and compass marks are | 45 % |
 | Aircraft color: hue / saturation | Aircraft symbol color when **Aircraft colors** is set to **Theme**. Saturation 0 = white. | White |
 | Label color: hue / saturation | Aircraft label text color. Saturation 0 = white. | White |
+| Altitude colors: low / middle / high hue | The colors of the **By altitude** scale: at the ground, at 10,000 ft and at 40,000 ft, blended in between. The defaults (20°, 140°, 300°) give the standard orange → green → blue → magenta scale. The altitude key follows these colors. | 20°, 140°, 300° |
 | Reset custom colors | Back to the defaults above | |
 
 ### Clock & alarms
@@ -259,7 +261,10 @@ slider.
 | Time zone | Your zone, chosen from a list of 24 (US zones, Europe, Asia, Australia, ...). Daylight saving is automatic. | Pacific |
 | Clock face on the radar | Same as the clock button | Off |
 | 24-hour time | 19:45 instead of 7:45 PM, on the alarm screens and settings | Off |
-| Seconds hand | Show the red seconds hand on the clock face | On |
+| Seconds hand | Show the seconds hand on the clock face | On |
+| Smooth seconds hand | The seconds hand sweeps continuously instead of ticking once a second (redraws the screen more often) | Off |
+| Date window | The day and date at three o'clock | On |
+| Hand colors | Hue and saturation for the hour and minute hands, and separately for the seconds hand. Saturation 0 = white. (The Night theme keeps them red.) | White hands, red seconds |
 | Alarms 1–4 | Each shows its time and days. The switch turns it on or off; tap the row to edit it. | All off, 7:00 AM Mon–Fri |
 | Cancel snooze | Shown while an alarm is snoozed, with the minutes left | |
 
@@ -327,6 +332,10 @@ low-flying helicopters.
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.
+You can also add one that isn't flying nearby: on the Favorites page tap
+**Add by tail number** and type its registration (`N123AB`, `EI-DAC`) or its
+ICAO hex address (`a1b2c3`). The radar looks it up on adsbdb.com and says
+*N123AB added to favorites*, or *not found* if the database doesn't know it.
 Favorites are tracked by the airframe's **ICAO address**, which never changes,
 so a saved aircraft is still recognized under a different flight number.
 

@@ -68,6 +68,7 @@ std::mutex s_route_mu;
 RouteState s_route;
 bool s_route_pending = false;
 std::deque<RouteState> s_route_cache;  // most recent first
+std::string s_fav_lookup;              // tail number waiting to be looked up
 constexpr size_t kRouteCacheSize = 24;
 
 bool sameKey(const RouteState& r, const char* hex, const char* callsign) {
@@ -254,7 +255,7 @@ void networkLoop() {
       plat::sleepMs(100);
       continue;
     }
-    if (!first && now - last_fetch >= kMinFetchSpacingMs && (serviceRoute() || serviceTrace())) {
+    if (!first && now - last_fetch >= kMinFetchSpacingMs && (serviceFavoriteLookup() || serviceRoute() || serviceTrace())) {
       last_fetch = plat::millis();
       continue;
     }
@@ -425,6 +426,56 @@ void removeFavorite(const char* hex) {
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
+}
+
+bool addFavorite(const core::Favorite& f) {
+  std::vector<core::Favorite> copy;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    if (core::containsHex(s_favorites, f.hex) || s_favorites.size() >= core::kMaxFavorites) return false;
+    s_favorites.push_back(f);
+    copy = s_favorites;
+  }
+  plat::favoritesSave(copy);
+  return true;
+}
+
+void lookupFavorite(const std::string& q) {
+  std::lock_guard<std::mutex> lock(s_route_mu);
+  s_fav_lookup = q;
+}
+
+bool serviceFavoriteLookup() {
+  std::string q;
+  {
+    std::lock_guard<std::mutex> lock(s_route_mu);
+    if (s_fav_lookup.empty()) return false;
+    q.swap(s_fav_lookup);
+  }
+  core::route::Info info;
+  std::string body;
+  const std::string url = core::route::lookupUrl(q.c_str());
+  const int code = plat::httpGet(url.c_str(), &body, 10000);
+  const bool found = code == 200 && core::route::parse(body.data(), body.size(), &info) && info.mode_s[0] != '\0';
+  std::printf("favorite lookup: %s -> %d\n", url.c_str(), code);
+
+  std::string notice;
+  if (found) {
+    core::Favorite f;
+    std::snprintf(f.hex, sizeof(f.hex), "%s", info.mode_s);
+    std::snprintf(f.label, sizeof(f.label), "%s", info.registration[0] ? info.registration : q.c_str());
+    std::snprintf(f.type, sizeof(f.type), "%s", info.icao_type);
+    if (isFavorite(f.hex)) notice = std::string(f.label) + " is already a favorite";
+    else if (!addFavorite(f)) notice = "Favorites full (32) - remove one first";
+    else notice = std::string(f.label) + " added to favorites";
+  } else if (code == 404 || code == 200) {
+    notice = q + " not found - check the tail number";
+  } else {
+    notice = "Couldn't look up " + q + " (no internet?)";
+  }
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_notices.push_back(notice);
+  return true;
 }
 
 void setFavorites(const std::vector<core::Favorite>& favs) {

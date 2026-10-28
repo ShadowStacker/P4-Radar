@@ -130,7 +130,8 @@ phone or captive portal is needed.
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
 | ![](docs/images/39_clock_face.png)<br>Clock face | ![](docs/images/40_settings_clock.png)<br>Clock & alarms | ![](docs/images/43_alarm_ringing.png)<br>Alarm ringing |
-| ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme, large aircraft and labels | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
+| ![](docs/images/44_favorite_added_by_tail.png)<br>Favorite added by tail number | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme | ![](docs/images/42_settings_alarm_edit.png)<br>Editing an alarm |
+| ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/05_pinch_zoom.png)<br>Pinch zoom | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
 | ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
 | ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |
 | ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/17_pick_home.png)<br>Pick home on the map |
@@ -259,6 +260,7 @@ main/
   platform/platform.h   hardware abstraction used by app/ui
   platform/esp/         ESP-IDF implementation: display+multi-touch, Wi-Fi, HTTPS, NVS, audio
   data/                 embedded airports/runways (scripts/build_airports.py)
+bootloader_components/  bootloader hook that keeps the backlight off until the app draws
 sim/                    desktop simulator (headless LVGL, fake traffic, PNG/WAV output)
 tests/                  host unit tests
 ```

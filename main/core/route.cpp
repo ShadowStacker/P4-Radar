@@ -46,6 +46,15 @@ std::string aircraftUrl(const char* hex, const char* callsign) {
   return url;
 }
 
+std::string lookupUrl(const char* q) {
+  // Registrations keep their dash (adsbdb matches "EI-DAC", not "EIDAC").
+  std::string out;
+  for (const char* c = q; c != nullptr && *c; ++c) {
+    if (std::isalnum(static_cast<unsigned char>(*c)) || *c == '-') out.push_back(static_cast<char>(std::toupper(*c)));
+  }
+  return std::string(kBase) + "aircraft/" + out;
+}
+
 std::string callsignUrl(const char* callsign) { return std::string(kBase) + "callsign/" + clean(callsign); }
 
 std::string airlineUrl(const char* icao_prefix) { return std::string(kBase) + "airline/" + clean(icao_prefix); }
@@ -79,6 +88,10 @@ bool parse(const char* json, size_t len, Info* out) {
         copy(out->model, sizeof(out->model), type[0] ? type : mfr);
       }
       copy(out->owner, sizeof(out->owner), str(ac, "registered_owner"));
+      copy(out->registration, sizeof(out->registration), str(ac, "registration"));
+      copy(out->icao_type, sizeof(out->icao_type), str(ac, "icao_type"));
+      copy(out->mode_s, sizeof(out->mode_s), str(ac, "mode_s"));
+      for (char* c = out->mode_s; *c; ++c) *c = static_cast<char>(std::tolower(static_cast<unsigned char>(*c)));
     }
     const cJSON* fr = cJSON_GetObjectItemCaseSensitive(resp, "flightroute");
     if (cJSON_IsObject(fr)) {

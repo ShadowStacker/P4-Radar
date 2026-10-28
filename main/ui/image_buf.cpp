@@ -14,6 +14,7 @@ lv_draw_buf_t* createImageBuf(uint32_t w, uint32_t h, lv_color_format_t cf) {
   if (block == nullptr) return nullptr;
   auto* buf = reinterpret_cast<lv_draw_buf_t*>(block);
   std::memset(buf, 0, sizeof(*buf));
+  std::memset(block + header, 0, data_size);  // PSRAM holds leftovers from before a restart
   if (lv_draw_buf_init(buf, w, h, cf, stride, block + header, data_size) != LV_RESULT_OK) {
     plat::freeLarge(block);
     return nullptr;

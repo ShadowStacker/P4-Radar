@@ -131,7 +131,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     sim::g_ms += step;
     g_traffic->advance(step / 1000.0);
     feedTraffic();
-    if (!app::serviceRoute()) app::serviceTrace();
+    if (!app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -500,6 +500,31 @@ int main(int argc, char** argv) {
     std::printf("discard check: %s\n", ok ? "OK" : "FAILED");
     if (!ok) return 1;
     shot((p + "38_changes_discarded").c_str());
+  }
+
+  // Add a favorite by tail number.
+  {
+    std::vector<core::Track> tracks;
+    app::traffic().snapshot(tracks);
+    std::string reg, hex;
+    for (const auto& t : tracks) {
+      if (t.ac.reg[0] && !app::isFavorite(t.ac.hex) && !t.ac.military) {
+        reg = t.ac.reg;
+        hex = t.ac.hex;
+        break;
+      }
+    }
+    ui::openSettings(ui::Page::Favorites);
+    run(300);
+    app::lookupFavorite(reg);
+    run(1200);
+    const bool added = app::isFavorite(hex.c_str());
+    std::printf("favorite by tail number (%s): %s\n", reg.c_str(), added ? "OK" : "FAILED");
+    if (!added) return 1;
+    shot((p + "44_favorite_added_by_tail").c_str());
+    ui::closeSettings();
+    app::removeFavorite(hex.c_str());
+    run(300);
   }
 
   // Clock face, clock menus, and an alarm going off.

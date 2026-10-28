@@ -6,6 +6,9 @@ namespace {
 
 Palette s_pal;
 uint8_t s_label_size = 1;
+// Altitude hues at 0 / 10,000 / 40,000 ft; the Custom theme can change them.
+bool s_custom_alt = false;
+int s_alt_low = 20, s_alt_mid = 140, s_alt_high = 300;
 int32_t s_w = 800;
 int32_t s_h = 800;
 
@@ -144,6 +147,10 @@ const Palette& pal() { return s_pal; }
 void setTheme(const core::Settings& st) {
   s_pal = st.theme == core::Theme::Custom ? customPalette(st) : makePalette(st.theme);
   s_label_size = st.label_size;
+  s_custom_alt = st.theme == core::Theme::Custom;
+  s_alt_low = st.custom_alt_low_hue % 360;
+  s_alt_mid = st.custom_alt_mid_hue % 360;
+  s_alt_high = st.custom_alt_high_hue % 360;
 }
 
 const lv_font_t* labelFont() {
@@ -186,6 +193,13 @@ lv_color_t altitudeColor(int32_t alt_ft, bool on_ground) {
         break;
       }
     }
+  }
+  if (s_custom_alt) {
+    // Keep the standard curve's shape (more change at low altitude) but run
+    // it between the user's hues: 20..140 maps to low..mid, 140..300 to mid..high.
+    if (hue <= 140) hue = s_alt_low + (s_alt_mid - s_alt_low) * (hue - 20) / 120;
+    else hue = s_alt_mid + (s_alt_high - s_alt_mid) * (hue - 140) / 160;
+    hue = ((hue % 360) + 360) % 360;
   }
   return lv_color_hsv_to_rgb(static_cast<uint16_t>(hue), 75, 100);
 }

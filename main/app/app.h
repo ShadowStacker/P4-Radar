@@ -61,6 +61,15 @@ bool isFavorite(const char* hex);
 /** Adds or removes the aircraft. Returns true if it is now a favorite. */
 bool toggleFavorite(const core::Aircraft& a);
 void removeFavorite(const char* hex);
+/** Adds a favorite directly. False if it's already saved or the list is full. */
+bool addFavorite(const core::Favorite& f);
+/**
+ * Looks up a registration (tail number) or ICAO hex online and saves that
+ * aircraft as a favorite. The result arrives as a notice ("N123AB added").
+ */
+void lookupFavorite(const std::string& registration_or_hex);
+/** Runs a pending lookup (network task); true if it made a request. */
+bool serviceFavoriteLookup();
 /** Replaces the whole list (used to undo edits). */
 void setFavorites(const std::vector<core::Favorite>& favs);
 /** Next on-screen notice from the poller ("RCH471 detected"), if any. */

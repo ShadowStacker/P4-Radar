@@ -26,7 +26,8 @@ struct Settings {
   //   4: up to extended_trail (v1.4.0)
   //   5: up to show_route_info (v1.5.0)
   //   6: up to alarms (v1.6.0)
-  static constexpr uint16_t kVersion = 6;
+  //   7: up to custom_alt_high_hue (v1.7.0)
+  static constexpr uint16_t kVersion = 7;
 
   // Wi-Fi (stored separately; see platform settings store)
   char wifi_ssid[33] = "";
@@ -119,6 +120,19 @@ struct Settings {
   bool clock_seconds = true;              // seconds hand
   uint8_t time_zone = 1;                  // index into core::timeZone(); 1 = US Pacific
   Alarm alarms[kMaxAlarms];
+
+  // v1.7.0
+  bool clock_smooth_seconds = false;      // sweeping instead of ticking seconds hand
+  bool clock_show_date = true;            // date window at three o'clock
+  uint16_t clock_hand_hue = 0;            // hour and minute hands
+  uint8_t clock_hand_sat = 0;             // 0 = white
+  uint16_t clock_second_hue = 0;          // seconds hand
+  uint8_t clock_second_sat = 85;          // red
+  // Custom theme altitude colors: hue at the ground, 10,000 ft and 40,000 ft
+  // (the defaults match the standard orange-green-blue-magenta scale).
+  uint16_t custom_alt_low_hue = 20;
+  uint16_t custom_alt_mid_hue = 140;
+  uint16_t custom_alt_high_hue = 300;
 };
 
 }  // namespace core

@@ -614,6 +614,27 @@ void pageCustomTheme() {
   }
   hueSliders("Label color", &st.custom_label_hue, &st.custom_label_sat, "White");
 
+  section("ALTITUDE COLORS");
+  {
+    lv_obj_t* note = label(s.list, "Used when Display > Aircraft colors is set to By altitude.", font(FontSize::S),
+                           p.text_dim);
+    lv_obj_set_width(note, lv_pct(90));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(note, sc(16), 0);
+  }
+  struct AltHue {
+    const char* name;
+    uint16_t* hue;
+  };
+  const AltHue alts[] = {{"Low (ground) - hue", &st.custom_alt_low_hue},
+                         {"Middle (10,000 ft) - hue", &st.custom_alt_mid_hue},
+                         {"High (40,000 ft) - hue", &st.custom_alt_high_hue}};
+  for (const AltHue& a : alts) {
+    uint16_t* hue = a.hue;
+    sliderRow(a.name, 0, 359, *hue, [hue](int v) { *hue = static_cast<uint16_t>(v); },
+              [](int v) { return fmtStr("%d" "\xC2\xB0", v); }, applyCustom);
+  }
+
   actionRow(LV_SYMBOL_REFRESH, "Reset custom colors", [] {
     const core::Settings d;
     auto& c = app::settings();
@@ -625,9 +646,38 @@ void pageCustomTheme() {
     c.custom_aircraft_sat = d.custom_aircraft_sat;
     c.custom_label_hue = d.custom_label_hue;
     c.custom_label_sat = d.custom_label_sat;
+    c.custom_alt_low_hue = d.custom_alt_low_hue;
+    c.custom_alt_mid_hue = d.custom_alt_mid_hue;
+    c.custom_alt_high_hue = d.custom_alt_high_hue;
     changed();
     applyCustom();
   }, p.warn);
+}
+
+// Hue + saturation pair with a swatch in the row title (clock hand colors).
+void colorSliders(const char* name, uint16_t* hue, uint8_t* sat, const char* sat_zero) {
+  const Palette& p = pal();
+  lv_obj_t* r = baseRow(s.list);
+  growLabel(r, name, p.text);
+  lv_obj_t* sw = lv_obj_create(r);
+  lv_obj_remove_style_all(sw);
+  lv_obj_set_size(sw, sc(40), sc(40));
+  lv_obj_set_style_radius(sw, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(sw, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_color(sw, p.text_dim, 0);
+  lv_obj_set_style_border_width(sw, sc(2), 0);
+  auto paint = [sw, hue, sat] {
+    lv_obj_set_style_bg_color(sw, lv_color_hsv_to_rgb(*hue % 360, std::min<int>(*sat, 100), 100), 0);
+  };
+  paint();
+  sliderRow("Hue", 0, 359, *hue, [hue, paint](int v) {
+    *hue = static_cast<uint16_t>(v);
+    paint();
+  }, [](int v) { return fmtStr("%d" "\xC2\xB0", v); });
+  sliderRow("Saturation", 0, 100, *sat, [sat, paint](int v) {
+    *sat = static_cast<uint8_t>(v);
+    paint();
+  }, [sat_zero](int v) { return v == 0 ? std::string(sat_zero) : fmtStr("%d%%", v); });
 }
 
 // ---------------------------------------------------------------------------
@@ -655,6 +705,12 @@ void pageClock() {
   switchRow("Clock face on the radar", &st.clock_mode);
   switchRow("24-hour time", &st.clock_24h);
   switchRow("Seconds hand", &st.clock_seconds);
+  switchRow("Smooth seconds hand", &st.clock_smooth_seconds);
+  switchRow("Date window", &st.clock_show_date);
+
+  section("HAND COLORS");
+  colorSliders("Hour and minute hands", &st.clock_hand_hue, &st.clock_hand_sat, "White");
+  colorSliders("Seconds hand", &st.clock_second_hue, &st.clock_second_sat, "White");
 
   section("ALARMS");
   for (int i = 0; i < core::kMaxAlarms; ++i) {
@@ -855,9 +911,26 @@ void pageFavorites() {
   std::vector<core::Track> tracks;
   app::traffic().snapshot(tracks);
 
+  actionRow(LV_SYMBOL_PLUS, "Add by tail number", [] {
+    textInput("Tail number (e.g. N123AB) or ICAO hex", "", InputKind::Text, [](const std::string& text) {
+      std::string q;
+      for (char c : text) {
+        if (c != ' ') q.push_back(c);
+      }
+      if (q.empty()) return;
+      app::lookupFavorite(q);
+      toast((LV_SYMBOL_REFRESH "  Looking up " + q + "...").c_str(), 2500);
+    });
+  }, p.accent);
+  // Show a looked-up aircraft as soon as it's added.
+  const size_t count = favs.size();
+  s.tick = [count] {
+    if (app::favorites().size() != count) showPage(Page::Favorites);
+  };
+
   if (favs.empty()) {
     lv_obj_t* l = label(s.list,
-                        "No favorites yet.\n\nTap an aircraft on the radar, then the\nstar on its info card to save it.",
+                        "No favorites yet.\n\nTap an aircraft on the radar, then the\nstar on its info card, or add one\nby its tail number above.",
                         font(FontSize::M), p.text_dim);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(l, lv_pct(100));

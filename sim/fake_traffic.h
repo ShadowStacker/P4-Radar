@@ -24,8 +24,8 @@ class FakeTraffic {
    * Empty if the aircraft is unknown.
    */
   std::string traceJson(const std::string& hex) const;
-  /** adsbdb.com style /v0/aircraft/<hex>?callsign= response; "" if unknown. */
-  std::string routeJson(const std::string& hex) const;
+  /** adsbdb.com style /v0/aircraft/<hex or registration> response; "" if unknown. */
+  std::string routeJson(const std::string& key) const;
   /** Moves the military aircraft back near home (for screenshots). */
   void recallMilitary();
 

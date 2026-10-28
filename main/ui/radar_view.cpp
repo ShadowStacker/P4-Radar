@@ -321,7 +321,8 @@ void RadarView::frame() {
   if (!busy) updateQueryArea(true);
   lv_obj_invalidate(overlay_);
 
-  const uint32_t period = (st.sweep_enabled || busy || interacting_) ? kFastFrameMs : kSlowFrameMs;
+  const bool smooth_clock = st.clock_mode && st.clock_seconds && st.clock_smooth_seconds;
+  const uint32_t period = (st.sweep_enabled || busy || interacting_ || smooth_clock) ? kFastFrameMs : kSlowFrameMs;
   lv_timer_set_period(timer_, period);
 }
 
@@ -853,13 +854,13 @@ void RadarView::drawClockHands(lv_layer_t* layer) {
   }
   const int64_t ms = plat::unixTimeMs();
   const std::tm t = core::localTime(ms / 1000);
-  const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), false);
+  const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), st.clock_smooth_seconds);
 
   // Date window at three o'clock, like a watch.
   static const char* const kDays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
   char date[12];
   std::snprintf(date, sizeof(date), "%s %d", kDays[t.tm_wday % 7], t.tm_mday);
-  {
+  if (st.clock_show_date) {
     const lv_font_t* f = font(FontSize::S);
     lv_point_t sz;
     lv_text_get_size(&sz, date, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -882,12 +883,19 @@ void RadarView::drawClockHands(lv_layer_t* layer) {
     const float sx = std::sin(rad), sy = -std::cos(rad);
     drawLine(layer, cx - sx * tail, cy - sy * tail, cx + sx * len, cy + sy * len, c, w, opa, true);
   };
-  hand(a.hour, R * 0.48f, R * 0.06f, sc(10), p.text, 220);
-  hand(a.minute, R * 0.72f, R * 0.06f, sc(6), p.text, 220);
-  drawCircle(layer, cx, cy, sc(9), p.text, LV_OPA_COVER);
+  // Hand colors from Clock settings; saturation 0 is white (or the Night
+  // theme's red, so the clock doesn't spoil night vision).
+  const bool night = st.theme == core::Theme::Night;
+  const lv_color_t hc = night ? p.text
+                              : lv_color_hsv_to_rgb(st.clock_hand_hue % 360, std::min<int>(st.clock_hand_sat, 100), 96);
+  const lv_color_t sec = night ? p.select
+                               : lv_color_hsv_to_rgb(st.clock_second_hue % 360, std::min<int>(st.clock_second_sat, 100), 100);
+  hand(a.hour, R * 0.48f, R * 0.06f, sc(10), hc, 220);
+  hand(a.minute, R * 0.72f, R * 0.06f, sc(6), hc, 220);
+  drawCircle(layer, cx, cy, sc(9), hc, LV_OPA_COVER);
   if (st.clock_seconds) {
-    hand(a.second, R * 0.80f, R * 0.15f, sc(3) > 1 ? sc(3) : 2, p.danger, LV_OPA_COVER);
-    drawCircle(layer, cx, cy, sc(5), p.danger, LV_OPA_COVER);
+    hand(a.second, R * 0.80f, R * 0.15f, sc(3) > 1 ? sc(3) : 2, sec, LV_OPA_COVER);
+    drawCircle(layer, cx, cy, sc(5), sec, LV_OPA_COVER);
   }
 }
 
