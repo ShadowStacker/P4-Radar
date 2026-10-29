@@ -9,6 +9,7 @@
 #include "core/viewport.h"
 #include "lvgl.h"
 #include "ui/map_layer.h"
+#include "ui/weather_layer.h"
 
 namespace ui {
 
@@ -53,6 +54,8 @@ class RadarView {
   size_t visibleCount() const { return blips_.size(); }
   /** Map shown under the radar (None when off). */
   core::tiles::Variant mapVariant() const { return map_.variant(); }
+  /** Time (unix s) of the weather radar frame on show, 0 when there's none. */
+  int64_t weatherTime() const { return weather_.active() ? weather_.shownTime() : 0; }
 
   /** Where frame time goes (accumulated since the last reset). */
   struct Stats {
@@ -144,6 +147,7 @@ class RadarView {
   // Selection / follow
   std::string selected_hex_;
   MapLayer map_;
+  WeatherLayer weather_;
   bool light_map_ = false;  // a light map in its own colors is showing (labels get a backing)
   Stats stats_;
 

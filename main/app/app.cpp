@@ -1,5 +1,7 @@
 #include "app/app.h"
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <atomic>
 #include <deque>
@@ -11,8 +13,10 @@
 #include <vector>
 
 #include "core/adsb.h"
+#include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
+#include "app/weather.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
 #include "core/route.h"
@@ -65,6 +69,7 @@ double s_query_radius_km = 50;
 FeedStatus s_feed;
 std::atomic<bool> s_refresh_requested{false};
 std::deque<std::string> s_notices;  // guarded by s_mu
+core::SourceFailover s_failover;    // network task only
 
 std::mutex s_favorites_mu;
 std::vector<core::Favorite> s_favorites;
@@ -154,6 +159,73 @@ void dropUnresolved(const std::string& tail) {
 
 void settingsFlushImpl();
 
+// Daily log. s_day is written by the network task; guarded by s_day_mu.
+std::mutex s_day_mu;
+core::daylog::Day s_day;
+bool s_day_dirty = false;
+bool s_day_loaded = false;      // tried to continue today's file from the card
+uint32_t s_day_saved_ms = 0;
+constexpr uint32_t kDaySaveEveryMs = 10 * 60 * 1000;
+
+std::string dayLogPath(int date) { return sdPath("log") + "/" + core::daylog::fileName(date); }
+
+void saveDay(const core::daylog::Day& d) {
+  if (maps::sdStatus().state != maps::SdState::Mounted || d.date == 0) return;
+  mkdir(sdPath("log").c_str(), 0775);  // EEXIST is fine
+  writeText(("log/" + core::daylog::fileName(d.date)).c_str(), core::daylog::serialize(d));
+}
+
+/** Network task, each fetch: counts what's near home today. */
+void dayLogObserve(const std::vector<core::Aircraft>& all) {
+  if (!plat::timeValid()) return;
+  const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+  const int date = core::daylog::dateOf(t);
+  core::daylog::Day finished;
+  {
+    std::lock_guard<std::mutex> lock(s_day_mu);
+    if (s_day.date != date) {
+      finished = s_day;  // yesterday (or nothing yet)
+      s_day_loaded = false;
+    }
+  }
+  if (finished.date != 0) saveDay(finished);
+  bool load = false;
+  {
+    std::lock_guard<std::mutex> lock(s_day_mu);
+    load = !s_day_loaded;
+    s_day_loaded = true;
+  }
+  if (load) {
+    // After a restart, carry on with today's file.
+    std::string text;
+    core::daylog::Day from_file;
+    if (maps::sdStatus().state == maps::SdState::Mounted && readText(("log/" + core::daylog::fileName(date)).c_str(), &text) &&
+        core::daylog::parse(text, &from_file) && from_file.date == date) {
+      std::lock_guard<std::mutex> lock(s_day_mu);
+      s_day = from_file;
+      std::printf("daylog: continuing %s (%d aircraft)\n", core::daylog::fileName(date).c_str(), s_day.count());
+    }
+  }
+  std::lock_guard<std::mutex> lock(s_day_mu);
+  core::daylog::observe(&s_day, all, {s_settings.home_lat, s_settings.home_lon}, s_settings.log_radius_km, date,
+                        t.tm_hour * 60 + t.tm_min, &isFavorite);
+  s_day_dirty = true;
+}
+
+/** Network task: saves today's log now and then. True if it wrote. */
+bool serviceDayLog() {
+  core::daylog::Day copy;
+  {
+    std::lock_guard<std::mutex> lock(s_day_mu);
+    if (!s_day_dirty || plat::millis() - s_day_saved_ms < kDaySaveEveryMs || s_day.date == 0) return false;
+    s_day_dirty = false;
+    s_day_saved_ms = plat::millis();
+    copy = s_day;
+  }
+  saveDay(copy);
+  return true;
+}
+
 /** UI task: applies a settings.txt read by the network task. */
 void applySettingsFile() {
   std::string text;
@@ -214,7 +286,7 @@ int routeGet(const std::string& url, core::route::Info* info) {
 /** Tries each trace host in turn; true once one returned a usable trace. */
 bool downloadTrace(const char* hex, core::trace::Trace* out) {
   std::string body, json;
-  for (const std::string& host : core::trace::hostsFor(s_settings.source)) {
+  for (const std::string& host : core::trace::hostsFor(s_failover.active())) {
     const std::string url = core::trace::buildUrl(host, hex);
     const std::string referer = "https://" + host + "/";
     const char* const headers[] = {"Accept-Encoding", "gzip", "Referer", referer.c_str(), nullptr};
@@ -243,9 +315,19 @@ bool downloadTrace(const char* hex, core::trace::Trace* out) {
   return false;
 }
 
+/** Night dimming: inside the night window by the local clock (needs the time from the internet). */
+bool isNight() {
+  if (!s_settings.night_dim || !plat::timeValid()) return false;
+  const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+  return core::inTimeWindow(t.tm_hour * 60 + t.tm_min, s_settings.night_from_min, s_settings.night_to_min);
+}
+
+/** Brightness while in use: the normal one, or the night one. */
+int normalBrightness() { return isNight() ? s_settings.night_brightness : s_settings.brightness; }
+
 void applyHardware() {
   if (s_sleeping) plat::setBrightness(0);
-  else if (!s_dimmed) plat::setBrightness(s_settings.brightness);
+  else if (!s_dimmed) plat::setBrightness(normalBrightness());
   // A ringing alarm is never quieter than 70 %, whatever the volume setting.
   plat::setVolume(s_ringing >= 0 ? std::max<int>(s_settings.volume, 70) : s_settings.volume);
 }
@@ -299,7 +381,9 @@ void checkAlarms(uint32_t now_ms) {
   }
 }
 
-void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed) {
+/** Returns whether the response held usable traffic. */
+bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed,
+                core::DataSource source = core::DataSource::AdsbFi) {
   // Parse everything, then apply the display filters here so favorites can
   // bypass them (a saved aircraft is never hidden, and still raises alerts).
   core::adsb::ParseOptions opt;
@@ -308,6 +392,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   opt.max_alt_ft = 1000000;
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
+  if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
   if (ok) {
     const std::vector<core::Favorite> favs = favorites();
     parsed->erase(std::remove_if(parsed->begin(), parsed->end(),
@@ -321,6 +406,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     std::lock_guard<std::mutex> lock(s_mu);
     s_feed.last_http = code;
     s_feed.last_ok = ok;
+    s_feed.source = source;
     if (ok) {
       s_feed.ever_ok = true;
       s_feed.last_ok_ms = plat::millis();
@@ -328,8 +414,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       s_feed.last_total = total;
       s_feed.error[0] = '\0';
     } else if (code == 200) {
-      std::snprintf(s_feed.error, sizeof(s_feed.error), "Bad data from %s",
-                    core::adsb::sourceName(s_settings.source));
+      std::snprintf(s_feed.error, sizeof(s_feed.error), "Bad data from %s", core::adsb::sourceName(source));
     } else if (code == 429) {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "Rate limited - slow down polling");
     } else if (code < 0) {
@@ -338,7 +423,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       std::snprintf(s_feed.error, sizeof(s_feed.error), "HTTP %d", code);
     }
   }
-  if (!ok) return;
+  if (!ok) return false;
 
   core::AlertZone zone;
   zone.center = {s_settings.home_lat, s_settings.home_lon};
@@ -376,6 +461,7 @@ void ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     // Bursts (first fetch after a big pan) would be noise, not information.
     sound(core::Sound::NewAircraft);
   }
+  return true;
 }
 
 void networkLoop() {
@@ -397,21 +483,21 @@ void networkLoop() {
     }
     const bool menu = s_menu_open.load();  // radar hidden: no tiles or flight history needed
     // The SD card and saved map tiles work without Wi-Fi.
-    if (maps::serviceSd() || serviceSdFiles()) continue;
+    if (maps::serviceSd() || serviceSdFiles() || serviceDayLog()) continue;
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }
     if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
-        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
+        (serviceFavoriteLookup() || (!menu && (serviceRoute() || servicePhoto() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
     if (!due) {
       // Map tiles fill the gaps between traffic updates (different servers,
       // so the ADS-B rate limit doesn't apply).
-      if (menu || !maps::service(true)) plat::sleepMs(100);
+      if (menu || (!maps::service(true) && !weather::service())) plat::sleepMs(100);
       continue;
     }
     first = false;
@@ -426,12 +512,24 @@ void networkLoop() {
       radius_km = s_query_radius_km;
     }
     // Fetch a bit past the screen edge so aircraft slide in instead of popping.
-    const std::string url =
-        core::adsb::buildUrl(s_settings.source, center.lat, center.lon, radius_km * 1.25 + 5.0);
+    s_failover.setPreferred(s_settings.source);
+    const core::DataSource source = s_failover.next(now);
+    const std::string url = core::adsb::buildUrl(source, center.lat, center.lon, radius_km * 1.25 + 5.0);
 
-    body.clear();
-    const int code = plat::httpGet(url.c_str(), &body, 10000);
-    ingestImpl(code, body, &parsed);
+    // Kept open between updates: no new TLS handshake every few seconds.
+    const int code = plat::httpGetKeepAlive(url.c_str(), &body, 10000);
+    const bool ok = ingestImpl(code, body, &parsed, source);
+    const core::SourceFailover::Change change = s_failover.report(ok, plat::millis());
+    if (change != core::SourceFailover::Change::None) {
+      const std::string text =
+          change == core::SourceFailover::Change::Switched
+              ? std::string(core::adsb::sourceName(source)) + " isn't answering - using " +
+                    core::adsb::sourceName(s_failover.active())
+              : std::string("Back on ") + core::adsb::sourceName(source);
+      std::printf("feed: %s\n", text.c_str());
+      std::lock_guard<std::mutex> lock(s_mu);
+      s_notices.push_back(text);
+    }
   }
 }
 
@@ -447,6 +545,12 @@ void init() {
   applyHardware();
   if (s_settings.wifi_ssid[0] != '\0') {
     plat::wifiConnect(s_settings.wifi_ssid, s_settings.wifi_pass);
+  }
+  const plat::BootInfo boot = plat::bootInfo();
+  if (boot.rolled_back_from[0] != '\0') {
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_notices.push_back(std::string("Went back to ") + plat::firmwareVersion() + ": " + boot.rolled_back_from +
+                        " restarted 3 times in a row");
   }
 }
 
@@ -473,6 +577,26 @@ void settingsFlushImpl() {
 }  // namespace
 
 void onSettingsLoaded(std::function<void(const core::Settings& before)> fn) { s_on_loaded = std::move(fn); }
+
+core::daylog::Day dayLogToday() {
+  std::lock_guard<std::mutex> lock(s_day_mu);
+  return s_day;
+}
+
+std::vector<core::daylog::Day> dayLogHistory(int days) {
+  std::vector<core::daylog::Day> out;
+  if (maps::sdStatus().state != maps::SdState::Mounted || !plat::timeValid()) return out;
+  int64_t t = plat::unixTimeMs() / 1000;
+  for (int i = 1; i <= days; ++i) {
+    const int date = core::daylog::dateOf(core::localTime(t - static_cast<int64_t>(i) * 86400));
+    std::string text;
+    core::daylog::Day d;
+    if (readText(("log/" + core::daylog::fileName(date)).c_str(), &text) && core::daylog::parse(text, &d)) {
+      out.push_back(d);
+    }
+  }
+  return out;
+}
 
 void factoryReset() {
   // favorites.txt is kept: it's the user's own list and restores the favorites.
@@ -558,20 +682,35 @@ bool serviceSdFiles() {
 void tick(uint32_t now_ms) {
   // A fresh update has run a minute without crashing: keep it (otherwise the
   // next reset goes back to the previous version).
-  static bool s_confirmed = false;
+  static bool s_confirmed = false, s_stable = false;
+  if (!s_stable && now_ms > 20000) {
+    s_stable = true;
+    plat::bootStable();  // not a "quick" restart any more (see plat::bootInfo)
+  }
   if (!s_confirmed && now_ms > 60000) {
     s_confirmed = true;
     plat::confirmFirmware();
   }
   applySettingsFile();
   serviceWifi(now_ms);
+  // Night dimming starts and ends by the clock.
+  static uint32_t s_night_check_ms = 0;
+  static int s_night = -1;
+  if (now_ms - s_night_check_ms >= 5000) {
+    s_night_check_ms = now_ms;
+    const int night = isNight() ? 1 : 0;
+    if (night != s_night) {
+      s_night = night;
+      applyHardware();
+    }
+  }
   checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= (s_menu_open.load() ? kSaveInMenuMs : kSaveDebounceMs)) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
       now_ms - s_last_activity >= s_settings.dim_after_min * 60000u) {
     s_dimmed = true;
-    plat::setBrightness(s_settings.dim_brightness);
+    plat::setBrightness(std::min<int>(s_settings.dim_brightness, normalBrightness()));
   }
 }
 
@@ -625,7 +764,7 @@ bool userActivity() {
   s_last_touch_ms = s_last_activity;
   if (s_sleeping || !s_dimmed) return false;  // waking from sleep is the UI's job (one tap)
   s_dimmed = false;
-  plat::setBrightness(s_settings.brightness);
+  plat::setBrightness(normalBrightness());
   return true;
 }
 
@@ -778,7 +917,7 @@ FeedStatus feedStatus() {
 
 void ingest(int http_code, const std::string& body) {
   std::vector<core::Aircraft> parsed;
-  ingestImpl(http_code, body, &parsed);
+  ingestImpl(http_code, body, &parsed, s_settings.source);
 }
 
 void requestTrace(const char* hex) {

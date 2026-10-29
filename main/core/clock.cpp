@@ -56,6 +56,11 @@ std::tm localTime(int64_t unix_s) {
   return out;
 }
 
+bool inTimeWindow(int minute, int from, int to) {
+  if (from == to) return false;
+  return from < to ? (minute >= from && minute < to) : (minute >= from || minute < to);
+}
+
 bool alarmMatches(const Alarm& a, const std::tm& t) {
   if (!a.enabled || t.tm_hour != a.hour || t.tm_min != a.minute) return false;
   return a.days == 0 || (a.days & (1u << t.tm_wday)) != 0;

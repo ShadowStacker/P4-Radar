@@ -39,7 +39,8 @@ struct Settings {
   //  10: up to carto_key (v1.10.0); rotation re-based (see below)
   //  11: up to wifi_saved (v1.15.0)
   //  12: up to auto_update_check (v1.16.0)
-  static constexpr uint16_t kVersion = 12;
+  //  13: up to log_radius_km (v1.17.0)
+  static constexpr uint16_t kVersion = 13;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -169,6 +170,18 @@ struct Settings {
 
   // v1.16.0
   bool auto_update_check = true;          // look for new firmware an hour apart
+
+  // v1.17.0
+  bool show_stats = false;                // small live stats (CPU, memory, frame rate) on screen
+  bool night_dim = false;                 // lower brightness at night (by the clock)
+  uint16_t night_from_min = 22 * 60;      // local time, minutes after midnight
+  uint16_t night_to_min = 7 * 60;
+  uint8_t night_brightness = 20;          // % during the night
+  bool weather_radar = false;             // precipitation radar over the map (RainViewer)
+  bool weather_animate = true;            // loop the last hour instead of showing the latest frame
+  uint8_t weather_opacity = 70;           // %
+  bool show_photos = true;                // photo of the tapped aircraft (planespotters.net)
+  float log_radius_km = 40.2336f;         // daily log counts aircraft within this distance of home (25 mi)
 };
 
 }  // namespace core

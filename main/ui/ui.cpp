@@ -37,6 +37,14 @@ void buildRadarScreen() {
 lv_obj_t* s_alarm_box = nullptr;
 lv_obj_t* s_alarm_time = nullptr;
 
+// On-screen stats (Settings > About > On-screen stats).
+lv_obj_t* s_stats = nullptr;
+uint32_t s_frames = 0;           // frames drawn since the last stats update
+uint64_t s_draw_us = 0, s_draw_max_us = 0;
+uint64_t s_refr_start_us = 0;
+bool s_rendered = false;
+uint32_t s_stats_gap_ms = 0;     // longest pause of the UI timer since the last update
+
 // Firmware update in progress: a full-screen box with a progress bar.
 lv_obj_t* s_update_box = nullptr;
 lv_obj_t* s_update_bar = nullptr;
@@ -198,8 +206,12 @@ void logHealth() {
   s_last_ms = now;
   if (s_report_ms == 0) s_report_ms = now;
   if (now - s_report_ms < 30000) return;
-  std::printf("health: %s; UI longest pause %u ms (%s)\n", plat::healthReport().c_str(),
-              static_cast<unsigned>(s_worst_gap), s_settings_screen ? "menu" : "radar");
+  const plat::Health hl = plat::sampleHealth(0);
+  std::printf("health: RAM %u KB free (lowest %u, largest block %u), PSRAM %u KB; CPU core0 %d%%, core1 %d%%: %s; "
+              "UI longest pause %u ms (%s)\n",
+              static_cast<unsigned>(hl.ram_free / 1024), static_cast<unsigned>(hl.ram_min / 1024),
+              static_cast<unsigned>(hl.ram_largest / 1024), static_cast<unsigned>(hl.psram_free / 1024), hl.cpu[0],
+              hl.cpu[1], hl.top.c_str(), static_cast<unsigned>(s_worst_gap), s_settings_screen ? "menu" : "radar");
   s_report_ms = now;
   s_worst_gap = 0;
 }
@@ -246,8 +258,84 @@ void announceWifi() {
   s_last = ws.state;
 }
 
+void onRefrStart(lv_event_t*) {
+  s_refr_start_us = plat::micros();
+  s_rendered = false;
+}
+void onRenderReady(lv_event_t*) {
+  s_rendered = true;
+  ++s_frames;
+}
+void onRefrReady(lv_event_t*) {
+  if (!s_rendered) return;
+  const uint64_t us = plat::micros() - s_refr_start_us;
+  s_draw_us += us;
+  s_draw_max_us = std::max(s_draw_max_us, us);
+}
+
+/** Small live numbers in the lower left, once a second: for spotting slowdowns as they happen. */
+void updateStats() {
+  static uint32_t s_last_ms = 0, s_prev_tick_ms = 0;
+  const uint32_t now = plat::millis();
+  if (s_prev_tick_ms != 0) s_stats_gap_ms = std::max(s_stats_gap_ms, now - s_prev_tick_ms);
+  s_prev_tick_ms = now;
+  const bool on = app::settings().show_stats;
+  if (!on) {
+    if (s_stats) lv_obj_delete(s_stats);
+    s_stats = nullptr;
+    return;
+  }
+  if (s_stats == nullptr) {
+    s_stats = lv_label_create(lv_layer_sys());  // above dialogs too
+    lv_obj_set_style_text_font(s_stats, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(s_stats, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(s_stats, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_stats, 160, 0);
+    lv_obj_set_style_pad_hor(s_stats, sc(8), 0);
+    lv_obj_set_style_pad_ver(s_stats, sc(4), 0);
+    lv_obj_set_style_radius(s_stats, sc(8), 0);
+    lv_obj_remove_flag(s_stats, LV_OBJ_FLAG_CLICKABLE);
+    // Lower left, inside the round screen and clear of the buttons on its edge.
+    lv_obj_align(s_stats, LV_ALIGN_CENTER, -static_cast<int32_t>(screenW() * 0.13f),
+                 static_cast<int32_t>(screenH() * 0.17f));
+    lv_label_set_text(s_stats, "stats...");
+    s_last_ms = now;
+    s_frames = 0;
+    s_draw_us = s_draw_max_us = 0;
+    s_stats_gap_ms = 0;
+    plat::sampleHealth(1);  // CPU baseline
+    return;
+  }
+  if (now - s_last_ms < 1000) return;
+  const float secs = (now - s_last_ms) / 1000.0f;
+  const plat::Health h = plat::sampleHealth(1);
+  const plat::WifiStatus ws = plat::wifiStatus();
+  const app::FeedStatus fs = app::feedStatus();
+  const uint32_t up = now / 1000;
+  char text[256];
+  std::snprintf(text, sizeof(text),
+                "%.0f fps, draw %.1f ms (max %.0f)\n"
+                "CPU %d%% net, %d%% UI\n"
+                "RAM %u K (low %u K), PSRAM %.1f M\n"
+                "%d aircraft, %s\n"
+                "up %u:%02u:%02u, UI pause %u ms",
+                s_frames / secs, s_frames ? s_draw_us / 1000.0 / s_frames : 0.0, s_draw_max_us / 1000.0, h.cpu[0],
+                h.cpu[1], static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
+                h.psram_free / 1048576.0, fs.last_count,
+                ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",
+                static_cast<unsigned>(up / 3600), static_cast<unsigned>(up / 60 % 60), static_cast<unsigned>(up % 60),
+                static_cast<unsigned>(s_stats_gap_ms));
+  lv_label_set_text(s_stats, text);
+  lv_obj_move_foreground(s_stats);
+  s_last_ms = now;
+  s_frames = 0;
+  s_draw_us = s_draw_max_us = 0;
+  s_stats_gap_ms = 0;
+}
+
 void onAppTimer(lv_timer_t*) {
   logHealth();
+  updateStats();
   announceWifi();
   updateSleepLayer();
   updateAlarmDialog();
@@ -271,6 +359,9 @@ void init(lv_display_t* disp) {
   buildRadarScreen();
   lv_screen_load(s_radar_screen);
   s_app_timer = lv_timer_create(onAppTimer, 250, nullptr);
+  lv_display_add_event_cb(disp, onRefrStart, LV_EVENT_REFR_START, nullptr);
+  lv_display_add_event_cb(disp, onRenderReady, LV_EVENT_RENDER_READY, nullptr);
+  lv_display_add_event_cb(disp, onRefrReady, LV_EVENT_REFR_READY, nullptr);
 
   // First boot: go straight to Wi-Fi setup.
   if (app::settings().wifi_ssid[0] == '\0') openSettings(Page::Wifi);

@@ -40,6 +40,11 @@ extern "C" void app_main(void) {
     err = nvs_flash_init();
   }
   ESP_ERROR_CHECK(err);
+  // Count this start; three quick ones in a row go back to the previous version.
+  plat::esp::bootCheck();
+  // Every HTTPS connection logs "Certificate validated" at info level; only
+  // problems are worth printing.
+  esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
 
   // The orientation is fixed when the display starts, so peek at it first.
   core::Settings boot_settings;

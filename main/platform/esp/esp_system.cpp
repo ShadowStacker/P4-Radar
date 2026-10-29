@@ -65,28 +65,30 @@ size_t freeInternalHeap() { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 
 size_t freePsram() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM); }
 
-std::string healthReport() {
-  char buf[256];
-  std::snprintf(buf, sizeof(buf), "RAM %u KB free (lowest %u, largest block %u), PSRAM %u KB",
-                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-                static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024),
-                static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
-                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
-  std::string out = buf;
+Health sampleHealth(int slot) {
+  Health h;
+  h.ram_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  h.ram_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+  h.ram_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  h.psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
 #if configUSE_TRACE_FACILITY && configGENERATE_RUN_TIME_STATS
-  // CPU time per task since the last report.
-  // The counters are 32-bit microseconds by default and wrap every ~71 min;
-  // unsigned differences in the counter's own type stay right across a wrap.
+  // CPU time per task since this slot's previous sample. The counters are
+  // 32-bit microseconds by default and wrap every ~71 min; unsigned
+  // differences in the counter's own type stay right across a wrap.
   using Counter = configRUN_TIME_COUNTER_TYPE;
-  static std::unordered_map<TaskHandle_t, Counter> s_prev;
-  static Counter s_prev_total = 0;
-  static bool s_have_prev = false;
+  struct Baseline {
+    std::unordered_map<TaskHandle_t, Counter> tasks;
+    Counter total = 0;
+    bool valid = false;
+  };
+  static Baseline s_base[2];
+  Baseline& base = s_base[slot & 1];
   const UBaseType_t n = uxTaskGetNumberOfTasks();
   std::vector<TaskStatus_t> tasks(n + 4);
   Counter total = 0;
   tasks.resize(uxTaskGetSystemState(tasks.data(), tasks.size(), &total));
-  const uint64_t elapsed = static_cast<Counter>(total - s_prev_total);
-  if (s_have_prev && elapsed > 0) {
+  const uint64_t elapsed = static_cast<Counter>(total - base.total);
+  if (base.valid && elapsed > 0) {
     struct Use {
       const char* name;
       uint64_t time;
@@ -94,8 +96,8 @@ std::string healthReport() {
     std::vector<Use> uses;
     uint64_t idle[2] = {0, 0};
     for (const TaskStatus_t& t : tasks) {
-      auto it = s_prev.find(t.xHandle);
-      const uint64_t d = it == s_prev.end() ? 0 : static_cast<Counter>(t.ulRunTimeCounter - it->second);
+      auto it = base.tasks.find(t.xHandle);
+      const uint64_t d = it == base.tasks.end() ? 0 : static_cast<Counter>(t.ulRunTimeCounter - it->second);
       bool is_idle = false;
       for (int c = 0; c < 2; ++c) {
         if (t.xHandle == xTaskGetIdleTaskHandleForCore(c)) {
@@ -107,19 +109,20 @@ std::string healthReport() {
     }
     std::sort(uses.begin(), uses.end(), [](const Use& a, const Use& b) { return a.time > b.time; });
     auto pct = [&](uint64_t t) { return static_cast<int>(std::min<uint64_t>(100, t * 100 / elapsed)); };
-    std::snprintf(buf, sizeof(buf), "; CPU core0 %d%%, core1 %d%%:", 100 - pct(idle[0]), 100 - pct(idle[1]));
-    out += buf;
+    h.cpu[0] = 100 - pct(idle[0]);
+    h.cpu[1] = 100 - pct(idle[1]);
+    char buf[48];
     for (size_t i = 0; i < uses.size() && i < 5; ++i) {
-      std::snprintf(buf, sizeof(buf), " %s %d%%", uses[i].name, pct(uses[i].time));
-      out += buf;
+      std::snprintf(buf, sizeof(buf), "%s%s %d%%", i ? ", " : "", uses[i].name, pct(uses[i].time));
+      h.top += buf;
     }
   }
-  s_prev.clear();
-  for (const TaskStatus_t& t : tasks) s_prev[t.xHandle] = t.ulRunTimeCounter;
-  s_prev_total = total;
-  s_have_prev = true;
+  base.tasks.clear();
+  for (const TaskStatus_t& t : tasks) base.tasks[t.xHandle] = t.ulRunTimeCounter;
+  base.total = total;
+  base.valid = true;
 #endif
-  return out;
+  return h;
 }
 
 }  // namespace plat

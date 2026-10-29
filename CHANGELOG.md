@@ -10,6 +10,39 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.17.0] - 2026-10-29
+
+### Added
+- **Weather radar** over any map (map picker, or Display → Weather radar):
+  precipitation from RainViewer, looping the last hour by default, with
+  adjustable opacity. The credit line shows the time of the picture.
+- **Aircraft photos** on the info card, from planespotters.net, with the
+  photographer's name (Display → Aircraft photo on tap).
+- **Daily log** (Settings → Daily log): different aircraft near home today,
+  the busiest moment, the closest pass, the highest and fastest aircraft,
+  military and emergency counts, favorites seen. Saved per day on the SD card
+  as `log/YYYY-MM-DD.txt`, with the last week listed.
+- **Night dimming** by the clock (Display → Dim at night): a lower brightness
+  between two times, e.g. 10 PM to 7 AM.
+- **Diagnostics** in About: uptime, why it last restarted, how many starts
+  and how many were unexpected (crashes, watchdogs, power dips).
+- **On-screen stats** (About → On-screen stats, off by default): frame rate,
+  draw time, CPU per core, memory, aircraft, Wi-Fi signal, uptime and the
+  longest screen pause, live in the lower left.
+- **Emergency rollback:** power-cycling three times in a row, each within
+  20 seconds of starting, goes back to the previously installed version.
+- **Automatic feed failover:** after three failed updates in a row the radar
+  switches to the next ADS-B source, and goes back to the chosen one once it
+  answers again (checked every 10 minutes).
+
+### Changed
+- The aircraft data connection stays open between updates (no new TLS
+  handshake every few seconds), and map tiles, weather and the feed each keep
+  their own connection.
+- The serial log no longer prints "Certificate validated" for every
+  connection.
+- Fresh README screenshots, including all the newer screens.
+
 ## [v1.16.1] - 2026-10-29
 
 ### Fixed

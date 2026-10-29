@@ -142,11 +142,30 @@ void freeLarge(void* p);
 size_t freeInternalHeap();
 size_t freePsram();
 
+/** Memory and CPU use, for the serial log and the on-screen stats. */
+struct Health {
+  int cpu[2] = {-1, -1};  // % busy per core since the previous sample in the same slot; -1 = unknown
+  size_t ram_free = 0, ram_min = 0, ram_largest = 0;  // internal RAM: free, lowest ever, largest block
+  size_t psram_free = 0;
+  std::string top;        // busiest tasks, e.g. "adsb 31%, lvgl 22%"
+};
+/** Takes a sample. `slot` (0 or 1) keeps separate CPU baselines for separate users. */
+Health sampleHealth(int slot);
+
+/** Why and how often the board has started (kept in flash). */
+struct BootInfo {
+  const char* reset_reason = "";   // why it last restarted, in words
+  bool unexpected = false;         // that was a crash, watchdog or power dip
+  uint32_t boots = 0;              // starts counted since the last factory reset
+  uint32_t unexpected_resets = 0;  // of which crashes, watchdogs or power dips
+  char rolled_back_from[32] = "";  // version left after three quick restarts ("" = none)
+};
+BootInfo bootInfo();
 /**
- * One line for the serial log: internal RAM (free, lowest ever, largest
- * block) and PSRAM free, plus CPU load per core and the busiest tasks since
- * the previous call. For diagnosing slowdowns.
+ * The firmware has run 20 s: the quick-restart count starts over. Three
+ * restarts within 20 s of starting (power switched off and on, or a crash
+ * loop) go back to the previously installed version.
  */
-std::string healthReport();
+void bootStable();
 
 }  // namespace plat

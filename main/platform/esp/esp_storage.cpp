@@ -39,7 +39,8 @@ size_t validPrefix(uint16_t version) {
     case 9: return offsetof(core::Settings, carto_key);
     case 10: return offsetof(core::Settings, wifi_saved);
     case 11: return offsetof(core::Settings, auto_update_check);
-    case 12: return sizeof(core::Settings);
+    case 12: return offsetof(core::Settings, show_stats);
+    case 13: return sizeof(core::Settings);
     default: return 0;
   }
 }
@@ -145,11 +146,13 @@ void favoritesSave(const std::vector<core::Favorite>& favs) {
 }
 
 void settingsErase() {
-  nvs_handle_t h;
-  if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) return;
-  nvs_erase_all(h);
-  nvs_commit(h);
-  nvs_close(h);
+  for (const char* ns : {kNamespace, "boot"}) {  // settings, favorites and the start counters
+    nvs_handle_t h;
+    if (nvs_open(ns, NVS_READWRITE, &h) != ESP_OK) continue;
+    nvs_erase_all(h);
+    nvs_commit(h);
+    nvs_close(h);
+  }
 }
 
 }  // namespace plat

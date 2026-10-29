@@ -14,6 +14,7 @@
 #include "app/maps.h"
 #include "core/adsb.h"
 #include "core/clock.h"
+#include "core/daylog.h"
 #include "core/filter.h"
 #include "core/tiles.h"
 #include "data/airports.h"
@@ -288,6 +289,7 @@ void pageMain() {
            Page::SdCard);
   }
   navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
+  navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
   navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -546,6 +548,7 @@ void pageDisplay() {
   switchRow("Trails", &st.show_trails);
   switchRow("Flight history on tap", &st.extended_trail);
   switchRow("Airline and route on tap", &st.show_route_info);
+  switchRow("Aircraft photo on tap", &st.show_photos);
   switchRow("Speed vectors (1 min)", &st.show_speed_vectors);
 
   section("MAP");
@@ -583,6 +586,11 @@ void pageDisplay() {
   sliderRow("Map brightness", 10, 100, st.map_brightness,
             [](int v) { app::settings().map_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
+  switchRow("Weather radar (RainViewer)", &st.weather_radar);
+  switchRow("Loop the last hour", &st.weather_animate);
+  sliderRow("Weather opacity", 20, 100, st.weather_opacity,
+            [](int v) { app::settings().weather_opacity = static_cast<uint8_t>(v); },
+            [](int v) { return fmtStr("%d%%", v); });
   navRow(LV_SYMBOL_SD_CARD, "SD card", "", Page::SdCard);
   static const char* const kCodeStyles[] = {"ICAO (KRDM)", "IATA (RDM)", ""};
   choiceRow("Airport code style", kCodeStyles, st.airport_codes > 1 ? 0 : st.airport_codes,
@@ -608,6 +616,21 @@ void pageDisplay() {
   choiceRow("Dim when idle", kDim, cur, [](int v) { app::settings().dim_after_min = kDimVals[v]; });
   sliderRow("Dimmed brightness", 0, 50, st.dim_brightness,
             [](int v) { app::settings().dim_brightness = static_cast<uint8_t>(v); },
+            [](int v) { return fmtStr("%d%%", v); });
+
+  // Night dimming, by the clock (in 15-minute steps).
+  switchRow("Dim at night", &st.night_dim);
+  auto timeText = [](int quarter) {
+    char buf[16];
+    core::formatTime(quarter / 4, quarter % 4 * 15, app::settings().clock_24h, buf, sizeof(buf));
+    return std::string(buf);
+  };
+  sliderRow("Night starts", 0, 95, st.night_from_min / 15,
+            [](int v) { app::settings().night_from_min = static_cast<uint16_t>(v * 15); }, timeText);
+  sliderRow("Night ends", 0, 95, st.night_to_min / 15,
+            [](int v) { app::settings().night_to_min = static_cast<uint16_t>(v * 15); }, timeText);
+  sliderRow("Night brightness", 1, 100, st.night_brightness,
+            [](int v) { app::settings().night_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
 }
 
@@ -1221,6 +1244,81 @@ void pageTraffic() {
   actionRow(LV_SYMBOL_LIST, "Filters...", [] { showPage(Page::Filters); }, pal().accent);
 }
 
+std::string recordText(const core::daylog::Record& r, const std::string& what) {
+  if (r.minute < 0) return "-";
+  char hm[16];
+  core::formatTime(r.minute / 60, r.minute % 60, app::settings().clock_24h, hm, sizeof(hm));
+  return fmtStr("%s%s%s, %s, %s", r.label, r.type[0] ? " " : "", r.type, what.c_str(), hm);
+}
+
+void pageDayLog() {
+  lv_obj_t* date = infoRow("Today", "");
+  lv_obj_t* count = infoRow("Aircraft", "");
+  lv_obj_t* busiest = infoRow("Busiest", "");
+  lv_obj_t* closest = infoRow("Closest pass", "");
+  lv_obj_t* highest = infoRow("Highest", "");
+  lv_obj_t* fastest = infoRow("Fastest", "");
+  lv_obj_t* special = infoRow("Military / emergencies", "");
+  lv_obj_t* favs = infoRow("Favorites seen", "");
+  for (lv_obj_t* l : {closest, highest, fastest, favs}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  auto& st = app::settings();
+  sliderRow("Count aircraft within", 1, 100, static_cast<int>(app::kmToUnits(st.log_radius_km) + 0.5),
+            [](int v) { app::settings().log_radius_km = static_cast<float>(app::unitsToKm(v)); },
+            [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
+
+  section("EARLIER DAYS");
+  const std::vector<core::daylog::Day> history = app::dayLogHistory(7);
+  if (history.empty()) {
+    label(s.list,
+          app::maps::sdStatus().state == app::maps::SdState::Mounted ? "Nothing saved yet."
+                                                                      : "With an SD card, every day is kept.",
+          font(FontSize::S), pal().text_dim);
+  }
+  for (const core::daylog::Day& d : history) {
+    char dist[24];
+    app::formatDistance(d.closest.value, dist, sizeof(dist));
+    lv_obj_t* l = label(s.list, core::daylog::summary(d, dist).c_str(), font(FontSize::M), pal().text);
+    lv_obj_set_width(l, lv_pct(95));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
+  lv_obj_t* note = label(s.list,
+                         "Airborne aircraft within the distance above, counted while the radar shows the area "
+                         "around home. Each day is saved on the SD card as log/YYYY-MM-DD.txt.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+
+  s.tick = [date, count, busiest, closest, highest, fastest, special, favs] {
+    const core::daylog::Day d = app::dayLogToday();
+    if (d.date == 0) {
+      lv_label_set_text(date, "Waiting for the time (needs internet)");
+      return;
+    }
+    static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    lv_label_set_text(date, fmtStr("%s %d, %d", kMonths[(d.date / 100 % 100 + 11) % 12], d.date % 100, d.date / 10000).c_str());
+    lv_label_set_text(count, fmtStr("%d different", d.count()).c_str());
+    if (d.peak_minute >= 0) {
+      char hm[16];
+      core::formatTime(d.peak_minute / 60, d.peak_minute % 60, app::settings().clock_24h, hm, sizeof(hm));
+      lv_label_set_text(busiest, fmtStr("%d at once, %s", d.peak, hm).c_str());
+    } else {
+      lv_label_set_text(busiest, "-");
+    }
+    char dist[24];
+    app::formatDistance(d.closest.value, dist, sizeof(dist));
+    lv_label_set_text(closest, recordText(d.closest, fmtStr("%s at %d ft", dist, static_cast<int>(d.closest.alt_ft))).c_str());
+    lv_label_set_text(highest, recordText(d.highest, fmtStr("%d ft", static_cast<int>(d.highest.value))).c_str());
+    lv_label_set_text(fastest, recordText(d.fastest, fmtStr("%d kt", static_cast<int>(d.fastest.value))).c_str());
+    lv_label_set_text(special, fmtStr("%d / %d", static_cast<int>(d.military.size()), static_cast<int>(d.emergencies.size())).c_str());
+    std::string f;
+    for (const std::string& x : d.favorites) f += (f.empty() ? "" : ", ") + x;
+    lv_label_set_text(favs, f.empty() ? "-" : f.c_str());
+  };
+}
+
 /** One line for the update state (Updates page, and its row on the main page). */
 std::string updateSummary() {
   const app::UpdateStatus u = app::updateStatus();
@@ -1280,6 +1378,23 @@ void pageAbout() {
   lv_obj_t* feed = infoRow("Feed", "");
   lv_obj_t* mem = infoRow("Free memory", "");
 
+  section("DIAGNOSTICS");
+  const plat::BootInfo boot = plat::bootInfo();
+  lv_obj_t* up = infoRow("Running for", "");
+  infoRow("Last restart", boot.reset_reason);
+  infoRow("Starts", fmtStr("%u (%u unexpected)", static_cast<unsigned>(boot.boots),
+                           static_cast<unsigned>(boot.unexpected_resets)));
+  switchRow("On-screen stats", &app::settings().show_stats);
+  lv_obj_t* note = label(s.list,
+                         "Unexpected restarts are crashes, watchdog resets and power dips. On-screen stats show "
+                         "frame rate, CPU, memory and more in the lower left corner.\n"
+                         "Power-cycling three times in a row within 20 seconds of starting goes back to the "
+                         "previously installed version.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+
   section("MAINTENANCE");
   actionRow(LV_SYMBOL_REFRESH, "Restart", [] {
     app::settingsFlush();
@@ -1297,7 +1412,10 @@ void pageAbout() {
   label(s.list, "Plane Radar P4 - aircraft data from community\nADS-B feeds; runways from OurAirports.",
         font(FontSize::S), pal().text_dim);
 
-  s.tick = [wifi, feed, mem] {
+  s.tick = [wifi, feed, mem, up] {
+    const unsigned secs = static_cast<unsigned>(plat::millis() / 1000);
+    lv_label_set_text(up, secs >= 86400 ? fmtStr("%ud %uh %um", secs / 86400, secs / 3600 % 24, secs / 60 % 60).c_str()
+                                        : fmtStr("%uh %02um %02us", secs / 3600, secs / 60 % 60, secs % 60).c_str());
     const plat::WifiStatus ws = plat::wifiStatus();
     lv_label_set_text(wifi, ws.state == plat::WifiState::Connected
                                 ? fmtStr("%s, %d dBm", ws.ip, ws.rssi).c_str()
@@ -1305,7 +1423,8 @@ void pageAbout() {
     const app::FeedStatus fs = app::feedStatus();
     if (fs.ever_ok) {
       const unsigned age = (plat::millis() - fs.last_ok_ms) / 1000;
-      lv_label_set_text(feed, fmtStr("%d aircraft, %us ago", fs.last_count, age).c_str());
+      lv_label_set_text(feed, fmtStr("%d aircraft, %us ago (%s)", fs.last_count, age,
+                                     core::adsb::sourceName(fs.source)).c_str());
     } else {
       lv_label_set_text(feed, fs.error[0] ? fs.error : "waiting");
     }
@@ -1324,6 +1443,7 @@ const char* pageTitle(Page p) {
     case Page::Traffic: return "Traffic & data";
     case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
+    case Page::DayLog: return "Daily log";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -1352,6 +1472,7 @@ void showPage(Page page) {
     case Page::Traffic: pageTraffic(); break;
     case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
+    case Page::DayLog: pageDayLog(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;

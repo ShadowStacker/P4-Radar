@@ -13,6 +13,7 @@
 
 #include "app/app.h"
 #include "platform/platform.h"
+#include "fake_photo.h"
 #include "sim_state.h"
 
 namespace sim {
@@ -188,6 +189,46 @@ std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = fals
          pngChunkSim("IEND", "");
 }
 
+// Fake weather radar tiles: a few rain cells near home drifting east from
+// frame to frame, in RainViewer's "universal blue" style (RGBA, clear outside).
+std::string fakeWeatherTile(int frame, int z, uint32_t tx, uint32_t ty) {
+  const int T = 256;
+  std::string raw;
+  raw.reserve((T * 4 + 1) * T);
+  const double n = std::ldexp(1.0, z) * T;
+  struct Cell { double lat, lon, r_km; };
+  static const Cell kCells[] = {{44.45, -121.55, 22}, {44.05, -121.0, 14}, {44.6, -120.6, 30}, {43.8, -121.7, 10}};
+  for (int y = 0; y < T; ++y) {
+    raw.push_back(0);
+    const double gy = ty * T + y;
+    const double lat = std::atan(std::sinh(M_PI * (1 - 2 * gy / n))) * 180 / M_PI;
+    for (int x = 0; x < T; ++x) {
+      const double lon = (tx * T + x) / n * 360.0 - 180.0;
+      double v = 0;
+      for (const Cell& c : kCells) {
+        const double clon = c.lon + frame * 0.04;  // ~3 km per 10 minutes
+        const double dx = (lon - clon) * 111.0 * std::cos(lat * M_PI / 180), dy = (lat - c.lat) * 111.0;
+        v = std::max(v, 1.0 - std::hypot(dx, dy * 1.4) / c.r_km);
+      }
+      uint8_t r = 0, g = 0, b = 0, a = 0;
+      if (v > 0.75) { r = 255; g = 200; b = 0; a = 255; }        // heavy
+      else if (v > 0.5) { r = 0; g = 120; b = 255; a = 230; }    // moderate
+      else if (v > 0.2) { r = 120; g = 190; b = 255; a = 200; }  // light
+      raw.push_back(static_cast<char>(r));
+      raw.push_back(static_cast<char>(g));
+      raw.push_back(static_cast<char>(b));
+      raw.push_back(static_cast<char>(a));
+    }
+  }
+  std::string zbuf(compressBound(raw.size()), '\0');
+  uLongf zn = zbuf.size();
+  compress2(reinterpret_cast<Bytef*>(&zbuf[0]), &zn, reinterpret_cast<const Bytef*>(raw.data()), raw.size(), 1);
+  zbuf.resize(zn);
+  std::string ihdr = {0, 0, 1, 0, 0, 0, 1, 0, 8, 6, 0, 0, 0};  // 256x256, 8-bit RGBA
+  return std::string("\x89PNG\r\n\x1a\n", 8) + pngChunkSim("IHDR", ihdr) + pngChunkSim("IDAT", zbuf) +
+         pngChunkSim("IEND", "");
+}
+
 // Only the trace endpoint is simulated (traffic is fed directly). Bodies are
 // gzip-compressed like the real servers send them.
 int httpGet(const char* url, std::string* body, int, const char* const*) {
@@ -224,6 +265,37 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     return 200;
   }
   if (std::strstr(url, "adsbdb.com") != nullptr) return 404;
+  if (const char* ph = std::strstr(url, "api.planespotters.net/pub/photos/hex/")) {
+    const std::string hex(ph + std::strlen("api.planespotters.net/pub/photos/hex/"));
+    *body = R"({"photos":[{"id":"1","thumbnail":{"src":"https://t.plnspttrs.sim/s/)" + hex +
+            R"(.jpg"},"thumbnail_large":{"src":"https://t.plnspttrs.sim/l/)" + hex +
+            R"(.jpg"},"link":"https://www.planespotters.net/photo/1","photographer":"A. Spotter"}]})";
+    return 200;
+  }
+  if (std::strstr(url, "t.plnspttrs.sim/") != nullptr) {
+    body->assign(reinterpret_cast<const char*>(kFakePhotoJpeg), kFakePhotoJpegSize);
+    return 200;
+  }
+  if (std::strstr(url, "api.rainviewer.com/public/weather-maps.json") != nullptr) {
+    // Seven frames, ten minutes apart, ending at the simulated "now".
+    const int64_t now = plat::unixTimeMs() / 1000 / 600 * 600;
+    std::string frames;
+    for (int i = 6; i >= 0; --i) {
+      if (!frames.empty()) frames += ",";
+      frames += "{\"time\":" + std::to_string(now - i * 600) + ",\"path\":\"/v2/radar/f" + std::to_string(6 - i) + "\"}";
+    }
+    *body = "{\"host\":\"https://tilecache.sim\",\"radar\":{\"past\":[" + frames + "],\"nowcast\":[]}}";
+    return 200;
+  }
+  if (const char* wx = std::strstr(url, "tilecache.sim/v2/radar/f")) {
+    int frame = 0, size = 0, z = 0;
+    unsigned x = 0, y = 0;
+    if (std::sscanf(wx + std::strlen("tilecache.sim/v2/radar/f"), "%d/%d/%d/%u/%u", &frame, &size, &z, &x, &y) != 5) {
+      return 404;
+    }
+    *body = fakeWeatherTile(frame, z, x, y);
+    return 200;
+  }
   if (std::strstr(url, "api.github.com/repos/") != nullptr) {
     // The latest release: the running version, or a newer one with an update image.
     const char* tag = sim::g_update_available ? "v1.13.0" : "v1.12.1";
@@ -343,6 +415,23 @@ void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }
 size_t freePsram() { return 28 * 1024 * 1024; }
-std::string healthReport() { return "RAM (simulator)"; }
+Health sampleHealth(int) {
+  Health h;
+  h.cpu[0] = 23;
+  h.cpu[1] = 41;
+  h.ram_free = 412 * 1024;
+  h.ram_min = 371 * 1024;
+  h.ram_largest = 280 * 1024;
+  h.psram_free = 28 * 1024 * 1024;
+  h.top = "adsb 18%, lvgl 35%";
+  return h;
+}
+BootInfo bootInfo() {
+  BootInfo b;
+  b.reset_reason = "Power on";
+  b.boots = 12;
+  return b;
+}
+void bootStable() {}
 
 }  // namespace plat

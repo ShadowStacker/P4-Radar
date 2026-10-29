@@ -69,10 +69,16 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Home** button flies back to your home location and zoom. Quick buttons
   for **Filters**, **Mute**, **Sleep** (screen off, tap to wake) and the
   **Clock** face sit around the edge.
-- **Background maps**: dark street map, topo map or FAA VFR sectional
-  charts under the radar (streets and topo tinted to the theme), with tiles saved on an optional microSD card for instant and
-  offline use.
-- **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when there is one (also Settings → About → Check for updates), with automatic rollback if a new version fails to start.
+- **Background maps**: dark street map, topo map, FAA VFR sectional charts,
+  satellite photos, or a street map with street names, under the radar (streets and topo tinted to the
+  theme), with tiles saved on an optional microSD card for instant and offline use.
+- **Weather radar**: precipitation over any map, looping the last hour (RainViewer).
+- **Aircraft photos** on the info card (planespotters.net, credited to the photographer).
+- **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
+  the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.
+- **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
+  there is one (also Settings → Updates), with automatic rollback if a new version fails to start, and
+  power-cycling three times quickly goes back to the previous version.
 - **Settings and favorites on the SD card**: `settings.txt` (Wi-Fi included) and `favorites.txt` are kept in the card's
   root, read at startup and editable on a computer. Add favorites there by hex code or tail number.
 - **Clock mode**: the bezel turns into a clock dial with hour, minute and
@@ -102,7 +108,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 
 **Settings (all on the touchscreen)**
 - **Wi-Fi**: scan, pick a network, enter the password on an on-screen
-  keyboard (with show/hide), join hidden networks, or forget the network.
+  keyboard (with show/hide), join hidden networks. Up to five networks are saved, and the radar
+  switches to another saved one when the current one can't connect.
 - **Location**: pick it on the map with a crosshair, type in lat/lon, or enter
   an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
   button returns to.
@@ -111,8 +118,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   brightness, units, screen rotation in 90° steps, auto-hiding the radar buttons after 10 s idle (on by
   default), label
   detail, color mode, and toggles for trails, flight history,
-  vectors, rings, runways and airport codes. Sweep settings and dim-when-idle
-  live here too.
+  vectors, rings, runways and airport codes. Sweep settings, dim-when-idle and night dimming by the
+  clock live here too.
 - **Sound**: master switch, volume, a switch for each sound, proximity alert
   radius and altitude, favorite "nearby" radius, and test buttons.
 - **Favorites**: your saved aircraft, whether each is in range and how far,
@@ -124,14 +131,21 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   shows how many aircraft the filters are hiding.
 - **Traffic & data**: the feed
   (adsb.fi, airplanes.live or adsb.lol) and the update interval.
-- **About**: firmware version, IP address and signal strength, feed status,
-  free memory, restart and factory reset.
+- **Daily log**: today's traffic near home, and earlier days from the SD card.
+- **Updates**: installed and latest version, install, and the hourly check switch.
+- **About**: firmware version, IP address and signal strength, feed status (and which source is in
+  use: it switches to another one when the chosen feed stops answering), free memory, diagnostics
+  (uptime, why it last restarted, restart counts), on-screen stats, restart and factory reset.
 
 On first boot the device opens Wi-Fi setup, then asks for your location. No
 phone or captive portal is needed.
 
 | | | |
 |:-:|:-:|:-:|
+| ![](docs/images/63_weather_radar.png)<br>Weather radar* | ![](docs/images/62_map_satellite.png)<br>Satellite map* | ![](docs/images/61_map_street_names.png)<br>Street map* |
+| ![](docs/images/64_daily_log.png)<br>Daily log | ![](docs/images/65_stats_overlay.png)<br>On-screen stats | ![](docs/images/58_update_button_lit.png)<br>Update available |
+| ![](docs/images/55_update_available.png)<br>Updates page | ![](docs/images/59_update_confirm.png)<br>Installing an update | ![](docs/images/60_wifi_saved_networks.png)<br>Saved Wi-Fi networks |
+| ![](docs/images/13_settings_about.png)<br>About and diagnostics | ![](docs/images/49_settings_sd_card.png)<br>SD card | ![](docs/images/09_settings_display.png)<br>Display settings |
 | ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
 | ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
 | ![](docs/images/51_map_picker.png)<br>Map picker | ![](docs/images/45_map_dark_streets.png)<br>Dark street map* | ![](docs/images/46_map_topo_tinted.png)<br>Topo map, tinted* |
@@ -145,8 +159,8 @@ phone or captive portal is needed.
 | ![](docs/images/11_settings_location.png)<br>Location | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
 | ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
 
-\* Simulator screenshots use generated stand-in map tiles; on the device the
-real CARTO / OpenTopoMap maps appear.
+\* Simulator screenshots use generated stand-in map tiles, weather and photos; on the device the
+real maps, RainViewer radar and planespotters.net photos appear.
 
 ## Hardware
 

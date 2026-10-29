@@ -17,6 +17,7 @@
 
 #include "app/app.h"
 #include "app/maps.h"
+#include "app/weather.h"
 #include "core/clock.h"
 #include "platform/platform.h"
 #include "core/filter.h"
@@ -138,8 +139,10 @@ void run(uint32_t ms, uint32_t step = 16) {
     if (g_step_hook) g_step_hook();
     g_traffic->advance(step / 1000.0);
     feedTraffic();
-    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
-    if (!app::maps::serviceSd() && !app::serviceSdFiles()) app::maps::service(true);
+    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute() && !app::servicePhoto()) {
+      app::serviceTrace();
+    }
+    if (!app::maps::serviceSd() && !app::serviceSdFiles() && !app::maps::service(true)) app::weather::service();
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -827,6 +830,22 @@ int main(int argc, char** argv) {
     st.map_style = 4;  // satellite
     run(4000);
     shot((p + "62_map_satellite").c_str());
+    // Weather radar over the dark street map: tiles arrive, then the last
+    // hour loops.
+    st.map_style = 1;
+    st.weather_radar = true;
+    run(8000);
+    const bool wx = ui::RadarView::get().weatherTime() != 0;
+    std::printf("weather radar: %s\n", wx ? "OK" : "FAILED");
+    if (!wx) return 1;
+    shot((p + "63_weather_radar").c_str());
+    const int64_t t1 = ui::RadarView::get().weatherTime();
+    run(1200);
+    const bool animating = ui::RadarView::get().weatherTime() != t1;
+    std::printf("weather radar animation: %s\n", animating ? "OK" : "FAILED");
+    if (!animating) return 1;
+    st.weather_radar = false;
+    run(500);
     st.map_style = 3;
     st.map_style = 2;
     st.map_tint = false;
@@ -916,6 +935,24 @@ int main(int argc, char** argv) {
                 fav_file_ok ? "OK" : "FAILED");
     if (!fav_ok || !fav_file_ok) return 1;
     shot((p + "54_settings_from_sd").c_str());
+  }
+
+  // Daily log of the traffic near home, and the on-screen stats.
+  {
+    const core::daylog::Day today = app::dayLogToday();
+    const bool logged = today.date != 0 && today.count() > 0;
+    std::printf("daily log (%d aircraft): %s\n", today.count(), logged ? "OK" : "FAILED");
+    if (!logged) return 1;
+    ui::openSettings(ui::Page::DayLog);
+    run(800);
+    shot((p + "64_daily_log").c_str());
+    ui::closeSettings();
+    app::settings().show_stats = true;
+    lv_display_trigger_activity(nullptr);
+    run(2500);
+    shot((p + "65_stats_overlay").c_str());
+    app::settings().show_stats = false;
+    run(300);
   }
 
   // Several Wi-Fi networks: connecting to a new one keeps the old one saved;

@@ -27,6 +27,7 @@ enum class Kind : uint8_t {
   Rotation,  // uint8_t quarter turns, written in degrees
   Categories,
   Alarm,     // alarms[min]
+  Minutes,   // uint16_t minutes after midnight, written HH:MM
 };
 
 struct Field {
@@ -62,6 +63,7 @@ const char* const kDays[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 #define STR(f, h) {#f, Kind::Str, OFF(f), sizeof(Settings::f), 0, 0, nullptr, 0, h}
 #define ENUM(f, n, h) {#f, Kind::Enum, OFF(f), 0, 0, 0, n, static_cast<int>(sizeof(n) / sizeof(n[0])), h}
 #define ALARM(i) {"alarm" #i, Kind::Alarm, 0, 0, (i) - 1, 0, nullptr, 0, nullptr}
+#define MINUTES(f, h) {#f, Kind::Minutes, OFF(f), 0, 0, 24 * 60 - 1, nullptr, 0, h}
 
 static_assert(kMaxSavedWifi == 4, "one SAVED_WIFI() line per saved network below");
 
@@ -103,9 +105,15 @@ const Field kFields[] = {
     BOOL(show_airport_labels, nullptr),
     ENUM(airport_codes, kCodeStyles, "icao or iata"),
     BOOL(show_route_info, "Look up the airline and route of the tapped aircraft"),
+    BOOL(show_photos, "Photo of the tapped aircraft (planespotters.net)"),
     BOOL(autohide_buttons, "Fade the radar buttons after 10 seconds"),
     U8(dim_after_min, 0, 255, "Dim after this many idle minutes (0 = never)"),
     U8(dim_brightness, 0, 50, "Percent while dimmed"),
+    BOOL(night_dim, "Night dimming: lower brightness between these times (24-hour clock)"),
+    MINUTES(night_from_min, nullptr),
+    MINUTES(night_to_min, nullptr),
+    U8(night_brightness, 1, 100, "Percent at night"),
+    BOOL(show_stats, "Live stats on screen: frame rate, CPU, memory, ..."),
 
     SECTION("Sweep"),
     BOOL(sweep_enabled, nullptr),
@@ -133,6 +141,9 @@ const Field kFields[] = {
     BOOL(map_tint, "Recolor the map in the theme color"),
     U8(map_brightness, 10, 100, "Percent"),
     BOOL(sd_cache, "Keep downloaded map tiles on the SD card"),
+    BOOL(weather_radar, "Precipitation radar over the map (RainViewer)"),
+    BOOL(weather_animate, "Loop the last hour (off = latest picture only)"),
+    U8(weather_opacity, 20, 100, "Percent"),
     STR(carto_key, "CARTO API key for the dark street map (empty = OpenStreetMap)"),
 
     SECTION("Sound"),
@@ -163,6 +174,9 @@ const Field kFields[] = {
     SECTION("Data"),
     ENUM(source, kSources, "adsb.fi, airplanes.live or adsb.lol"),
     U8(poll_interval_s, 2, 30, "Seconds between updates"),
+
+    SECTION("Daily log"),
+    F32(log_radius_km, 1, 400, "Count aircraft within this distance of home, in km"),
 
     SECTION("Updates"),
     BOOL(auto_update_check, "Look for new firmware on GitHub a minute after start, then hourly"),
@@ -196,6 +210,7 @@ const Field kFields[] = {
 #undef STR
 #undef ENUM
 #undef ALARM
+#undef MINUTES
 
 template <typename T>
 T& at(Settings* s, size_t offset) {
@@ -293,6 +308,12 @@ std::string formatValue(const Settings& s, const Field& f) {
         out += kCategories[i];
       }
       return out.empty() ? "none" : out;
+    }
+    case Kind::Minutes: {
+      const uint16_t m = at<uint16_t>(s, f.offset) % (24 * 60);
+      char buf[8];
+      std::snprintf(buf, sizeof(buf), "%02d:%02d", m / 60, m % 60);
+      return buf;
     }
     case Kind::Alarm: {
       const Alarm& a = s.alarms[static_cast<int>(f.min)];
@@ -428,6 +449,13 @@ bool parseValue(const Field& f, const std::string& raw, Settings* s) {
         m |= static_cast<uint8_t>(1 << found);
       }
       at<uint8_t>(s, f.offset) = m;
+      return true;
+    }
+    case Kind::Minutes: {
+      int h = -1, m = -1;
+      char tail = 0;
+      if (std::sscanf(v.c_str(), "%d:%d%c", &h, &m, &tail) != 2 || h < 0 || h > 23 || m < 0 || m > 59) return false;
+      at<uint16_t>(s, f.offset) = static_cast<uint16_t>(h * 60 + m);
       return true;
     }
     case Kind::Alarm: return parseAlarm(v, &s->alarms[static_cast<int>(f.min)]);

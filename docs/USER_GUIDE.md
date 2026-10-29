@@ -105,6 +105,7 @@ reporting a problem (offline, feed errors).
 | Field | Meaning |
 |---|---|
 | Callsign + type badge | Flight number (or registration) and ICAO type code, e.g. `B738`. **MIL** = military. |
+| Photo | A photo of this aircraft from [planespotters.net](https://www.planespotters.net), with the photographer's name, when one exists. Turn off with **Display → Aircraft photo on tap**. |
 | Route | Where the flight is from and going, e.g. *Dublin (DUB) > Lanzarote (ACE)*. Shown when the route is known. |
 | Airline line | The airline (or the registered owner for private and military aircraft) and the exact model, e.g. *Ryanair - Boeing 737-8AS* |
 | Next line | Registration, ICAO hex address, emitter category (e.g. `cat A3`), and the [flight history](#flight-history) status |
@@ -130,6 +131,10 @@ military and charter flights. Results are remembered for the last 24 aircraft.
 The card says *Looking up airline and route...* while it waits, and
 *No airline or route info* if adsbdb knows nothing. Turn it off with
 **Display → Airline and route on tap**.
+
+**Photos** are looked up by the aircraft's ICAO address on planespotters.net,
+where spotters upload them. Most airliners have one, many private aircraft
+don't. The photo is only kept in memory while the card shows it.
 
 ### Flight history
 
@@ -197,6 +202,20 @@ The map services are free community services for light personal use, which
 is how the radar uses them: it only downloads what you look at, and saves
 it. They're not meant for bulk downloading, so there is no "download a
 whole region" button.
+
+### Weather radar
+
+**Weather radar** (in the map picker, or **Display → Weather radar**) lays
+precipitation over any background map, or over the plain radar with the map
+off. It comes from [RainViewer](https://www.rainviewer.com): a new picture
+every 10 minutes, and by default the last hour loops (**Loop the last
+hour**) so you can see which way showers are moving. **Weather opacity** sets
+how strongly it covers the map. The time of the picture on show is in the
+credit line at the bottom (it fades with the buttons).
+
+RainViewer's free service shows radar down to about 1 km detail, so when
+you're zoomed in close it looks blocky. Coverage follows the national radar
+networks (good over the US and Europe, patchy elsewhere).
 
 ### Clock and alarms
 
@@ -285,6 +304,7 @@ proximity and favorite alerts.
 | Label size | **Small**, **Normal** or **Large** text for aircraft labels | Normal |
 | Trails | Show where aircraft have been (the last few minutes) | On |
 | Flight history on tap | Download and draw the whole current flight of the aircraft you tap. See [Flight history](#flight-history). | On |
+| Aircraft photo on tap | Show a photo of the tapped aircraft from planespotters.net | On |
 | Airline and route on tap | Look up the airline, origin, destination and model of the aircraft you tap, see [the info card](#the-aircraft-info-card) | On |
 | Speed vectors (1 min) | Line showing each aircraft's position one minute ahead | On |
 | Range rings | Distance rings and crosshair around home | On |
@@ -294,6 +314,9 @@ proximity and favorite alerts.
 | Place names (street map) | Show town and road names on the dark street map | On |
 | Tint map to theme color | Recolor the map in the theme's color (green, amber, blue, red at night). Topo is inverted so it stays dark. Off shows the map's own colors, dimmed. | On |
 | Map brightness | How bright the map is behind the radar, 10–100 % | 60 % |
+| Weather radar (RainViewer) | Precipitation over the map, see [Weather radar](#weather-radar) | Off |
+| Loop the last hour | Animate the last hour of weather, or show only the latest picture | On |
+| Weather opacity | How strongly the weather covers the map, 20–100 % | 70 % |
 | SD card | Opens the [SD card](#sd-card) page | |
 | Airport code style | **ICAO** (`KRDM`; fields with only a local code such as `S39` use their IATA code, `PRZ`) or **IATA** (`RDM`, wherever one exists) | ICAO |
 | Radar sweep | The rotating beam animation | On |
@@ -303,6 +326,9 @@ proximity and favorite alerts.
 | Echoes fade after the beam | Aircraft dim after the beam passes and brighten on the next pass, like a real radar scope. Selected aircraft, emergencies and favorites stay bright. | Off |
 | Dim when idle | Lower the backlight after Never / 1 / 5 / 15 / 30 minutes without a touch. Touch to wake. | Never |
 | Dimmed brightness | Backlight level while dimmed, 0–50 % | 10 % |
+| Dim at night | Use a lower brightness between two times of day (needs the time from the internet) | Off |
+| Night starts / ends | The night window, in 15-minute steps; it can cross midnight | 10:00 PM / 7:00 AM |
+| Night brightness | Backlight level at night, 1–100 % | 20 % |
 
 #### Custom colors
 
@@ -366,7 +392,7 @@ See [Alerts explained](#alerts-explained) for exactly when each one fires.
 
 | Option | What it does | Default |
 |---|---|---|
-| ADS-B feed | Where aircraft data comes from: **adsb.fi**, **airplanes.live** or **adsb.lol**. All three are free community networks with similar coverage. Try another if one is slow or down. | adsb.fi |
+| ADS-B feed | Where aircraft data comes from: **adsb.fi**, **airplanes.live** or **adsb.lol**. All three are free community networks with similar coverage. If the chosen one fails three times in a row, the radar switches to the next one (*adsb.fi isn't answering - using airplanes.live*) and tries the chosen one again every 10 minutes. About → Feed shows which one is in use. | adsb.fi |
 | Update every | How often to fetch new positions, 2–30 s. Aircraft move smoothly in between either way. Please stay at 5 s or more for everyday use; these are free services. | 5 s |
 | Filters... | Shortcut to the Filters page | |
 
@@ -487,6 +513,20 @@ has a remove button.
 Favorites are only "detected" inside the area the radar is fetching: roughly
 what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 
+### Daily log
+
+What flew near home today: how many **different aircraft**, the **busiest**
+moment (most at once), the **closest pass**, the **highest** and **fastest**
+aircraft, how many were **military** or squawked an **emergency**, and which
+**favorites** showed up. Only airborne aircraft within **Count aircraft
+within** (default 25 mi) of home count, and only while the radar is showing
+the area around home (it only receives traffic for the area on screen).
+
+With an SD card, each day is saved as `log/YYYY-MM-DD.txt` (readable on a
+computer), the count carries on after a restart, and **Earlier days** lists
+the last week. The count needs the time from the internet to know when a day
+starts.
+
 ### Updates
 
 | Item | Meaning | Default |
@@ -506,6 +546,10 @@ what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 | Wi-Fi | IP address and signal strength |
 | Feed | Aircraft count and seconds since the last successful update, or the last error |
 | Free memory | Internal RAM and PSRAM free (useful for bug reports) |
+| Running for | Time since the radar started |
+| Last restart | Why it last started: power on, restarted by the radar, reset button, or a problem (crash, watchdog, power dip) |
+| Starts | How many times it has started, and how many of those were unexpected (crashes, watchdogs, power dips) |
+| On-screen stats | Small live numbers in the lower left: frame rate and draw time, CPU load of each core (network / UI), free memory, aircraft count, Wi-Fi signal, uptime and the longest pause of the screen. Off by default. |
 | Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
 
@@ -557,6 +601,11 @@ the new version. This takes a few minutes; keep the power on.
   old version; just try again.
 - **A bad update undoes itself.** A new version that crashes or resets in its
   first minute is rolled back to the previous one at the next start.
+- **Emergency way back (v1.17.0 and later):** if a new version runs but is
+  unusable (a black screen, for example), switch the power off and on three
+  times in a row, each time within 20 seconds of it starting. The radar then
+  goes back to the version installed before. It says so on the screen
+  (*Went back to ...*), and About → Starts counts it.
 - The radar picks the file for its own board, so it can't install the wrong
   one.
 

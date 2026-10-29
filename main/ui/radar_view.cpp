@@ -188,6 +188,7 @@ void RadarView::destroy() {
   destroyImageBuf(static_buf_);
   static_buf_ = nullptr;
   map_.destroy();
+  weather_.destroy();
   gesture_ = Gesture::None;
   interacting_ = false;
   static_dirty_ = true;
@@ -306,6 +307,7 @@ void RadarView::frame() {
     look.tint_b = a.blue;
     look.brightness = st.map_brightness;
     if (map_.update(vp_, look, busy, pal().bg)) static_dirty_ = true;
+    if (weather_.update(vp_, st.weather_radar, st.weather_animate, st.weather_opacity, busy, now)) static_dirty_ = true;
     light_map_ = map_.active() && core::tiles::isLight(look.variant) && !look.tint;
   }
 
@@ -378,6 +380,7 @@ void RadarView::syncTrace() {
   const int sel = findSelected();
   if (sel >= 0) app::requestRoute(tracks_[sel].ac.hex, tracks_[sel].ac.callsign);
   else app::requestRoute("", "");
+  app::requestPhoto(sel >= 0 ? tracks_[sel].ac.hex : "");
 
   const std::string want = app::settings().extended_trail ? selected_hex_ : std::string();
   if (want != trace_req_hex_) {
@@ -424,6 +427,7 @@ void RadarView::renderStatic(bool with_trails) {
   if (!map_.draw(&layer, vp_)) {
     for (int i = 0; i < 4; ++i) drawCircle(&layer, cx, cy, R * (0.98f - i * 0.22f), p.bg_center, 45);
   }
+  weather_.draw(&layer, vp_);  // precipitation over the map
 
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
   const float home_dist = distPx(home.x, home.y, cx, cy);

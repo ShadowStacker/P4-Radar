@@ -3,6 +3,12 @@
 // Small shims over LVGL 9.x API differences (tested against 9.2 and 9.6).
 
 #include "lvgl.h"
+// lv_image_cache_drop(): moved between headers in 9.x.
+#if __has_include("src/misc/cache/instance/lv_image_cache.h")
+#include "src/misc/cache/instance/lv_image_cache.h"
+#elif __has_include("src/misc/cache/lv_image_cache.h")
+#include "src/misc/cache/lv_image_cache.h"
+#endif
 
 namespace ui {
 

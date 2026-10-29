@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "core/daylog.h"
 #include "core/favorites.h"
 #include "core/geo.h"
 #include "core/route.h"
@@ -88,6 +89,7 @@ struct FeedStatus {
   int last_count = 0;   // aircraft shown (after filters)
   int last_total = 0;   // aircraft in the feed's response
   char error[48] = "";
+  core::DataSource source = core::DataSource::AdsbFi;  // the one in use (another than the chosen one after failures)
 };
 FeedStatus feedStatus();
 
@@ -159,6 +161,26 @@ void requestRoute(const char* hex, const char* callsign);
 RouteState routeState();
 /** Runs a pending lookup (network task); true if it made a request. */
 bool serviceRoute();
+
+// --- Daily log (aircraft near home today) -----------------------------------------
+/** Today so far (empty until the clock is set). Thread-safe copy. */
+core::daylog::Day dayLogToday();
+/** Earlier days from the SD card, newest first (up to `days`). Reads the card: UI task, on demand. */
+std::vector<core::daylog::Day> dayLogHistory(int days);
+
+// --- Photo of the selected aircraft (planespotters.net) --------------------------
+struct Photo {
+  char hex[8] = "";
+  int width = 0, height = 0;
+  uint16_t* pixels = nullptr;  // RGB565 from plat::allocLarge(); the receiver frees it (plat::freeLarge)
+  char credit[72] = "";        // "Photo: Jane Doe / planespotters.net", shown next to it
+};
+/** Asks the poller for a photo of the aircraft ("" cancels). Nothing happens with show_photos off. */
+void requestPhoto(const char* hex);
+/** UI task: the photo for the latest request, once ready. The caller owns the pixels. */
+bool popPhoto(Photo* out);
+/** Network task: runs a pending photo download. True if it made a request. */
+bool servicePhoto();
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);

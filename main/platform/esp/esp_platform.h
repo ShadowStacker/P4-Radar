@@ -6,6 +6,13 @@
 namespace plat::esp {
 
 /**
+ * Counts this start (NVS must be up). After the third start in a row that
+ * didn't last 20 s, switches to the other app slot and restarts (doesn't
+ * return), if that slot holds a working version.
+ */
+void bootCheck();
+
+/**
  * Panel, backlight, LVGL adapter task and multi-touch input. Touch is mapped
  * for a UI rotated by `quarter_turns` x 90 deg clockwise; the picture itself
  * is rotated by ui::installDisplayRotation(). Fixed until the next boot.

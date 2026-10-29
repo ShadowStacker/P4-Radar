@@ -30,6 +30,12 @@ void applyTimeZone(int index);
 /** Local time in the applied zone. */
 std::tm localTime(int64_t unix_s);
 
+/**
+ * True if `minute` (of the day, 0-1439) is in [from, to). Windows can cross
+ * midnight (22:00-07:00); from == to is an empty window.
+ */
+bool inTimeWindow(int minute, int from, int to);
+
 /** True if the alarm should ring at this local minute. */
 bool alarmMatches(const Alarm& a, const std::tm& t);
 
