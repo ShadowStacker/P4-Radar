@@ -13,6 +13,7 @@
 #include "core/adsb.h"
 #include "core/filter.h"
 #include "app/maps.h"
+#include "app/wifi_internal.h"
 #include "core/inflate.h"
 #include "core/route.h"
 #include "core/settings_text.h"
@@ -558,6 +559,7 @@ void tick(uint32_t now_ms) {
     plat::confirmFirmware();
   }
   applySettingsFile();
+  serviceWifi(now_ms);
   checkAlarms(now_ms);
   if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 

@@ -230,13 +230,24 @@ Open with the gear button (or the eye button for Filters).
 | Option | What it does |
 |---|---|
 | Status | Current network, IP address and signal strength (dBm, closer to 0 is better) |
-| Network list | Tap a network to join it. Bars are colored by signal; the eye icon marks secured networks. |
+| Saved networks | Up to five. ✓ marks the connected one, *first* the one tried first. Tap one to connect; the trash button forgets it. |
+| Networks nearby | Tap a network to join it. Saved ones are marked *saved* and connect without asking for the password again. Bars are colored by signal; the eye icon marks secured networks. |
 | Scan again | Refresh the list |
 | Hidden network... | Type a network name (SSID) that isn't broadcast, then its password |
-| Forget saved network | Disconnect and erase the saved credentials |
 
-If the connection drops, the device retries by itself, waiting longer between
-attempts (up to every 30 s).
+Joining a new network keeps the previous ones saved; with five saved, the
+oldest is dropped. If the connection drops, the radar retries by itself. With
+more than one network saved, it moves on to the next one after 20 seconds
+without a connection (handy when the radar travels between home, a cabin and a
+phone hotspot), and whichever connects becomes the one tried first.
+
+Short messages show what's happening: *Connecting to HomeNet...*, *Connected to
+HomeNet*, *Lost Wi-Fi (HomeNet) - reconnecting* and, if it can't connect,
+why (*Wrong password*, *Network not found*, ...).
+
+The saved networks are also in [settings.txt](#settingstxt-and-favoritestxt)
+(`wifi_ssid`/`wifi_pass` for the first, `wifi2_ssid` ... `wifi5_pass` for the
+others).
 
 ### Location
 

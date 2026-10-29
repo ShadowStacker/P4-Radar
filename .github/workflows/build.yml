@@ -43,7 +43,10 @@ jobs:
           target: esp32p4
           command: >-
             idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.board.defaults }}${{ matrix.chip.defaults }}" build 2>&1 | tee build.log;
-            test "${PIPESTATUS[0]}" -eq 0 && idf.py merge-bin -o plane-radar-merged.bin
+            test "${PIPESTATUS[0]}" -eq 0 && idf.py merge-bin -o plane-radar-merged.bin &&
+            riscv32-esp-elf-nm build/plane_radar_p4.elf | grep -E " (display_bridge_v9_on_mipi_[a-z_]+|dma_trans_done_cb)$" | tee iram-check.txt &&
+            { test -s iram-check.txt && ! grep -vE "^4ff" iram-check.txt ||
+              { echo "::error::display interrupt callbacks are not in IRAM - the screen would flash cyan during flash writes"; false; }; }
       - name: Check chip revision range
         run: |
           grep -E "^CONFIG_ESP32P4_REV_MIN_FULL|^CONFIG_ESP32P4_REV_MAX_FULL" sdkconfig

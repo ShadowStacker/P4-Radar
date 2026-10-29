@@ -12,6 +12,13 @@ enum class ColorMode : uint8_t { Classic = 0, Altitude = 1 };
 enum class Theme : uint8_t { Phosphor = 0, Amber = 1, Ocean = 2, Night = 3, Custom = 4 };
 enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2 };
 
+/** A remembered Wi-Fi network besides the current one (Settings::wifi_ssid). */
+struct SavedWifi {
+  char ssid[33] = "";
+  char pass[65] = "";
+};
+constexpr int kMaxSavedWifi = 4;  // plus the current one: five networks in all
+
 /**
  * Everything the user can change from the touch menu. Persisted to NVS as a
  * versioned blob plus separate Wi-Fi credential keys, so a firmware update
@@ -30,9 +37,11 @@ struct Settings {
   //   8: up to sd_cache (v1.8.0)
   //   9: up to wake_on_alarm (v1.9.1)
   //  10: up to carto_key (v1.10.0); rotation re-based (see below)
-  static constexpr uint16_t kVersion = 10;
+  //  11: up to wifi_saved (v1.15.0)
+  static constexpr uint16_t kVersion = 11;
 
-  // Wi-Fi (stored separately; see platform settings store)
+  // Wi-Fi: the network to use first (stored separately too; see the platform
+  // settings store). Other saved networks are in wifi_saved.
   char wifi_ssid[33] = "";
   char wifi_pass[65] = "";
 
@@ -152,6 +161,10 @@ struct Settings {
 
   // v1.10.0
   char carto_key[64] = "";                // CARTO basemaps API key (dark street map); empty = use OSM
+
+  // v1.15.0: more Wi-Fi networks, tried in turn when the current one can't
+  // connect (empty ssid = unused slot)
+  SavedWifi wifi_saved[kMaxSavedWifi];
 };
 
 }  // namespace core

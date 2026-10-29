@@ -952,6 +952,9 @@ void testSettingsText() {
   a.time_zone = 13;
   std::snprintf(a.carto_key, sizeof(a.carto_key), "abc123");
   std::snprintf(a.type_filter, sizeof(a.type_filter), "B738, A32*");
+  std::snprintf(a.wifi_saved[0].ssid, sizeof(a.wifi_saved[0].ssid), "Cabin");
+  std::snprintf(a.wifi_saved[0].pass, sizeof(a.wifi_saved[0].pass), "pines123");
+  std::snprintf(a.wifi_saved[2].ssid, sizeof(a.wifi_saved[2].ssid), "Phone hotspot");
   const std::string text = st::serialize(a);
   core::Settings b;
   std::vector<std::string> problems;
@@ -969,6 +972,9 @@ void testSettingsText() {
   CHECK(b.alarms[0].enabled && b.alarms[0].hour == 6 && b.alarms[0].minute == 45 && b.alarms[0].days == 0x3E);
   CHECK(b.alarms[2].days == 0x22 && !b.alarms[1].enabled);
   CHECK(std::strcmp(b.carto_key, "abc123") == 0 && std::strcmp(b.type_filter, "B738, A32*") == 0);
+  CHECK(std::strcmp(b.wifi_saved[0].ssid, "Cabin") == 0 && std::strcmp(b.wifi_saved[0].pass, "pines123") == 0);
+  CHECK(std::strcmp(b.wifi_saved[2].ssid, "Phone hotspot") == 0 && b.wifi_saved[1].ssid[0] == '\0');
+  CHECK(text.find("wifi2_ssid = \"Cabin\"") != std::string::npos && text.find("wifi5_pass = \"\"") != std::string::npos);
   CHECK(st::serialize(b) == text);  // stable
   CHECK(text.find("rotation = 270") != std::string::npos);
   CHECK(text.find("alarm3 = on 22:05 mon,fri") != std::string::npos);

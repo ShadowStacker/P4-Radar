@@ -10,6 +10,7 @@
 #include "bsp/display.h"
 #include "bsp/touch.h"
 #include "esp_cache.h"
+#include "hal/axi_icm_ll.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
@@ -133,6 +134,12 @@ lv_display_t* displayStart(int quarter_turns) {
     ESP_LOGE(TAG, "display registration failed");
     abort();
   }
+  // The panel's DMA (DW-GDMA) reads the frame buffer from PSRAM 60 times a
+  // second and must never fall behind, or the screen flashes cyan. By default
+  // it competes equally with both CPUs; heavy work (map tiles, downloads) can
+  // starve it. Give its reads the highest bus priority.
+  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, 15);
+  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, 15);
 
   bsp_display_cfg_t touch_cfg;
   std::memset(&touch_cfg, 0, sizeof(touch_cfg));

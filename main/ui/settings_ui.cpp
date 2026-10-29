@@ -287,27 +287,53 @@ void pageMain() {
 }
 
 void connectTo(const std::string& ssid, const std::string& pass) {
-  auto& st = app::settings();
-  std::snprintf(st.wifi_ssid, sizeof(st.wifi_ssid), "%s", ssid.c_str());
-  std::snprintf(st.wifi_pass, sizeof(st.wifi_pass), "%s", pass.c_str());
-  app::settingsChanged();
-  app::settingsFlush();
-  plat::wifiConnect(st.wifi_ssid, st.wifi_pass);
-  if (!st.home_set) {
+  app::useWifi(ssid.c_str(), pass.c_str());  // "Connecting to ..." is shown by the UI's Wi-Fi watcher
+  if (!app::settings().home_set) {
     // First-time setup continues with the location.
     toast((std::string(LV_SYMBOL_WIFI "  Connecting... now set your home location")).c_str(), 3500);
     showPage(Page::Location);
-  } else {
-    toast((std::string(LV_SYMBOL_WIFI "  Connecting to ") + ssid).c_str());
+  } else if (s.page == Page::Wifi) {
+    showPage(Page::Wifi);  // the saved list changed order
   }
 }
 
 void askPassword(const std::string& ssid) {
   const std::string title = "Password for " + ssid;
-  const auto& st = app::settings();
-  const std::string initial = ssid == st.wifi_ssid ? st.wifi_pass : "";
+  std::string initial;
+  app::isSavedWifi(ssid.c_str(), &initial);
   textInput(title.c_str(), initial, InputKind::Password,
             [ssid](const std::string& pass) { connectTo(ssid, pass); });
+}
+
+/** Saved networks: tap to connect, trash to forget. */
+void fillSavedWifi() {
+  const Palette& p = pal();
+  const std::vector<core::SavedWifi> saved = app::savedWifi();
+  const plat::WifiStatus ws = plat::wifiStatus();
+  if (saved.empty()) {
+    label(s.list, "None yet - pick a network below", font(FontSize::S), p.text_dim);
+    return;
+  }
+  for (size_t i = 0; i < saved.size(); ++i) {
+    const core::SavedWifi w = saved[i];
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(r, p.panel_border, LV_STATE_PRESSED);
+    const bool connected = ws.state == plat::WifiState::Connected && std::strcmp(ws.ssid, w.ssid) == 0;
+    label(r, connected ? LV_SYMBOL_OK : LV_SYMBOL_WIFI, font(FontSize::M), connected ? p.accent : p.text_dim);
+    growLabel(r, w.ssid, p.text);
+    if (i == 0) label(r, "first", font(FontSize::S), p.text_dim);
+    onClick(r, [w] { connectTo(w.ssid, w.pass); });
+    lv_obj_t* del = iconButton(r, LV_SYMBOL_TRASH, sc(52), [w] {
+      confirm((std::string("Forget ") + w.ssid + "?").c_str(),
+              "The radar won't connect to it anymore (until you enter its password again).", "Forget", [w] {
+        app::forgetWifi(w.ssid);
+        toast((std::string(LV_SYMBOL_TRASH "  Forgot ") + w.ssid).c_str());
+        showPage(Page::Wifi);
+      });
+    });
+    lv_obj_set_style_text_color(lv_obj_get_child(del, 0), p.danger, 0);
+  }
 }
 
 void fillWifiList(const std::vector<plat::WifiNetwork>& nets) {
@@ -328,8 +354,12 @@ void fillWifiList(const std::vector<plat::WifiNetwork>& nets) {
     if (n.secure) label(r, LV_SYMBOL_EYE_CLOSE, font(FontSize::S), p.text_dim);
     const std::string ssid = n.ssid;
     const bool secure = n.secure;
-    onClick(r, [ssid, secure] {
-      if (secure) askPassword(ssid);
+    std::string saved_pass;
+    const bool saved = app::isSavedWifi(ssid.c_str(), &saved_pass);
+    if (saved) label(r, "saved", font(FontSize::S), p.text_dim);
+    onClick(r, [ssid, secure, saved, saved_pass] {
+      if (saved) connectTo(ssid, saved_pass);  // no need to type it again
+      else if (secure) askPassword(ssid);
       else connectTo(ssid, "");
     });
   }
@@ -344,7 +374,15 @@ void startScan() {
 
 void pageWifi() {
   s.wifi_status = infoRow("Status", "");
-  section("NETWORKS");
+  section("SAVED NETWORKS");
+  fillSavedWifi();
+  lv_obj_t* note = label(s.list,
+                         "Up to five. When one can't connect for 20 seconds, the radar tries the next.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+  section("NETWORKS NEARBY");
   s.wifi_list = lv_obj_create(s.list);
   lv_obj_remove_style_all(s.wifi_list);
   lv_obj_set_size(s.wifi_list, lv_pct(100), LV_SIZE_CONTENT);
@@ -357,16 +395,6 @@ void pageWifi() {
       if (!ssid.empty()) askPassword(ssid);
     });
   }, pal().text);
-  actionRow(LV_SYMBOL_TRASH, "Forget saved network", [] {
-    confirm("Forget Wi-Fi?", "The radar will disconnect until you choose a network again.", "Forget", [] {
-      auto& st = app::settings();
-      st.wifi_ssid[0] = '\0';
-      st.wifi_pass[0] = '\0';
-      app::settingsChanged();
-      app::settingsFlush();
-      plat::wifiConnect("", "");
-    });
-  }, pal().danger);
 
   startScan();
   s.tick = [] {

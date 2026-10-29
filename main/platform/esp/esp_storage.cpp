@@ -37,7 +37,8 @@ size_t validPrefix(uint16_t version) {
     case 7: return offsetof(core::Settings, map_style);
     case 8: return offsetof(core::Settings, wake_on_alarm);
     case 9: return offsetof(core::Settings, carto_key);
-    case 10: return sizeof(core::Settings);
+    case 10: return offsetof(core::Settings, wifi_saved);
+    case 11: return sizeof(core::Settings);
     default: return 0;
   }
 }
@@ -85,6 +86,10 @@ void settingsLoad(core::Settings* s) {
 
   s->carto_key[sizeof(s->carto_key) - 1] = '\0';  // stored strings are never trusted
   s->type_filter[sizeof(s->type_filter) - 1] = '\0';
+  for (core::SavedWifi& w : s->wifi_saved) {
+    w.ssid[sizeof(w.ssid) - 1] = '\0';
+    w.pass[sizeof(w.pass) - 1] = '\0';
+  }
 
   size_t n = sizeof(s->wifi_ssid);
   if (nvs_get_str(h, "ssid", s->wifi_ssid, &n) != ESP_OK) s->wifi_ssid[0] = '\0';

@@ -56,6 +56,22 @@ bool userActivity();
  */
 void setMenuOpen(bool open);
 
+// --- Wi-Fi networks (UI task) ------------------------------------------------------
+/**
+ * Saved networks, the one to use first at [0] (Settings::wifi_ssid), then
+ * Settings::wifi_saved. Up to 1 + core::kMaxSavedWifi.
+ */
+std::vector<core::SavedWifi> savedWifi();
+/** True if `ssid` is saved; fills its password. */
+bool isSavedWifi(const char* ssid, std::string* pass = nullptr);
+/**
+ * Connects and makes it the network to use first. The previous one stays
+ * saved (the oldest is dropped when all five slots are taken).
+ */
+void useWifi(const char* ssid, const char* pass);
+/** Removes a saved network. Forgetting the current one moves on to the next saved one. */
+void forgetWifi(const char* ssid);
+
 core::TrafficStore& traffic();
 
 /** Area the radar is looking at; the poller fetches around it. */

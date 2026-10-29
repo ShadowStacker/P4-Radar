@@ -10,6 +10,32 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.15.0] - 2026-10-29
+
+### Added
+- **Up to five saved Wi-Fi networks.** Joining a new network keeps the old
+  ones. Settings → Wi-Fi lists them: tap one to connect, or the trash button
+  to forget it. Networks nearby that are saved connect without the password.
+  When the current network can't connect for 20 seconds, the radar tries the
+  next saved one, and whichever connects is tried first from then on. They're
+  in `settings.txt` too (`wifi2_ssid` ... `wifi5_pass`).
+- **Wi-Fi messages:** *Connecting to ...*, *Connected to ...*, *Lost Wi-Fi -
+  reconnecting*, and the reason when a connection fails.
+
+### Fixed
+- **Cyan flashes:**
+  - **During updates and settings saves** (dozens during an update over
+    Wi-Fi, one at startup). The screen's frame transfer is restarted by an
+    interrupt after every frame, and that interrupt had to wait while the
+    flash was being written. It now runs from internal RAM and keeps going
+    during flash writes.
+  - **Random flicker while the radar runs** (seen with the topo map). The
+    display's memory reads competed equally with both CPUs, and heavy map
+    work could starve them. They now have the highest priority on the
+    memory bus.
+  - The build now checks that the display interrupt code stays in internal
+    RAM.
+
 ## [v1.14.0] - 2026-10-29
 
 ### Added

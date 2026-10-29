@@ -876,6 +876,29 @@ int main(int argc, char** argv) {
     shot((p + "54_settings_from_sd").c_str());
   }
 
+  // Several Wi-Fi networks: connecting to a new one keeps the old one saved;
+  // forgetting one removes it.
+  {
+    app::useWifi("Cabin", "pines123");
+    app::useWifi("Phone hotspot", "");
+    std::vector<core::SavedWifi> v = app::savedWifi();
+    bool ok = v.size() == 3 && std::strcmp(v[0].ssid, "Phone hotspot") == 0 && std::strcmp(v[1].ssid, "Cabin") == 0 &&
+              std::strcmp(v[2].ssid, "HomeNet") == 0 && std::strcmp(app::settings().wifi_ssid, "Phone hotspot") == 0;
+    app::useWifi("HomeNet", "hunter2");  // back home: first again, no duplicate
+    v = app::savedWifi();
+    ok = ok && v.size() == 3 && std::strcmp(v[0].ssid, "HomeNet") == 0 && std::strcmp(v[1].ssid, "Phone hotspot") == 0;
+    ui::openSettings(ui::Page::Wifi);
+    run(800);
+    shot((p + "60_wifi_saved_networks").c_str());
+    ui::closeSettings();
+    app::forgetWifi("Phone hotspot");
+    v = app::savedWifi();
+    ok = ok && v.size() == 2 && std::strcmp(v[1].ssid, "Cabin") == 0;
+    std::printf("saved wifi networks: %s\n", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+    run(500);
+  }
+
   // Firmware update: the radar button is grayed out (up to date), the hourly
   // check finds a newer release and it lights up, then it installs.
   {

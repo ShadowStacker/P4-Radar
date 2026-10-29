@@ -204,8 +204,51 @@ void logHealth() {
   s_worst_gap = 0;
 }
 
+/**
+ * Short messages as the Wi-Fi state changes: connecting, connected, lost,
+ * and why it failed. The driver retries every few seconds, so each message
+ * is shown once per network until the state really changes.
+ */
+void announceWifi() {
+  static plat::WifiState s_last = plat::WifiState::Idle;
+  static std::string s_connecting_shown, s_failure_shown, s_connected_ssid;
+  const plat::WifiStatus ws = plat::wifiStatus();
+  const std::string ssid = ws.ssid;
+  char text[96];
+  if (ws.state == plat::WifiState::Connected) {
+    if (s_last != plat::WifiState::Connected || ssid != s_connected_ssid) {
+      std::snprintf(text, sizeof(text), LV_SYMBOL_WIFI "  Connected to %s", ws.ssid);
+      toast(text, 2500);
+    }
+    s_connected_ssid = ssid;
+    s_connecting_shown.clear();
+    s_failure_shown.clear();
+  } else {
+    if (s_last == plat::WifiState::Connected) {
+      std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  Lost Wi-Fi (%s) - reconnecting", s_connected_ssid.c_str());
+      toast(text, 3000);
+      s_connecting_shown = s_connected_ssid;  // that says it all for now
+      s_failure_shown = s_connected_ssid + "|" + ws.reason;
+    } else if (ws.state == plat::WifiState::Connecting && !ssid.empty() && ssid != s_connecting_shown) {
+      std::snprintf(text, sizeof(text), LV_SYMBOL_WIFI "  Connecting to %s...", ws.ssid);
+      toast(text, 2500);
+      s_connecting_shown = ssid;
+    } else if (ws.state == plat::WifiState::Failed && ws.reason[0] != '\0') {
+      const std::string key = ssid + "|" + ws.reason;
+      if (key != s_failure_shown) {
+        std::snprintf(text, sizeof(text), LV_SYMBOL_WARNING "  Can't connect to %s: %s", ws.ssid, ws.reason);
+        toast(text, 4000);
+        s_failure_shown = key;
+      }
+    }
+    s_connected_ssid.clear();
+  }
+  s_last = ws.state;
+}
+
 void onAppTimer(lv_timer_t*) {
   logHealth();
+  announceWifi();
   updateSleepLayer();
   updateAlarmDialog();
   updateUpdateBox();
@@ -315,6 +358,7 @@ void closeSettings(bool discard) {
     core::Settings& st = app::settings();
     std::memcpy(s_snapshot.wifi_ssid, st.wifi_ssid, sizeof(st.wifi_ssid));
     std::memcpy(s_snapshot.wifi_pass, st.wifi_pass, sizeof(st.wifi_pass));
+    std::memcpy(s_snapshot.wifi_saved, st.wifi_saved, sizeof(st.wifi_saved));
     const bool filters_changed =
         st.military_only != s_snapshot.military_only || st.show_ground != s_snapshot.show_ground ||
         st.min_alt_ft != s_snapshot.min_alt_ft || st.max_alt_ft != s_snapshot.max_alt_ft ||

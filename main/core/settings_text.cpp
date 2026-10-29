@@ -63,10 +63,21 @@ const char* const kDays[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 #define ENUM(f, n, h) {#f, Kind::Enum, OFF(f), 0, 0, 0, n, static_cast<int>(sizeof(n) / sizeof(n[0])), h}
 #define ALARM(i) {"alarm" #i, Kind::Alarm, 0, 0, (i) - 1, 0, nullptr, 0, nullptr}
 
+static_assert(kMaxSavedWifi == 4, "one SAVED_WIFI() line per saved network below");
+
 const Field kFields[] = {
     SECTION("Wi-Fi"),
-    STR(wifi_ssid, "Network name and password"),
+    STR(wifi_ssid, "The network to use first: name and password"),
     STR(wifi_pass, nullptr),
+#define SAVED_WIFI(n)                                                                                    \
+  {"wifi" #n "_ssid", Kind::Str, OFF(wifi_saved[(n) - 2].ssid), sizeof(SavedWifi::ssid), 0, 0, nullptr, 0, \
+   (n) == 2 ? "More networks, tried in turn when the first can't connect (empty = unused)" : nullptr},   \
+  {"wifi" #n "_pass", Kind::Str, OFF(wifi_saved[(n) - 2].pass), sizeof(SavedWifi::pass), 0, 0, nullptr, 0, nullptr}
+    SAVED_WIFI(2),
+    SAVED_WIFI(3),
+    SAVED_WIFI(4),
+    SAVED_WIFI(5),
+#undef SAVED_WIFI
 
     SECTION("Location"),
     F64(home_lat, -90, 90, "Home position in decimal degrees (north and east are positive)"),

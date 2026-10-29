@@ -11,7 +11,7 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # resets before it confirms itself) goes back to the previous one.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="1.14.0"
+CONFIG_APP_PROJECT_VER="1.15.0"
 
 # ---- CPU / memory -------------------------------------------------------------
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
@@ -63,6 +63,13 @@ CONFIG_BSP_LCD_TYPE_800_800_3_4_INCH=y
 CONFIG_BSP_LCD_COLOR_FORMAT_RGB565=y
 CONFIG_BSP_LCD_DPI_BUFFER_NUMS=3
 CONFIG_BSP_I2C_FAST_MODE=y
+
+# ---- Display ------------------------------------------------------------------
+# The panel is refreshed by a DMA transfer that an interrupt restarts after
+# every frame. Without this, that interrupt waits while the flash is written
+# (settings saves, firmware updates), the panel runs out of pixels and flashes
+# cyan ("underrun"). The adapter's callbacks are already in IRAM.
+CONFIG_LCD_DSI_ISR_IRAM_SAFE=y
 
 # ---- LVGL 9 ---------------------------------------------------------------------
 CONFIG_LV_COLOR_DEPTH_16=y
