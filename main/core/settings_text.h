@@ -43,6 +43,14 @@ std::string serializeFavorites(const std::vector<Favorite>& favs,
  */
 void parseFavorites(const std::string& text, std::vector<Favorite>* favs, std::vector<std::string>* lookups);
 
+/**
+ * Every setting except the Wi-Fi section, as JSON for the phone page:
+ * {"sections":[{"title":..,"fields":[{"key","type","value","help",
+ * "min","max","options"}]}]}. Values are in the same text form as the file,
+ * so a change goes back through parse() as "key = value".
+ */
+std::string toJson(const Settings& s);
+
 /** True for a 6-character hex string (an ICAO 24-bit address). */
 bool isIcaoHex(const char* s);
 

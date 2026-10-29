@@ -18,7 +18,9 @@ troubleshooting. For what changed in each version, see the
 - [Settings reference](#settings-reference)
   - [Wi-Fi](#wi-fi) · [Location](#location) · [Display](#display) ·
     [Sound](#sound) · [Traffic & data](#traffic--data) · [Filters](#filters) ·
-    [Favorites](#favorites) · [About](#about)
+    [Favorites](#favorites) · [Watchlist alerts](#watchlist-alerts) ·
+    [Phone settings page](#phone-settings-page) · [About](#about)
+- [Screenshots](#screenshots)
 - [Alerts explained](#alerts-explained)
 - [Flashing the firmware](#flashing-the-firmware)
 - [Troubleshooting](#troubleshooting)
@@ -91,6 +93,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
+| 📷 Camera | right, below the clock | Save a [screenshot](#screenshots) of the radar on the SD card |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Tap: zoom in / out a little (1.25×), smoothly; quick taps add up. Hold: keeps zooming, gently speeding up, until you let go. |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
@@ -305,7 +308,8 @@ proximity and favorite alerts.
 | Dimmed brightness | Backlight level while dimmed, 0–50 % | 10 % |
 | Night mode | Do something different between two times of day (needs the time from the internet) | Off |
 | At night | **Dim the screen**: use the night brightness. **Sleep**: put the radar to sleep, as the power button does (screen off, sounds muted). See below. | Dim the screen |
-| Night starts / ends | The night window, in 15-minute steps; it can cross midnight | 10:00 PM / 7:00 AM |
+| Night is | **Set times**: between the two times below. **Sunset to sunrise**: from sunset to sunrise at your home location, worked out for each day (today's times are shown underneath). | Set times |
+| Night starts / ends | The night window, in 15-minute steps; it can cross midnight (with **Set times**) | 10:00 PM / 7:00 AM |
 | Night brightness (when dimming) | Backlight level at night, 1–100 % | 20 % |
 
 **Sleeping at night.** With **At night** set to **Sleep**, the radar goes to
@@ -422,6 +426,8 @@ most recent tiles in memory until the next restart.
 | Save map tiles to the card | Turn saving (and reading) tiles on the card on or off | On |
 | Count saved tiles | Count again | |
 | Delete saved map tiles | Removes the `tiles` folder's contents; maps download again as needed | |
+| Remember airline and route lookups | Keeps what adsbdb.com said about each aircraft you tap in a `lookups` folder, so it shows at once next time, even offline. Routes are looked up again after a month, airframes after six months. | On |
+| Delete saved lookups | Removes the `lookups` folder | |
 | Look for a card again | For a card inserted while the radar is running | |
 | Unmount (safe to remove) | Stops using the card so it can be taken out | |
 
@@ -497,6 +503,67 @@ has a remove button.
 Favorites are only "detected" inside the area the radar is fetching: roughly
 what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 
+### Watchlist alerts
+
+Announces interesting aircraft when they come within a distance of home,
+with a notice on the screen ("Watchlist: RCH471 (C17, military), 23 mi") and
+a sound of its own. Each aircraft is announced once per visit. Watched
+aircraft are always shown on the radar, whatever the [filters](#filters).
+
+| Option | What it does | Default |
+|---|---|---|
+| Watchlist alerts | Turns the whole watchlist on or off | On |
+| Military aircraft | Any aircraft the feed marks as military | Off |
+| Helicopters | Emitter category A7 | Off |
+| Fast jets | Emitter category A6 (high performance) | Off |
+| Types | ICAO type codes, e.g. `A388, B52, C17, F35`; `*` matches a prefix (`A38*` = any A380) | none |
+| Callsigns | Callsigns or tail numbers, e.g. `RCH*, N123AB` (`RCH*` = US Air Force cargo flights) | none |
+| Within | Distance from home | 25 mi |
+| Play a sound | The watchlist sound (Sound settings has a switch and a test button too) | On |
+
+Like favorites, aircraft are only seen inside the area the radar is fetching,
+roughly what's on screen. To watch a wide area, zoom out.
+
+### Phone settings page
+
+Change settings from a phone or computer instead of the touch screen. That's
+handy for Wi-Fi passwords and tail numbers. Open **Settings → Phone settings
+page** on the radar and scan the QR code with your phone's camera: the page
+opens already logged in. Or type the address shown there
+(`http://plane-radar.local`, or the radar's IP address, e.g.
+`http://192.168.1.42`) and enter the 4-digit **PIN** shown on the radar.
+
+The page has tabs for:
+
+- **Settings**: every setting, grouped like `settings.txt`. A change applies
+  on the radar at once. Distances are set in km there, with miles shown next
+  to them.
+- **Watchlist**: the [watchlist](#watchlist-alerts).
+- **Favorites**: add by tail number or hex code, rename, remove.
+- **Wi-Fi**: the saved networks in the order they're tried, scan, add one
+  (saved for later, or connect now), move up, forget.
+- **Daily log**: today and the past week.
+- **Screenshots**: take one, and view or download the saved ones.
+- **Update**: install a firmware file (the one that ends in `-ota.bin`). The
+  radar checks the file first. It refuses the full USB image and files for
+  another board, shows the same progress screen as an update from GitHub, then
+  restarts.
+
+The page only works on your own network (the radar isn't reachable from the
+internet), and only with the PIN. Five wrong PINs lock the login for a
+minute. **New PIN** on the radar's page logs every phone out. Turn the page
+off with the **Phone settings page** switch. `plane-radar.local` works on
+iPhones, Macs, Windows and most Android phones. If it doesn't, use the IP
+address.
+
+| Option | What it does | Default |
+|---|---|---|
+| QR code | Opens the page on a phone, logged in | |
+| Or open / or | The page's addresses | |
+| PIN | Asked for when you type the address | made up on first start |
+| Phone settings page | Turn the page on or off | On |
+| New PIN | A new PIN; phones that were logged in must enter it again | |
+
 ### Daily log
 
 What flew near home today: how many **different aircraft**, the **busiest**
@@ -539,6 +606,15 @@ starts.
 
 ---
 
+## Screenshots
+
+The camera button on the radar (right, below the clock) saves a picture of
+the screen, without the buttons, on the SD card. It's saved as
+`screenshots/YYYY-MM-DD_HH-MM-SS.png`, a full-resolution PNG of about
+150-300 KB. View and download them from the [phone settings
+page](#phone-settings-page) (Screenshots tab), where you can also take one.
+Screenshots need an SD card.
+
 ## Alerts explained
 
 Each data update plays at most **one** sound, the most important one, in this
@@ -555,6 +631,9 @@ order:
 4. **Proximity alert** (off by default): any airborne aircraft below the
    altitude limit enters the alert radius. Once per approach.
 5. **New aircraft**: 1–3 aircraft appeared that weren't there before.
+
+The **watchlist** sound comes right after emergencies (see
+[Watchlist alerts](#watchlist-alerts)).
 
 Favorite events also show an on-screen notice ("RCH471 is nearby") even when
 their sound is off. The **Sound** master switch silences everything.

@@ -97,6 +97,50 @@ void forgetWifi(const char* ssid) {
   }
 }
 
+bool addWifi(const char* ssid, const char* pass) {
+  std::vector<core::SavedWifi> v = savedWifi();
+  const bool known = isSavedWifi(ssid);
+  if (!known && v.size() >= 1 + core::kMaxSavedWifi) return false;
+  if (v.empty()) {  // nothing saved yet: this is the network to use
+    useWifi(ssid, pass);
+    return true;
+  }
+  core::SavedWifi w;
+  std::snprintf(w.ssid, sizeof(w.ssid), "%s", ssid);
+  std::snprintf(w.pass, sizeof(w.pass), "%s", pass);
+  bool replaced = false;
+  for (core::SavedWifi& o : v) {
+    if (std::strcmp(o.ssid, ssid) == 0) {
+      o = w;  // new password for a saved one
+      replaced = true;
+    }
+  }
+  if (!replaced) v.push_back(w);
+  setAll(v);
+  settingsChanged();
+  settingsFlush();
+  return true;
+}
+
+void moveWifiUp(const char* ssid) {
+  std::vector<core::SavedWifi> v = savedWifi();
+  for (size_t i = 1; i < v.size(); ++i) {
+    if (std::strcmp(v[i].ssid, ssid) == 0) {
+      std::swap(v[i], v[i - 1]);
+      setAll(v);
+      settingsChanged();
+      settingsFlush();
+      // A new first network: connect to it, as choosing one on the screen does.
+      if (i == 1) {
+        plat::wifiConnect(v[0].ssid, v[0].pass);
+        s_target = 0;
+        s_attempt_ms = plat::millis();
+      }
+      return;
+    }
+  }
+}
+
 void serviceWifi(uint32_t now_ms) {
   const std::vector<core::SavedWifi> v = savedWifi();
   const plat::WifiStatus ws = plat::wifiStatus();

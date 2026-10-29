@@ -38,6 +38,18 @@ uint32_t settingsGeneration();
  * settings from before, so the UI can re-theme or restart.
  */
 void onSettingsLoaded(std::function<void(const core::Settings& before)> fn);
+/**
+ * Applies "key = value" lines (the settings.txt format) on top of the
+ * current settings, like a settings.txt from the card. UI task. Returns how
+ * many settings were read; bad lines go to `problems`.
+ */
+int applySettingsText(const std::string& text, std::vector<std::string>* problems);
+/**
+ * Runs `fn` on the UI task (at its next tick) and waits for it. For other
+ * tasks (the web server). False if it didn't get to run within the timeout;
+ * then it never runs.
+ */
+bool runOnUi(std::function<void()> fn, uint32_t timeout_ms = 3000);
 /** Factory reset: erases saved settings and favorites, and settings.txt on the card. */
 void factoryReset();
 /** Called periodically from the UI task (handles debounced save, dimming). */
@@ -72,6 +84,10 @@ bool isSavedWifi(const char* ssid, std::string* pass = nullptr);
 void useWifi(const char* ssid, const char* pass);
 /** Removes a saved network. Forgetting the current one moves on to the next saved one. */
 void forgetWifi(const char* ssid);
+/** Saves a network to try when the current one fails, without switching. False if all slots are taken. */
+bool addWifi(const char* ssid, const char* pass);
+/** Moves a saved network one place up in the order they're tried. */
+void moveWifiUp(const char* ssid);
 
 core::TrafficStore& traffic();
 
@@ -108,6 +124,10 @@ bool addFavorite(const core::Favorite& f);
 void lookupFavorite(const std::string& registration_or_hex);
 /** Runs a pending lookup (network task); true if it made a request. */
 bool serviceFavoriteLookup();
+/** Changes a favorite's label. */
+void renameFavorite(const char* hex, const char* label);
+/** Tail numbers from favorites.txt that haven't been looked up yet. */
+std::vector<std::string> unresolvedFavorites();
 /** Replaces the whole list (used to undo edits). */
 void setFavorites(const std::vector<core::Favorite>& favs);
 /**
@@ -168,6 +188,37 @@ core::daylog::Day dayLogToday();
 /** Earlier days from the SD card, newest first (up to `days`). Reads the card: UI task, on demand. */
 std::vector<core::daylog::Day> dayLogHistory(int days);
 
+// --- Night mode ---------------------------------------------------------------------
+/** True while it's night (night mode on): by the clock times, or sunset to sunrise. */
+bool isNight();
+/**
+ * Today's sunset and sunrise at home, in local minutes after midnight. False
+ * without the time, or on polar days and nights (*always_dark says which).
+ */
+bool sunTimesToday(int* sunset_min, int* sunrise_min, bool* always_dark = nullptr);
+
+// --- Screenshots ---------------------------------------------------------------------
+/**
+ * UI task: saves a screen picture (B, G, R bytes per pixel, rows `stride`
+ * apart) as a PNG in screenshots/ on the SD card. Compressing and writing
+ * happen on the network task; a notice says when it's saved. False without
+ * a card.
+ */
+bool saveScreenshot(std::vector<uint8_t> bgr, int width, int height, int stride);
+/** The UI's way to take a screenshot (set by the UI; used by the phone page). */
+void onScreenshotRequest(std::function<bool()> take);
+bool requestScreenshot();
+/** Screenshot file names, newest first (reads the card). */
+std::vector<std::string> screenshots();
+/** Full path of a screenshot file, or "" if the name isn't one. */
+std::string screenshotPath(const std::string& name);
+
+// --- Lookups kept on the SD card ------------------------------------------------------
+/** Deletes the saved airline/route lookups (network task, soon). */
+void clearLookupCache();
+/** Network task: card work besides map tiles (screenshots, saved lookups). True if it did something. */
+bool serviceCardWork();
+
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);
 
@@ -213,6 +264,13 @@ void installUpdate();
 UpdateStatus updateStatus();
 /** Network task: runs a pending check or install. True if it did something. */
 bool serviceUpdate();
+/**
+ * A firmware file is being installed from the phone page: shows the same
+ * progress screen. begin() is false while another install runs.
+ */
+bool uploadBegin(size_t total);
+void uploadProgress(size_t done, const char* version);
+void uploadEnd(bool ok, const std::string& error);
 
 /** Plays a sound if the user enabled that category. */
 void sound(core::Sound s);

@@ -10,6 +10,32 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.18.0] - 2026-10-29
+
+### Added
+- **Phone settings page**: Settings → Phone settings page shows a QR code;
+  scan it and a page served by the radar opens on your phone, already logged
+  in (or open `http://plane-radar.local` and enter the PIN). Change every
+  setting, add and rename favorites, manage saved Wi-Fi networks (scan, add
+  for later or connect now, reorder, forget), see the daily log and
+  screenshots, and install a firmware file. The radar refuses the full USB
+  image and files for another board. PIN protected, local network only.
+- **Watchlist alerts** (Settings → Watchlist alerts): a notice and a sound
+  when military aircraft, helicopters, fast jets, chosen types (A388, C17,
+  ...) or callsigns and tail numbers (RCH*, N123AB) come within a distance of
+  home. Watched aircraft are always shown, whatever the filters.
+- **Night from sunset to sunrise** (Display → Night is): night mode can follow
+  the sun at your home location instead of fixed times.
+- **Screenshot button** on the radar (camera, below the clock): saves the
+  screen as a PNG in `screenshots/` on the SD card.
+- **Lookups kept on the SD card**: airline, route and airframe details from
+  adsbdb.com are saved in `lookups/`, so aircraft seen before show them at
+  once, also offline (SD card page: switch and delete button).
+
+### Changed
+- The zoom, map, Home and update buttons moved a little closer together to
+  make room for the camera button.
+
 ## [v1.17.1] - 2026-10-29
 
 ### Added

@@ -122,6 +122,14 @@ std::vector<int16_t> synthesize(Sound sound, int rate) {
       }
       return b.toPcm();
     }
+    case Sound::Watch: {
+      Buffer b(rate, 1.1);
+      for (int i = 0; i < 2; ++i) {
+        b.tone(i * 0.5, 0.18, 1567.98, 1567.98, 0.42, 0.12, 0.004, true);       // G6
+        b.tone(i * 0.5 + 0.16, 0.3, 1046.5, 1396.9, 0.42, 0.16, 0.004, true);  // C6 gliding up to F6
+      }
+      return b.toPcm();
+    }
     default:
       return {};
   }

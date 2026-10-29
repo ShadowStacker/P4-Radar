@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "app/app.h"
+#include "app/maps.h"
 #include "core/clock.h"
 #include "platform/platform.h"
 #include "ui/hud.h"
@@ -367,6 +368,7 @@ void init(lv_display_t* disp) {
   if (app::settings().wifi_ssid[0] == '\0') openSettings(Page::Wifi);
 
   app::onSettingsLoaded(onSettingsLoaded);
+  app::onScreenshotRequest([] { return takeScreenshot(); });
 }
 
 namespace {
@@ -415,6 +417,29 @@ void onSettingsLoaded(const core::Settings& before) {
 
 bool settingsOpen() { return s_settings_screen != nullptr; }
 
+bool takeScreenshot() {
+  if (app::maps::sdStatus().state != app::maps::SdState::Mounted) {
+    toast(LV_SYMBOL_SD_CARD "  Screenshots need an SD card", 2500);
+    return false;
+  }
+  const int32_t w = screenW(), h = screenH();
+  const uint32_t stride = lv_draw_buf_width_to_stride(w, LV_COLOR_FORMAT_RGB888);
+  std::vector<uint8_t> px(static_cast<size_t>(stride) * h);
+  lv_draw_buf_t buf;
+  lv_draw_buf_init(&buf, w, h, LV_COLOR_FORMAT_RGB888, stride, px.data(), px.size());
+  const bool radar = lv_screen_active() == s_radar_screen;
+  const bool was_hidden = radar && hud::hideForSnapshot(true);
+  const lv_result_t res = lv_snapshot_take_to_draw_buf(lv_screen_active(), LV_COLOR_FORMAT_RGB888, &buf);
+  if (radar) hud::hideForSnapshot(was_hidden);
+  if (res != LV_RESULT_OK || !app::saveScreenshot(std::move(px), w, h, static_cast<int>(stride))) {
+    toast(LV_SYMBOL_WARNING "  Couldn't take a screenshot (still saving the last one?)", 2500);
+    return false;
+  }
+  app::sound(core::Sound::Click);
+  toast(LV_SYMBOL_IMAGE "  Saving screenshot...", 1500);
+  return true;
+}
+
 void confirmInstallUpdate() {
   const app::UpdateStatus u = app::updateStatus();
   if (u.state != app::UpdateState::Available) return;
@@ -450,6 +475,8 @@ void closeSettings(bool discard) {
     std::memcpy(s_snapshot.wifi_ssid, st.wifi_ssid, sizeof(st.wifi_ssid));
     std::memcpy(s_snapshot.wifi_pass, st.wifi_pass, sizeof(st.wifi_pass));
     std::memcpy(s_snapshot.wifi_saved, st.wifi_saved, sizeof(st.wifi_saved));
+    std::memcpy(s_snapshot.web_pin, st.web_pin, sizeof(st.web_pin));  // a new PIN has logged phones out already
+    std::memcpy(s_snapshot.web_token, st.web_token, sizeof(st.web_token));
     const bool filters_changed =
         st.military_only != s_snapshot.military_only || st.show_ground != s_snapshot.show_ground ||
         st.min_alt_ft != s_snapshot.min_alt_ft || st.max_alt_ft != s_snapshot.max_alt_ft ||

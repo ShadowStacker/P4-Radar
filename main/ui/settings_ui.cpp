@@ -12,11 +12,13 @@
 
 #include "app/app.h"
 #include "app/maps.h"
+#include "app/web.h"
 #include "core/adsb.h"
 #include "core/clock.h"
 #include "core/daylog.h"
 #include "core/filter.h"
 #include "core/tiles.h"
+#include "core/watch.h"
 #include "data/airports.h"
 #include "platform/platform.h"
 #include "ui/hud.h"
@@ -288,7 +290,11 @@ void pageMain() {
                                                    : std::string(sd.state == app::maps::SdState::Unknown ? "..." : "No card"),
            Page::SdCard);
   }
-  navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
+  navRowImage(sprites::star(sc(30) | 1), "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())),
+              Page::Favorites);
+  navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
+  navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
+         Page::Phone);
   navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
   navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
@@ -617,15 +623,36 @@ void pageDisplay() {
   static const char* const kNightModes[] = {"Dim the screen", "Sleep", ""};
   choiceRow("At night", kNightModes, st.night_sleep ? 1 : 0,
             [](int v) { app::settings().night_sleep = v == 1; });
-  auto timeText = [](int quarter) {
-    char buf[16];
-    core::formatTime(quarter / 4, quarter % 4 * 15, app::settings().clock_24h, buf, sizeof(buf));
-    return std::string(buf);
-  };
-  sliderRow("Night starts", 0, 95, st.night_from_min / 15,
-            [](int v) { app::settings().night_from_min = static_cast<uint16_t>(v * 15); }, timeText);
-  sliderRow("Night ends", 0, 95, st.night_to_min / 15,
-            [](int v) { app::settings().night_to_min = static_cast<uint16_t>(v * 15); }, timeText);
+  static const char* const kNightBy[] = {"Set times", "Sunset to sunrise", ""};
+  choiceRow("Night is", kNightBy, st.night_by_sun ? 1 : 0, [](int v) {
+    app::settings().night_by_sun = v == 1;
+    lv_async_call([](void*) { showPage(Page::Display); }, nullptr);  // the time sliders come and go
+  });
+  if (st.night_by_sun) {
+    int set = 0, rise = 0;
+    bool dark = false;
+    std::string when;
+    if (app::sunTimesToday(&set, &rise, &dark)) {
+      char a[16], b[16];
+      core::formatTime(set / 60, set % 60, st.clock_24h, a, sizeof(a));
+      core::formatTime(rise / 60, rise % 60, st.clock_24h, b, sizeof(b));
+      when = fmtStr("sunset %s, sunrise %s", a, b);
+    } else {
+      when = plat::timeValid() ? (dark ? "no sunrise today" : "no sunset today") : "waiting for the time";
+    }
+    lv_obj_t* l = infoRow("Today at home", when);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  } else {
+    auto timeText = [](int quarter) {
+      char buf[16];
+      core::formatTime(quarter / 4, quarter % 4 * 15, app::settings().clock_24h, buf, sizeof(buf));
+      return std::string(buf);
+    };
+    sliderRow("Night starts", 0, 95, st.night_from_min / 15,
+              [](int v) { app::settings().night_from_min = static_cast<uint16_t>(v * 15); }, timeText);
+    sliderRow("Night ends", 0, 95, st.night_to_min / 15,
+              [](int v) { app::settings().night_to_min = static_cast<uint16_t>(v * 15); }, timeText);
+  }
   sliderRow("Night brightness (when dimming)", 1, 100, st.night_brightness,
             [](int v) { app::settings().night_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
@@ -1005,6 +1032,11 @@ void pageSdCard() {
     confirm("Delete saved map tiles?", "Maps will download again as you look at them.", "Delete",
             [] { app::maps::sdRequest(app::maps::SdAction::Clear); });
   }, p.warn);
+  switchRow("Remember airline and route lookups", &st.lookup_cache);
+  actionRow(LV_SYMBOL_TRASH, "Delete saved lookups", [] {
+    confirm("Delete saved lookups?", "Airlines and routes will be looked up online again.", "Delete",
+            [] { app::clearLookupCache(); });
+  }, p.warn);
   actionRow(LV_SYMBOL_SD_CARD, "Look for a card again", [] { app::maps::sdRequest(app::maps::SdAction::Mount); },
             p.accent);
   actionRow(LV_SYMBOL_EJECT, "Unmount (safe to remove)", [] { app::maps::sdRequest(app::maps::SdAction::Unmount); },
@@ -1015,7 +1047,10 @@ void pageSdCard() {
                          "with the power off, or tap \"Look for a card again\".\n\n"
                          "The card also keeps a copy of your settings (settings.txt, including Wi-Fi) and "
                          "favorites (favorites.txt). They are read at startup, so they come back after a "
-                         "reflash, and you can edit them on a computer.",
+                         "reflash, and you can edit them on a computer.\n\n"
+                         "Airline and route lookups are kept in lookups/ (shown at once next time, even "
+                         "offline; routes are looked up again after a month), screenshots in screenshots/ and "
+                         "the daily log in log/.",
                          font(FontSize::S), p.text_dim);
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
@@ -1046,6 +1081,7 @@ void pageSound() {
   section("FAVORITES");
   switchRow("Favorite detected", &st.sound_favorite_seen);
   switchRow("Favorite nearby", &st.sound_favorite_near);
+  switchRow("Watchlist aircraft", &st.sound_watch);
   sliderRow("Nearby radius", 1, 100, static_cast<int>(app::kmToUnits(st.favorite_near_radius_km) + 0.5),
             [](int v) { app::settings().favorite_near_radius_km = static_cast<float>(app::unitsToKm(v)); },
             [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
@@ -1057,6 +1093,7 @@ void pageSound() {
   actionRow(LV_SYMBOL_PLAY, "Favorite detected", [] { plat::playSound(core::Sound::FavoriteSeen); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Favorite nearby", [] { plat::playSound(core::Sound::FavoriteNear); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Emergency", [] { plat::playSound(core::Sound::Emergency); }, pal().text);
+  actionRow(LV_SYMBOL_PLAY, "Watchlist", [] { plat::playSound(core::Sound::Watch); }, pal().text);
 }
 
 void pageFavorites() {
@@ -1161,7 +1198,7 @@ void maskSwitchRow(const char* text, uint8_t* mask, uint8_t bit) {
 
 void pageFilters() {
   auto& st = app::settings();
-  label(s.list, "Favorites are always shown, whatever the filters.", font(FontSize::S), pal().text_dim);
+  label(s.list, "Favorites and watchlist aircraft are always shown.", font(FontSize::S), pal().text_dim);
 
   section("AIRCRAFT KINDS");
   for (int i = 0; i < core::kCategoryCount; ++i) {
@@ -1431,6 +1468,113 @@ void pageAbout() {
   };
 }
 
+void pagePhone() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  // QR code on a white card (phones need the light border around it).
+  lv_obj_t* box = lv_obj_create(s.list);
+  lv_obj_remove_style_all(box);
+  lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_row(box, sc(10), 0);
+  const std::string url = app::web::loginUrl();
+  if (!st.web_enabled) {
+    label(box, "The phone page is off.", font(FontSize::M), p.text_dim);
+  } else if (url.empty()) {
+    label(box, "Connect to Wi-Fi first.", font(FontSize::M), p.text_dim);
+  } else {
+    lv_obj_t* white = lv_obj_create(box);
+    lv_obj_remove_style_all(white);
+    lv_obj_set_size(white, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(white, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(white, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(white, sc(14), 0);
+    lv_obj_set_style_pad_all(white, sc(16), 0);
+    lv_obj_t* qr = lv_qrcode_create(white);
+    lv_qrcode_set_size(qr, sc(250));
+    lv_qrcode_set_dark_color(qr, lv_color_black());
+    lv_qrcode_set_light_color(qr, lv_color_white());
+    lv_qrcode_update(qr, url.data(), static_cast<uint32_t>(url.size()));
+    lv_obj_t* hint = label(box, "Scan with your phone's camera", font(FontSize::M), p.text);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+  }
+  if (st.web_enabled) {
+    infoRow("Or open", app::web::address().empty() ? std::string("-") : app::web::address());
+    infoRow("or", fmtStr("http://%s", app::web::kHostName));
+    infoRow("PIN", st.web_pin);
+  }
+  switchRow("Phone settings page", &st.web_enabled, [] { lv_async_call([](void*) { showPage(Page::Phone); }, nullptr); });
+  actionRow(LV_SYMBOL_REFRESH, "New PIN (logs out every phone)", [] {
+    app::web::newPin();
+    showPage(Page::Phone);
+  }, p.accent);
+  lv_obj_t* note = label(s.list,
+                         "Change settings, favorites and Wi-Fi networks from a phone or computer on the same "
+                         "network, see the daily log and screenshots, and install a firmware file. The QR code "
+                         "includes the PIN; typing the address asks for it. The page only works on your own "
+                         "network.",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+  // The address appears once Wi-Fi connects.
+  const bool had_url = !url.empty();
+  s.tick = [had_url] {
+    if (!app::web::loginUrl().empty() != had_url) showPage(Page::Phone);
+  };
+}
+
+void pageWatchlist() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  label(s.list, "Announce these aircraft when they come near home.", font(FontSize::S), p.text_dim);
+  switchRow("Watchlist alerts", &st.watch_enabled);
+  section("ANNOUNCE");
+  switchRow("Military aircraft", &st.watch_military);
+  switchRow("Helicopters", &st.watch_rotor);
+  switchRow("Fast jets", &st.watch_fast);
+  const std::string types = st.watch_types[0] ? st.watch_types : "none";
+  actionRow(LV_SYMBOL_KEYBOARD, ("Types: " + types).c_str(), [] {
+    textInput("Types, e.g. A388, B52, C17, F35", app::settings().watch_types, InputKind::Text,
+              [](const std::string& v) {
+                auto& w = app::settings();
+                std::string up;
+                for (char c : v) up += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                std::snprintf(w.watch_types, sizeof(w.watch_types), "%s", up.c_str());
+                changed();
+                showPage(Page::Watchlist);
+              });
+  }, p.text);
+  const std::string calls = st.watch_callsigns[0] ? st.watch_callsigns : "none";
+  actionRow(LV_SYMBOL_KEYBOARD, ("Callsigns: " + calls).c_str(), [] {
+    textInput("Callsigns or tail numbers, e.g. RCH*, N123AB", app::settings().watch_callsigns, InputKind::Text,
+              [](const std::string& v) {
+                auto& w = app::settings();
+                std::string up;
+                for (char c : v) up += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                std::snprintf(w.watch_callsigns, sizeof(w.watch_callsigns), "%s", up.c_str());
+                changed();
+                showPage(Page::Watchlist);
+              });
+  }, p.text);
+  label(s.list, "* matches a prefix: A38* = any A380, RCH* = US Air Force cargo flights.", font(FontSize::S),
+        p.text_dim);
+  section("WHEN");
+  sliderRow("Within", 1, 150, static_cast<int>(app::kmToUnits(st.watch_radius_km) + 0.5),
+            [](int v) { app::settings().watch_radius_km = static_cast<float>(app::unitsToKm(v)); },
+            [](int v) { return fmtStr("%d %s of home", v, app::unitSuffix()); });
+  switchRow("Play a sound", &st.sound_watch);
+  actionRow(LV_SYMBOL_PLAY, "Test the sound", [] { plat::playSound(core::Sound::Watch); }, p.text);
+  lv_obj_t* note = label(s.list,
+                         "Each aircraft is announced once per visit, with a message on the screen (and the "
+                         "sound). Watched aircraft are always shown, whatever the filters.",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
 const char* pageTitle(Page p) {
   switch (p) {
     case Page::Wifi: return "Wi-Fi";
@@ -1448,6 +1592,8 @@ const char* pageTitle(Page p) {
     case Page::TimeZone: return "Time zone";
     case Page::AlarmEdit: return "Alarm";
     case Page::SdCard: return "SD card";
+    case Page::Phone: return "Phone settings page";
+    case Page::Watchlist: return "Watchlist alerts";
     default: return "Settings";
   }
 }
@@ -1477,6 +1623,8 @@ void showPage(Page page) {
     case Page::TimeZone: pageTimeZone(); break;
     case Page::AlarmEdit: pageAlarmEdit(); break;
     case Page::SdCard: pageSdCard(); break;
+    case Page::Phone: pagePhone(); break;
+    case Page::Watchlist: pageWatchlist(); break;
     default: pageMain(); break;
   }
   if (s.tick) s.tick();

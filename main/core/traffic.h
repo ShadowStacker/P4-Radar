@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <vector>
 
@@ -53,6 +54,7 @@ struct Track {
   uint8_t trail_head = 0;      // index of the next write
   bool close_alerted = false;
   bool favorite_near_alerted = false;
+  bool watch_alerted = false;  // announced as a watchlist aircraft
 
   /** i = 0 is the oldest retained point. */
   const TrailPoint& trailAt(int i) const {
@@ -74,6 +76,16 @@ struct FavoriteWatch {
   const std::vector<Favorite>* favorites = nullptr;
   LatLon center;
   double near_radius_km = 0;
+  /** Watchlist: why an aircraft is on it ("" = it isn't). Announced once, inside watch_radius_km. */
+  std::function<std::string(const Aircraft&)> watch;
+  double watch_radius_km = 0;
+};
+
+struct WatchHit {
+  std::string name;    // display name
+  std::string reason;  // "military", "C17", ...
+  std::string type;
+  double km = 0;       // from home
 };
 
 struct UpdateEvents {
@@ -82,6 +94,7 @@ struct UpdateEvents {
   int new_close_approaches = 0;
   std::vector<std::string> favorites_seen;  // display names, newly in range
   std::vector<std::string> favorites_near;  // display names, newly within near_radius_km
+  std::vector<WatchHit> watch_hits;         // watchlist aircraft, newly within watch_radius_km
 };
 
 /**

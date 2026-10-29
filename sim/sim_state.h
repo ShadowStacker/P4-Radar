@@ -4,6 +4,8 @@
 #include <functional>
 #include <string>
 
+#include "platform/platform.h"
+
 namespace sim {
 
 /** Virtual clock (ms) driving LVGL ticks and plat::millis(). */
@@ -31,5 +33,11 @@ extern std::function<std::string(const std::string&)> g_route_server;
 
 /** The fake GitHub reports a newer release (v1.13.0) instead of the running one. */
 extern bool g_update_available;
+
+/** The phone page's request handler, once the app started the web server. */
+extern plat::WebHandler g_web_handler;
+/** Bytes of firmware "written" by the last upload, and whether it was committed. */
+extern size_t g_firmware_written;
+extern bool g_firmware_committed;
 
 }  // namespace sim

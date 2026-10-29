@@ -8,6 +8,13 @@
 #include <cstring>
 #include <set>
 #include <thread>
+#include <memory>
+#include <random>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <zlib.h>
 
@@ -23,6 +30,9 @@ bool g_update_available = false;
 std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
 std::function<std::string(const std::string&)> g_route_server;
+plat::WebHandler g_web_handler;
+size_t g_firmware_written = 0;
+bool g_firmware_committed = false;
 }  // namespace sim
 
 namespace plat {
@@ -46,6 +56,7 @@ const char* soundName(core::Sound s) {
     case core::Sound::FavoriteSeen: return "favorite_detected";
     case core::Sound::FavoriteNear: return "favorite_nearby";
     case core::Sound::Alarm: return "alarm";
+    case core::Sound::Watch: return "watchlist";
     default: return "unknown";
   }
 }
@@ -361,5 +372,125 @@ BootInfo bootInfo() {
   return b;
 }
 void bootStable() {}
+
+uint32_t random32() {
+  static std::mt19937 rng(20261029);  // the same PIN every run, for repeatable screenshots
+  return rng();
+}
+
+bool firmwareWriteBegin(std::string*) {
+  sim::g_firmware_written = 0;
+  sim::g_firmware_committed = false;
+  return true;
+}
+bool firmwareWrite(const void*, size_t len, std::string*) {
+  sim::g_firmware_written += len;
+  return true;
+}
+bool firmwareWriteEnd(bool commit, std::string*) {
+  sim::g_firmware_committed = commit;
+  return true;
+}
+
+// Web server: the handler is kept for scripted requests (sim::g_web_handler);
+// with SIM_WEB set, it is also served on http://localhost:8080 for a browser.
+namespace {
+int s_listen = -1;
+
+void serveClient(int fd) {
+  std::string in;
+  char buf[8192];
+  size_t header_end = std::string::npos;
+  while (header_end == std::string::npos) {
+    const ssize_t n = recv(fd, buf, sizeof(buf), 0);
+    if (n <= 0) return;
+    in.append(buf, static_cast<size_t>(n));
+    header_end = in.find("\r\n\r\n");
+    if (in.size() > 65536) return;
+  }
+  WebRequest r;
+  const std::string head = in.substr(0, header_end);
+  std::string rest = in.substr(header_end + 4);
+  const size_t sp1 = head.find(' '), sp2 = head.find(' ', sp1 + 1);
+  r.method = head.substr(0, sp1);
+  const std::string uri = head.substr(sp1 + 1, sp2 - sp1 - 1);
+  const size_t q = uri.find('?');
+  r.path = uri.substr(0, q);
+  if (q != std::string::npos) r.query = uri.substr(q + 1);
+  size_t pos = head.find("\r\n");
+  while (pos != std::string::npos && pos < head.size()) {
+    const size_t next = head.find("\r\n", pos + 2);
+    const std::string line = head.substr(pos + 2, (next == std::string::npos ? head.size() : next) - pos - 2);
+    const size_t colon = line.find(':');
+    if (colon != std::string::npos) {
+      std::string k = line.substr(0, colon), v = line.substr(colon + 1);
+      for (char& c : k) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      while (!v.empty() && v[0] == ' ') v.erase(0, 1);
+      if (k == "content-length") r.content_length = std::strtoul(v.c_str(), nullptr, 10);
+      if (k == "cookie") r.cookie = v;
+    }
+    pos = next;
+  }
+  if (r.content_length <= kWebMaxBody) {
+    while (rest.size() < r.content_length) {
+      const ssize_t n = recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) return;
+      rest.append(buf, static_cast<size_t>(n));
+    }
+    r.body = rest.substr(0, r.content_length);
+  } else {
+    auto pending = std::make_shared<std::string>(rest);
+    r.read = [fd, pending](char* out, size_t len) -> int {
+      if (!pending->empty()) {
+        const size_t n = std::min(len, pending->size());
+        std::memcpy(out, pending->data(), n);
+        pending->erase(0, n);
+        return static_cast<int>(n);
+      }
+      const ssize_t n = recv(fd, out, len, 0);
+      return n < 0 ? -1 : static_cast<int>(n);
+    };
+  }
+  const WebResponse res = sim::g_web_handler(r);
+  std::string out = "HTTP/1.1 " + std::to_string(res.status) + " X\r\nContent-Type: " + res.type +
+                    "\r\nContent-Length: " + std::to_string(res.body.size()) + "\r\nConnection: close\r\n";
+  if (!res.set_cookie.empty()) out += "Set-Cookie: " + res.set_cookie + "\r\n";
+  out += "\r\n" + res.body;
+  size_t sent = 0;
+  while (sent < out.size()) {
+    const ssize_t n = send(fd, out.data() + sent, out.size() - sent, MSG_NOSIGNAL);
+    if (n <= 0) break;
+    sent += static_cast<size_t>(n);
+  }
+}
+}  // namespace
+
+bool webServerStart(WebHandler handler) {
+  sim::g_web_handler = std::move(handler);
+  if (!std::getenv("SIM_WEB") || s_listen >= 0) return true;
+  s_listen = socket(AF_INET, SOCK_STREAM, 0);
+  const int one = 1;
+  setsockopt(s_listen, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+  sockaddr_in a{};
+  a.sin_family = AF_INET;
+  a.sin_port = htons(8080);
+  a.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind(s_listen, reinterpret_cast<sockaddr*>(&a), sizeof(a)) != 0 || listen(s_listen, 8) != 0) {
+    std::perror("sim web server");
+    return false;
+  }
+  std::printf("[sim] phone page on http://localhost:8080\n");
+  std::thread([] {
+    for (;;) {
+      const int fd = accept(s_listen, nullptr, nullptr);
+      if (fd < 0) continue;
+      serveClient(fd);
+      close(fd);
+    }
+  }).detach();
+  return true;
+}
+
+void webServerStop() { sim::g_web_handler = nullptr; }
 
 }  // namespace plat

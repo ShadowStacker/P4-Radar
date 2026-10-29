@@ -138,6 +138,47 @@ void confirmFirmware();
 void* allocLarge(size_t bytes);
 void freeLarge(void* p);
 
+/**
+ * Firmware from a file (uploaded from the phone page), written into the idle
+ * app slot as it arrives. End with commit = true to check the image and boot
+ * it next (without restarting), or false to throw it away. Any task.
+ */
+bool firmwareWriteBegin(std::string* error);
+bool firmwareWrite(const void* data, size_t len, std::string* error);
+bool firmwareWriteEnd(bool commit, std::string* error);
+
+/** Hardware random number (for the phone page PIN). */
+uint32_t random32();
+
+// --- Web server (the settings page for phones) -----------------------------------
+struct WebRequest {
+  std::string method;  // "GET", "POST"
+  std::string path;    // "/api/status", without the query
+  std::string query;   // "pin=1234"
+  std::string cookie;  // the Cookie header
+  std::string body;    // bodies up to kWebMaxBody, read in full
+  size_t content_length = 0;
+  /** Larger bodies (firmware): reads the next piece; bytes read, 0 at the end, < 0 on error. */
+  std::function<int(char* buf, size_t len)> read;
+};
+constexpr size_t kWebMaxBody = 32 * 1024;
+
+struct WebResponse {
+  int status = 200;
+  std::string type = "application/json";
+  std::string body;
+  std::string set_cookie;  // value of a Set-Cookie header ("" = none)
+};
+
+using WebHandler = std::function<WebResponse(WebRequest& req)>;
+/**
+ * Serves HTTP on the local network (port 80; 8080 in the simulator) and
+ * announces the name plane-radar.local. Handlers run in the server's own
+ * task, one request at a time.
+ */
+bool webServerStart(WebHandler handler);
+void webServerStop();
+
 /** Free heap / PSRAM in bytes for the About page. */
 size_t freeInternalHeap();
 size_t freePsram();

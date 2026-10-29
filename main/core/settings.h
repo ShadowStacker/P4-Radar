@@ -41,7 +41,8 @@ struct Settings {
   //  12: up to auto_update_check (v1.16.0)
   //  13: up to log_radius_km (v1.17.0)
   //  14: up to night_sleep (v1.17.1)
-  static constexpr uint16_t kVersion = 14;
+  //  15: up to lookup_cache (v1.18.0)
+  static constexpr uint16_t kVersion = 15;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -188,6 +189,23 @@ struct Settings {
 
   // v1.17.1
   bool night_sleep = false;               // at night (night_dim on): sleep instead of dimming
+
+  // v1.18.0
+  bool night_by_sun = false;              // night is sunset to sunrise at home (else night_from/to_min)
+  // Settings page for phones, served on the local network (PIN protected).
+  bool web_enabled = true;
+  char web_pin[5] = "";                   // 4 digits, made up on first start
+  char web_token[17] = "";                // what a logged-in phone keeps as its cookie
+  // Watchlist: announce these aircraft when they come within watch_radius_km of home.
+  bool watch_enabled = true;
+  bool watch_military = false;
+  bool watch_rotor = false;               // helicopters
+  bool watch_fast = false;                // fast jets (emitter category A6)
+  char watch_types[48] = "";              // ICAO types, e.g. "A388, B52, C17"
+  char watch_callsigns[48] = "";          // callsigns or registrations, e.g. "RCH*, N123AB"
+  float watch_radius_km = 40.2336f;       // 25 mi
+  bool sound_watch = true;
+  bool lookup_cache = true;               // keep airline/route lookups on the SD card
 };
 
 }  // namespace core

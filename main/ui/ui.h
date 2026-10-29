@@ -6,7 +6,7 @@ namespace ui {
 
 enum class Page {
   Main, Wifi, Location, Display, Sound, Traffic, Filters, Favorites, DayLog, Updates, About,
-  CustomTheme, Clock, TimeZone, AlarmEdit, SdCard,
+  CustomTheme, Clock, TimeZone, AlarmEdit, SdCard, Phone, Watchlist,
 };
 
 /** Builds the whole UI. Call with the LVGL lock held. */
@@ -29,6 +29,12 @@ void closeSettings(bool discard = false);
  * reopen at the page that was showing, scrolled to the same place.
  */
 void rebuild();
+
+/**
+ * Saves what's on the screen (without the radar's buttons) as a PNG on the
+ * SD card. False (with a message) without a card.
+ */
+bool takeScreenshot();
 
 /** Asks "Install vX.Y.Z?" and starts the firmware update if confirmed (needs an available update). */
 void confirmInstallUpdate();

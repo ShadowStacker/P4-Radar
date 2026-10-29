@@ -87,6 +87,17 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       if (near && !t->favorite_near_alerted) ev.favorites_near.push_back(displayName(a));
       t->favorite_near_alerted = near;
     }
+
+    if (watch.watch && !t->watch_alerted) {
+      const double km = distanceKm(watch.center, {a.lat, a.lon});
+      if (km <= watch.watch_radius_km) {
+        const std::string why = watch.watch(a);
+        if (!why.empty()) {
+          t->watch_alerted = true;  // once per visit (until it's dropped)
+          ev.watch_hits.push_back({displayName(a), why, a.type, km});
+        }
+      }
+    }
   }
 
   // Forget aircraft that have not been reported for a while.

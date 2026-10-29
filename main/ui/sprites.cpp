@@ -254,6 +254,53 @@ const lv_draw_buf_t* clockIcon(int32_t size) {
   return buf;
 }
 
+const lv_draw_buf_t* cameraIcon(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  const int32_t w = size / 10 > 2 ? size / 10 : 2;
+  // Body: an outlined rounded box, with the viewfinder bump on top.
+  lv_draw_rect_dsc_t body;
+  lv_draw_rect_dsc_init(&body);
+  body.bg_opa = LV_OPA_TRANSP;
+  body.border_color = lv_color_white();
+  body.border_width = w;
+  body.radius = size / 7;
+  const lv_area_t box = {1, size * 27 / 100, size - 2, size * 86 / 100};
+  lv_draw_rect(&layer, &body, &box);
+  lv_draw_rect_dsc_t bump;
+  lv_draw_rect_dsc_init(&bump);
+  bump.bg_color = lv_color_white();
+  bump.radius = w / 2;
+  const lv_area_t top = {size * 32 / 100, size * 14 / 100, size * 66 / 100, size * 27 / 100};
+  lv_draw_rect(&layer, &bump, &top);
+  // Lens.
+  lv_draw_arc_dsc_t arc;
+  lv_draw_arc_dsc_init(&arc);
+  arc.color = lv_color_white();
+  arc.width = w;
+  arc.center.x = size / 2;
+  arc.center.y = size * 57 / 100;
+  arc.radius = static_cast<uint16_t>(size * 19 / 100);
+  arc.start_angle = 0;
+  arc.end_angle = 360;
+  lv_draw_arc(&layer, &arc);
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.push_back({size, buf});
+  return buf;
+}
+
 const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small) {
   float h = std::fmod(heading_deg, 360.0f);
   if (h < 0) h += 360.0f;

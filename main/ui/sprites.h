@@ -33,6 +33,8 @@ int32_t starButtonSize();  // star buttons in the info card and lists
 
 /** White clock-face icon, `size` px square. Cached. */
 const lv_draw_buf_t* clockIcon(int32_t size);
+/** White camera icon (screenshots), `size` px square. Cached. */
+const lv_draw_buf_t* cameraIcon(int32_t size);
 
 /** Picks a sprite family from the ADS-B emitter category (A1..A7, C1..). */
 Kind kindFor(const char* category, bool on_ground);

@@ -68,10 +68,16 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - Double-tap zooms in. The **＋/−** buttons also zoom.
 - **Home** button flies back to your home location and zoom. Quick buttons
   for **Filters**, **Mute**, **Sleep** (screen off, tap to wake) and the
-  **Clock** face sit around the edge.
+  **Clock** face, **Screenshot** and update sit around the edge.
 - **Background maps**: dark street map, topo map, FAA VFR sectional charts,
   satellite photos, or a street map with street names, under the radar (streets and topo tinted to the
   theme), with tiles saved on an optional microSD card for instant and offline use.
+- **Settings from your phone**: scan the QR code on the radar and change settings, favorites and Wi-Fi
+  networks from a phone page served by the radar itself (`http://plane-radar.local`, PIN protected).
+  It also shows the daily log and screenshots, and installs firmware files.
+- **Watchlist alerts**: a notice and a sound when military aircraft, helicopters, fast jets, chosen
+  types (A388, C17, ...) or callsigns (RCH*, N123AB) come near home.
+- **Screenshots**: a camera button saves the radar as a PNG on the SD card.
 - **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
   the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.
 - **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
@@ -117,7 +123,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   default), label
   detail, color mode, and toggles for trails, flight history,
   vectors, rings, runways and airport codes. Sweep settings, dim-when-idle and night dimming (or
-  sleeping) by the clock live here too.
+  sleeping), by the clock or from sunset to sunrise, live here too.
 - **Sound**: master switch, volume, a switch for each sound, proximity alert
   radius and altitude, favorite "nearby" radius, and test buttons.
 - **Favorites**: your saved aircraft, whether each is in range and how far,
@@ -140,6 +146,8 @@ phone or captive portal is needed.
 
 | | | |
 |:-:|:-:|:-:|
+| ![](docs/images/70_phone_qr.png)<br>Phone page QR code | ![](docs/images/71_phone_page_settings.png)<br>Phone page: settings | ![](docs/images/73_phone_page_wifi.png)<br>Phone page: Wi-Fi |
+| ![](docs/images/67_watchlist_alert.png)<br>Watchlist alert | ![](docs/images/68_settings_watchlist.png)<br>Watchlist settings | ![](docs/images/66_camera_button.png)<br>Screenshot button |
 | ![](docs/images/62_map_satellite.png)<br>Satellite map* | ![](docs/images/61_map_street_names.png)<br>Street map* | ![](docs/images/64_daily_log.png)<br>Daily log |
 | ![](docs/images/65_stats_overlay.png)<br>On-screen stats | ![](docs/images/58_update_button_lit.png)<br>Update available | ![](docs/images/50_sleeping.png)<br>Asleep (tap to wake) |
 | ![](docs/images/55_update_available.png)<br>Updates page | ![](docs/images/59_update_confirm.png)<br>Installing an update | ![](docs/images/60_wifi_saved_networks.png)<br>Saved Wi-Fi networks |

@@ -9,6 +9,7 @@
 
 #include "core/clock.h"
 #include "core/filter.h"
+#include "core/web.h"
 
 namespace core::settings_text {
 
@@ -110,6 +111,7 @@ const Field kFields[] = {
     U8(dim_brightness, 0, 50, "Percent while dimmed"),
     BOOL(night_dim, "Night mode: dim (or sleep) between these times (24-hour clock)"),
     BOOL(night_sleep, "At night: on = sleep (screen off, muted), off = dim to night_brightness"),
+    BOOL(night_by_sun, "on = night is sunset to sunrise at home; off = these times"),
     MINUTES(night_from_min, nullptr),
     MINUTES(night_to_min, nullptr),
     U8(night_brightness, 1, 100, "Percent at night"),
@@ -141,6 +143,7 @@ const Field kFields[] = {
     BOOL(map_tint, "Recolor the map in the theme color"),
     U8(map_brightness, 10, 100, "Percent"),
     BOOL(sd_cache, "Keep downloaded map tiles on the SD card"),
+    BOOL(lookup_cache, "Keep airline and route lookups on the SD card"),
     STR(carto_key, "CARTO API key for the dark street map (empty = OpenStreetMap)"),
 
     SECTION("Sound"),
@@ -156,6 +159,16 @@ const Field kFields[] = {
     BOOL(sound_favorite_seen, nullptr),
     BOOL(sound_favorite_near, nullptr),
     F32(favorite_near_radius_km, 1, 200, "Favorite nearby radius, km"),
+
+    SECTION("Watchlist"),
+    BOOL(watch_enabled, "Announce these aircraft when they come near home"),
+    BOOL(watch_military, nullptr),
+    BOOL(watch_rotor, "Helicopters"),
+    BOOL(watch_fast, "Fast jets"),
+    STR(watch_types, "ICAO types, e.g. \"A388, B52, C17\" (* matches a prefix)"),
+    STR(watch_callsigns, "Callsigns or registrations, e.g. \"RCH*, N123AB\""),
+    F32(watch_radius_km, 1, 400, "Within this distance of home, km"),
+    BOOL(sound_watch, "Play a sound"),
 
     SECTION("Filters"),
     BOOL(show_ground, nullptr),
@@ -174,6 +187,9 @@ const Field kFields[] = {
 
     SECTION("Daily log"),
     F32(log_radius_km, 1, 400, "Count aircraft within this distance of home, in km"),
+
+    SECTION("Phone page"),
+    BOOL(web_enabled, "Settings page for phones on your network (PIN on the radar's screen)"),
 
     SECTION("Updates"),
     BOOL(auto_update_check, "Look for new firmware on GitHub a minute after start, then hourly"),
@@ -616,6 +632,88 @@ void parseFavorites(const std::string& text, std::vector<Favorite>* favs, std::v
       lookups->push_back(first);
     }
   });
+}
+
+}  // namespace core::settings_text
+
+namespace core::settings_text {
+
+std::string toJson(const Settings& s) {
+  using web::jsonString;
+  std::string out = "{\"sections\":[";
+  bool skip = false, first_section = true, first_field = true;
+  for (const Field& f : kFields) {
+    if (f.kind == Kind::Section) {
+      skip = std::strcmp(f.key, "Wi-Fi") == 0;  // passwords stay on the Wi-Fi tab
+      if (skip) continue;
+      if (!first_section) out += "]},";
+      first_section = false;
+      first_field = true;
+      out += "{\"title\":" + jsonString(f.key) + ",\"fields\":[";
+      continue;
+    }
+    if (skip) continue;
+    if (!first_field) out += ",";
+    first_field = false;
+    std::string type, extra;
+    std::string value = formatValue(s, f);
+    std::string help = f.help ? f.help : "";
+    auto options = [&](const char* const* names, int n) {
+      extra += ",\"options\":[";
+      for (int i = 0; i < n; ++i) extra += (i ? "," : "") + jsonString(names[i]);
+      extra += "]";
+    };
+    switch (f.kind) {
+      case Kind::Bool: type = "bool"; break;
+      case Kind::U8:
+      case Kind::U16:
+      case Kind::I32:
+        type = "int";
+        if (f.offset == offsetof(Settings, time_zone)) {
+          type = "zone";
+          extra += ",\"options\":[";
+          for (int i = 0; i < timeZoneCount(); ++i) extra += (i ? "," : "") + jsonString(timeZone(i).name);
+          extra += "]";
+          help = "Time zone";
+        }
+        break;
+      case Kind::F32:
+      case Kind::F64: type = "number"; break;
+      case Kind::Str:
+        type = "text";
+        value = reinterpret_cast<const char*>(&s) + f.offset;
+        extra += ",\"maxlen\":" + std::to_string(f.size - 1);
+        break;
+      case Kind::Enum: type = "choice"; options(f.names, f.name_count); break;
+      case Kind::Rotation: {
+        type = "choice";
+        static const char* const kDeg[] = {"0", "90", "180", "270"};
+        options(kDeg, 4);
+        break;
+      }
+      case Kind::Categories:
+        type = "categories";
+        options(kCategories, kCategoryCount);
+        break;
+      case Kind::Minutes: type = "time"; break;
+      case Kind::Alarm:
+        type = "alarm";
+        if (f.min == 0) help = "on/off, 24-hour time, then once, daily, weekdays, weekends or days like mon,wed,fri";
+        break;
+      case Kind::Section: break;
+    }
+    if (f.kind != Kind::Str && f.kind != Kind::Alarm && f.kind != Kind::Categories && f.kind != Kind::Minutes &&
+        f.kind != Kind::Enum && f.kind != Kind::Rotation && f.kind != Kind::Bool) {
+      char buf[64];
+      std::snprintf(buf, sizeof(buf), ",\"min\":%g,\"max\":%g", f.min, f.max);
+      extra += buf;
+    }
+    out += "{\"key\":" + jsonString(f.key) + ",\"type\":\"" + type + "\",\"value\":" + jsonString(value) +
+           ",\"help\":" + jsonString(help) + extra + "}";
+  }
+  if (!first_section) out += "]}";
+  out += "]}";
+  return out;
 }
 
 }  // namespace core::settings_text

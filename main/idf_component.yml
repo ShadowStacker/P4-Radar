@@ -9,3 +9,5 @@ dependencies:
   # Wi-Fi 6 lives on the on-board ESP32-C6, reached over SDIO via ESP-Hosted.
   espressif/esp_wifi_remote: ">=0.10"
   espressif/esp_hosted: ">=2"
+  # plane-radar.local for the phone settings page.
+  espressif/mdns: "^1.8"

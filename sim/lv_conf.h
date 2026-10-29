@@ -30,6 +30,9 @@
 #define LV_FONT_MONTSERRAT_44 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_22
 
+#define LV_USE_QRCODE 1
+#define LV_USE_SNAPSHOT 1
+
 #ifdef SIM_SDL
 #define LV_USE_SDL 1
 #define LV_SDL_INCLUDE_PATH <SDL2/SDL.h>

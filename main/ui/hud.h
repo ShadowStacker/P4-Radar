@@ -12,4 +12,7 @@ void destroy();
 void enterPickMode();
 void exitPickMode();
 
+/** Hides (or shows) the buttons, for a screenshot; returns whether they were hidden before. */
+bool hideForSnapshot(bool hide);
+
 }  // namespace ui::hud

@@ -1,9 +1,15 @@
 #include "app/app.h"
 
+#include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
+#include <chrono>
+#include <condition_variable>
+#include <memory>
 #include <deque>
 #include <cmath>
 #include <cstdio>
@@ -16,8 +22,13 @@
 #include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
+#include "app/web.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
+#include "core/lookup_cache.h"
+#include "core/png.h"
+#include "core/sun.h"
+#include "core/watch.h"
 #include "core/route.h"
 #include "core/settings_text.h"
 #include "core/trace.h"
@@ -157,6 +168,7 @@ void dropUnresolved(const std::string& tail) {
 }
 
 void settingsFlushImpl();
+void applySettings(const core::Settings& next);
 
 // Daily log. s_day is written by the network task; guarded by s_day_mu.
 std::mutex s_day_mu;
@@ -165,8 +177,6 @@ bool s_day_dirty = false;
 bool s_day_loaded = false;      // tried to continue today's file from the card
 uint32_t s_day_saved_ms = 0;
 constexpr uint32_t kDaySaveEveryMs = 10 * 60 * 1000;
-
-std::string dayLogPath(int date) { return sdPath("log") + "/" + core::daylog::fileName(date); }
 
 void saveDay(const core::daylog::Day& d) {
   if (maps::sdStatus().state != maps::SdState::Mounted || d.date == 0) return;
@@ -250,6 +260,16 @@ void applySettingsFile() {
     if (core::settings_text::serialize(s_settings) != text) queueSettingsFile();
     return;
   }
+  applySettings(next);
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_notices.push_back(problems.empty() ? "Settings loaded from SD card"
+                                         : "Settings loaded from SD card (some lines ignored)");
+  }
+}
+
+/** UI task: replaces the settings, applying whatever needs more than a redraw. */
+void applySettings(const core::Settings& next) {
   const core::Settings before = s_settings;
   s_settings = next;
   core::applyTimeZone(s_settings.time_zone);
@@ -261,11 +281,6 @@ void applySettingsFile() {
   settingsFlushImpl();  // saves to flash and rewrites the file in the current layout
   traffic().clear();     // filters may have changed
   requestRefresh();
-  {
-    std::lock_guard<std::mutex> lock(s_mu);
-    s_notices.push_back(problems.empty() ? "Settings loaded from SD card"
-                                         : "Settings loaded from SD card (some lines ignored)");
-  }
   if (s_on_loaded) s_on_loaded(before);
 }
 
@@ -314,11 +329,10 @@ bool downloadTrace(const char* hex, core::trace::Trace* out) {
   return false;
 }
 
-/** Night dimming: inside the night window by the local clock (needs the time from the internet). */
-bool isNight() {
-  if (!s_settings.night_dim || !plat::timeValid()) return false;
-  const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
-  return core::inTimeWindow(t.tm_hour * 60 + t.tm_min, s_settings.night_from_min, s_settings.night_to_min);
+/** Local minute of the day for a unix time. */
+int localMinute(int64_t unix_s) {
+  const std::tm t = core::localTime(unix_s);
+  return t.tm_hour * 60 + t.tm_min;
 }
 
 /** Brightness while in use: the normal one, or the night one. */
@@ -396,9 +410,11 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
   if (ok) {
     const std::vector<core::Favorite> favs = favorites();
+    const bool watching = core::watchActive(s_settings);
     parsed->erase(std::remove_if(parsed->begin(), parsed->end(),
                                  [&](const core::Aircraft& a) {
-                                   return !core::passesFilters(a, s_settings) && !core::containsHex(favs, a.hex);
+                                   return !core::passesFilters(a, s_settings) && !core::containsHex(favs, a.hex) &&
+                                          !(watching && !core::watchReason(a, s_settings).empty());
                                  }),
                   parsed->end());
   }
@@ -435,6 +451,10 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   watch.favorites = &favs;
   watch.center = zone.center;
   watch.near_radius_km = s_settings.favorite_near_radius_km;
+  if (core::watchActive(s_settings)) {
+    watch.watch = [](const core::Aircraft& a) { return core::watchReason(a, s_settings); };
+    watch.watch_radius_km = s_settings.watch_radius_km;
+  }
   const core::UpdateEvents ev = s_traffic.update(*parsed, plat::millis(), zone, watch);
 
   // On-screen notices for favorites (shown by the UI task), whatever the sound settings.
@@ -446,12 +466,22 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
         s_notices.push_back(n + " detected");
       }
     }
+    for (const core::WatchHit& w : ev.watch_hits) {
+      char dist[24];
+      formatDistance(w.km, dist, sizeof(dist));
+      std::string what = w.reason;
+      if (!w.type.empty() && w.type != w.reason && w.reason != w.name) what = w.type + ", " + w.reason;
+      else if (w.reason == w.name) what = w.type.empty() ? "" : w.type;
+      s_notices.push_back("Watchlist: " + w.name + (what.empty() ? "" : " (" + what + ")") + ", " + dist);
+    }
     while (s_notices.size() > 4) s_notices.pop_front();
   }
 
   // One sound per fetch, most important first.
   if (ev.new_emergencies > 0) {
     sound(core::Sound::Emergency);
+  } else if (!ev.watch_hits.empty() && s_settings.sound_watch) {
+    sound(core::Sound::Watch);
   } else if (!ev.favorites_near.empty() && s_settings.sound_favorite_near) {
     sound(core::Sound::FavoriteNear);
   } else if (!ev.favorites_seen.empty() && s_settings.sound_favorite_seen) {
@@ -463,6 +493,173 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     sound(core::Sound::NewAircraft);
   }
   return true;
+}
+
+/** Creates the directories on the way to a file under the card ("a/b/c.txt" makes a and a/b). */
+void makeDirsFor(const std::string& rel) {
+  for (size_t p = rel.find('/'); p != std::string::npos; p = rel.find('/', p + 1)) {
+    mkdir(sdPath(rel.substr(0, p).c_str()).c_str(), 0775);  // EEXIST is fine
+  }
+}
+
+bool cardReady() { return maps::sdStatus().state == maps::SdState::Mounted; }
+
+int today() { return plat::timeValid() ? core::daylog::dateOf(core::localTime(plat::unixTimeMs() / 1000)) : 0; }
+
+// Lookups kept on the card. Guarded by s_route_mu (with the route state).
+bool s_route_disk_checked = false;  // the card was asked about the pending lookup
+std::atomic<bool> s_lookup_clear{false};
+
+/** Network task: answers a pending lookup from the card when it has a fresh copy. True if it read the card. */
+bool serviceRouteCache() {
+  char hex[8], callsign[9];
+  {
+    std::lock_guard<std::mutex> lock(s_route_mu);
+    if (!s_route_pending || s_route_disk_checked) return false;
+    s_route_disk_checked = true;
+    if (!s_settings.lookup_cache || !cardReady() || !plat::timeValid()) return false;
+    std::memcpy(hex, s_route.hex, sizeof(hex));
+    std::memcpy(callsign, s_route.callsign, sizeof(callsign));
+  }
+  const std::string af = core::route::airframePath(hex);
+  if (af.empty()) return false;
+  const int now = today();
+  core::route::Info info;
+  std::string text;
+  int date = 0;
+  bool empty = true;
+  if (!readText(af.c_str(), &text) || !core::route::parseCached(text, &info, &date, &empty) ||
+      !core::route::airframeFresh(date, now, empty)) {
+    return true;
+  }
+  if (callsign[0] != '\0') {
+    const std::string rp = core::route::routePath(callsign);
+    bool route_empty = true;
+    if (rp.empty() || !readText(rp.c_str(), &text) || !core::route::parseCached(text, &info, &date, &route_empty) ||
+        !core::route::routeFresh(date, now, route_empty)) {
+      return true;
+    }
+  }
+  std::lock_guard<std::mutex> lock(s_route_mu);
+  RouteState done;
+  std::memcpy(done.hex, hex, sizeof(hex));
+  std::memcpy(done.callsign, callsign, sizeof(callsign));
+  done.info = info;
+  const bool any = info.airline[0] || info.model[0] || info.owner[0] || info.has_route;
+  done.status = any ? RouteStatus::Ready : RouteStatus::Unknown;
+  s_route_cache.push_front(done);
+  if (s_route_cache.size() > kRouteCacheSize) s_route_cache.pop_back();
+  if (sameKey(s_route, hex, callsign) && s_route_pending) {
+    s_route = done;
+    s_route_pending = false;
+  }
+  std::printf("route: %s %s from the SD card\n", hex, callsign);
+  return true;
+}
+
+/** Network task: keeps a finished lookup on the card. */
+void saveLookup(const char* hex, const char* callsign, const core::route::Info& info, bool airframe_known) {
+  if (!s_settings.lookup_cache || !cardReady() || !plat::timeValid()) return;
+  const int now = today();
+  const std::string af = core::route::airframePath(hex);
+  if (!af.empty() && airframe_known) {
+    makeDirsFor(af);
+    writeText(af.c_str(), core::route::serializeAirframe(info, now));
+  }
+  const std::string rp = core::route::routePath(callsign);
+  if (!rp.empty()) {
+    makeDirsFor(rp);
+    writeText(rp.c_str(), core::route::serializeRoute(info, now));
+  }
+}
+
+/** Deletes a directory and everything in it. */
+void removeTree(const std::string& path) {
+  DIR* d = opendir(path.c_str());
+  if (d == nullptr) {
+    std::remove(path.c_str());
+    return;
+  }
+  std::vector<std::string> names;
+  while (dirent* e = readdir(d)) {
+    if (std::strcmp(e->d_name, ".") != 0 && std::strcmp(e->d_name, "..") != 0) names.push_back(e->d_name);
+  }
+  closedir(d);
+  for (const std::string& n : names) removeTree(path + "/" + n);
+  rmdir(path.c_str());
+}
+
+bool serviceLookupClear() {
+  if (!s_lookup_clear.exchange(false) || !cardReady()) return false;
+  removeTree(sdPath("lookups"));
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_notices.push_back("Saved lookups deleted");
+  return true;
+}
+
+// Screenshots: taken on the UI task, compressed and written here.
+std::mutex s_shot_mu;
+std::vector<uint8_t> s_shot_px;
+int s_shot_w = 0, s_shot_h = 0, s_shot_stride = 0;
+std::string s_shot_name;
+std::function<bool()> s_take_screenshot;  // UI task
+
+bool serviceScreenshot() {
+  std::vector<uint8_t> px;
+  std::string name;
+  int w, h, stride;
+  {
+    std::lock_guard<std::mutex> lock(s_shot_mu);
+    if (s_shot_name.empty()) return false;
+    px.swap(s_shot_px);
+    name = s_shot_name;
+    w = s_shot_w;
+    h = s_shot_h;
+    stride = s_shot_stride;
+  }
+  const uint32_t t0 = plat::millis();
+  const std::string png = core::png::encodeRgb(px.data(), w, h, stride, true);
+  px.clear();
+  px.shrink_to_fit();
+  const std::string rel = "screenshots/" + name;
+  makeDirsFor(rel);
+  writeText(rel.c_str(), png);
+  std::printf("screenshot: %s, %u KB in %u ms\n", name.c_str(), static_cast<unsigned>(png.size() / 1024),
+              static_cast<unsigned>(plat::millis() - t0));
+  {
+    std::lock_guard<std::mutex> lock(s_shot_mu);
+    s_shot_name.clear();
+  }
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_notices.push_back("Screenshot saved: " + rel);
+  return true;
+}
+
+// Work handed to the UI task by other tasks (see runOnUi).
+struct UiJob {
+  std::mutex mu;
+  std::condition_variable cv;
+  bool done = false, cancelled = false;
+  std::function<void()> fn;
+};
+std::mutex s_ui_jobs_mu;
+std::deque<std::shared_ptr<UiJob>> s_ui_jobs;
+
+void runUiJobs() {
+  std::deque<std::shared_ptr<UiJob>> jobs;
+  {
+    std::lock_guard<std::mutex> lock(s_ui_jobs_mu);
+    jobs.swap(s_ui_jobs);
+  }
+  for (auto& j : jobs) {
+    {
+      std::lock_guard<std::mutex> lock(j->mu);
+      if (j->cancelled) continue;
+      j->fn();
+      j->done = true;
+    }
+    j->cv.notify_all();
+  }
 }
 
 void networkLoop() {
@@ -484,7 +681,7 @@ void networkLoop() {
     }
     const bool menu = s_menu_open.load();  // radar hidden: no tiles or flight history needed
     // The SD card and saved map tiles work without Wi-Fi.
-    if (maps::serviceSd() || serviceSdFiles() || serviceDayLog()) continue;
+    if (maps::serviceSd() || serviceSdFiles() || serviceDayLog() || serviceCardWork()) continue;
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
@@ -692,8 +889,10 @@ void tick(uint32_t now_ms) {
     s_confirmed = true;
     plat::confirmFirmware();
   }
+  runUiJobs();
   applySettingsFile();
   serviceWifi(now_ms);
+  web::service();
   // Night mode starts and ends by the clock: dimmer, or asleep.
   static uint32_t s_night_check_ms = 0;
   static int s_night = -1;
@@ -729,6 +928,104 @@ void tick(uint32_t now_ms) {
     plat::setBrightness(std::min<int>(s_settings.dim_brightness, normalBrightness()));
   }
 }
+
+bool isNight() {
+  if (!s_settings.night_dim || !plat::timeValid()) return false;
+  const int now = localMinute(plat::unixTimeMs() / 1000);
+  if (s_settings.night_by_sun) {
+    int set = 0, rise = 0;
+    bool dark = false;
+    if (!sunTimesToday(&set, &rise, &dark)) return dark;
+    return core::inTimeWindow(now, set, rise);
+  }
+  return core::inTimeWindow(now, s_settings.night_from_min, s_settings.night_to_min);
+}
+
+bool sunTimesToday(int* sunset_min, int* sunrise_min, bool* always_dark) {
+  if (always_dark) *always_dark = false;
+  if (!plat::timeValid()) return false;
+  const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+  const core::sun::Times st =
+      core::sun::times(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, s_settings.home_lat, s_settings.home_lon);
+  if (st.kind != core::sun::Times::Kind::Normal) {
+    if (always_dark) *always_dark = st.kind == core::sun::Times::Kind::AlwaysDown;
+    return false;
+  }
+  *sunset_min = localMinute(st.set_s);
+  *sunrise_min = localMinute(st.rise_s);
+  return true;
+}
+
+int applySettingsText(const std::string& text, std::vector<std::string>* problems) {
+  core::Settings next = s_settings;
+  const int n = core::settings_text::parse(text, &next, problems);
+  if (std::memcmp(&next, &s_settings, sizeof(next)) != 0) applySettings(next);
+  return n;
+}
+
+bool runOnUi(std::function<void()> fn, uint32_t timeout_ms) {
+  auto job = std::make_shared<UiJob>();
+  job->fn = std::move(fn);
+  {
+    std::lock_guard<std::mutex> lock(s_ui_jobs_mu);
+    s_ui_jobs.push_back(job);
+  }
+  std::unique_lock<std::mutex> lock(job->mu);
+  if (job->cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] { return job->done; })) return true;
+  job->cancelled = true;
+  return false;
+}
+
+bool saveScreenshot(std::vector<uint8_t> bgr, int width, int height, int stride) {
+  if (!cardReady()) return false;
+  std::lock_guard<std::mutex> lock(s_shot_mu);
+  if (!s_shot_name.empty()) return false;  // still writing the last one
+  char name[40];
+  if (plat::timeValid()) {
+    const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+    std::snprintf(name, sizeof(name), "%04d-%02d-%02d_%02d-%02d-%02d.png", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
+                  t.tm_hour, t.tm_min, t.tm_sec);
+  } else {
+    std::snprintf(name, sizeof(name), "screen-%08u.png", static_cast<unsigned>(plat::millis()));
+  }
+  s_shot_px = std::move(bgr);
+  s_shot_w = width;
+  s_shot_h = height;
+  s_shot_stride = stride;
+  s_shot_name = name;
+  return true;
+}
+
+void onScreenshotRequest(std::function<bool()> take) { s_take_screenshot = std::move(take); }
+bool requestScreenshot() { return s_take_screenshot && s_take_screenshot(); }
+
+std::vector<std::string> screenshots() {
+  std::vector<std::string> out;
+  if (!cardReady()) return out;
+  DIR* d = opendir(sdPath("screenshots").c_str());
+  if (d == nullptr) return out;
+  while (dirent* e = readdir(d)) {
+    const std::string n = e->d_name;
+    if (!screenshotPath(n).empty()) out.push_back(n);
+  }
+  closedir(d);
+  std::sort(out.rbegin(), out.rend());  // names are dates: newest first
+  if (out.size() > 60) out.resize(60);
+  return out;
+}
+
+std::string screenshotPath(const std::string& name) {
+  if (name.size() < 5 || name.size() > 40 || name.compare(name.size() - 4, 4, ".png") != 0) return "";
+  for (char c : name) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_' && c != '.') return "";
+  }
+  if (name.find("..") != std::string::npos) return "";
+  return sdPath("screenshots") + "/" + name;
+}
+
+void clearLookupCache() { s_lookup_clear = true; }
+
+bool serviceCardWork() { return serviceScreenshot() || serviceRouteCache() || serviceLookupClear(); }
 
 void timeZoneChanged() {
   core::applyTimeZone(s_settings.time_zone);
@@ -909,6 +1206,24 @@ bool serviceFavoriteLookup() {
   return true;
 }
 
+void renameFavorite(const char* hex, const char* label) {
+  std::vector<core::Favorite> copy;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    for (core::Favorite& f : s_favorites) {
+      if (std::strcmp(f.hex, hex) == 0) std::snprintf(f.label, sizeof(f.label), "%s", label);
+    }
+    copy = s_favorites;
+  }
+  plat::favoritesSave(copy);
+  queueFavoritesFile();
+}
+
+std::vector<std::string> unresolvedFavorites() {
+  std::lock_guard<std::mutex> lock(s_files_mu);
+  return s_fav_unresolved;
+}
+
 void setFavorites(const std::vector<core::Favorite>& favs) {
   {
     std::lock_guard<std::mutex> lock(s_favorites_mu);
@@ -978,6 +1293,7 @@ void requestRoute(const char* hex, const char* callsign) {
   }
   s_route.status = RouteStatus::Loading;
   s_route_pending = true;
+  s_route_disk_checked = false;
 }
 
 RouteState routeState() {
@@ -1003,6 +1319,7 @@ bool serviceRoute() {
   // No route: at least name the airline from the callsign prefix.
   const std::string prefix = core::route::airlinePrefix(callsign);
   if (reached && info.airline[0] == '\0' && !prefix.empty()) routeGet(core::route::airlineUrl(prefix.c_str()), &info);
+  if (reached) saveLookup(hex, callsign, info, code == 200 || code == 404);
 
   std::lock_guard<std::mutex> lock(s_route_mu);
   RouteState done;

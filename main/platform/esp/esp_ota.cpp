@@ -9,6 +9,7 @@
 #include "esp_https_ota.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "core/fwcheck.h"
 #include "platform/platform.h"
 #include "sdkconfig.h"
 
@@ -18,19 +19,26 @@ namespace {
 const char* TAG = "ota";
 }
 
-const char* firmwareVariant() {
+namespace {
 #if CONFIG_BSP_LCD_TYPE_720_720_4_INCH
 #define RADAR_BOARD "4in-720x720"
 #else
 #define RADAR_BOARD "3.4in-800x800"
 #endif
-#if CONFIG_ESP32P4_SELECTS_REV_LESS_V3
-  return RADAR_BOARD "-chip-v1";
+#if CONFIG_ESP32P4_SELECTS_REV_LESS_V3 || (defined(CONFIG_ESP32P4_REV_MIN_FULL) && CONFIG_ESP32P4_REV_MIN_FULL < 300)
+#define RADAR_CHIP "-chip-v1"
 #else
-  return RADAR_BOARD "-chip-v3";
+#define RADAR_CHIP "-chip-v3"
 #endif
+// Marks the board in the image, so a file uploaded from the phone page for
+// another board is refused (core::FirmwareCheck looks for it).
+const char kBoard[] = "PLANE-RADAR-BOARD=" RADAR_BOARD RADAR_CHIP;
+static_assert(sizeof("PLANE-RADAR-BOARD=") == sizeof(core::kBoardMarker), "same marker as core/fwcheck.h");
 #undef RADAR_BOARD
-}
+#undef RADAR_CHIP
+}  // namespace
+
+const char* firmwareVariant() { return kBoard + sizeof(core::kBoardMarker) - 1; }
 
 bool installFirmware(const char* url, const std::function<void(size_t, size_t)>& progress, std::string* error) {
   if (esp_ota_get_next_update_partition(nullptr) == nullptr) {

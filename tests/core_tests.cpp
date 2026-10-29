@@ -12,7 +12,14 @@
 
 #include "core/adsb.h"
 #include "core/clock.h"
+#include "cJSON.h"
 #include "core/daylog.h"
+#include "core/deflate.h"
+#include "core/fwcheck.h"
+#include "core/lookup_cache.h"
+#include "core/sun.h"
+#include "core/watch.h"
+#include "core/web.h"
 #include "core/failover.h"
 #include "core/filter.h"
 #include "core/geo.h"
@@ -1202,6 +1209,235 @@ void testDayLog() {
   CHECK(day.date == 20261030 && day.count() == 3 && day.favorites.empty());
 }
 
+void testSun() {
+  namespace sun = core::sun;
+  CHECK(sun::daysFromCivil(1970, 1, 1) == 0);
+  CHECK(sun::daysFromCivil(2026, 10, 29) == 20755);
+  // London, midsummer 2024: sunrise 04:43, sunset 21:21 BST (UTC+1).
+  sun::Times t = sun::times(2024, 6, 21, 51.5074, -0.1278);
+  CHECK(t.kind == sun::Times::Kind::Normal);
+  const int64_t day = sun::daysFromCivil(2024, 6, 21) * 86400;
+  CHECK_NEAR((t.rise_s - day) / 60.0, 3 * 60 + 43, 3);
+  CHECK_NEAR((t.set_s - day) / 60.0, 20 * 60 + 21, 3);
+  // Redmond, Oregon, 2026-10-29: sunrise 7:38 AM, sunset 6:00 PM PDT (UTC-7).
+  t = sun::times(2026, 10, 29, 44.2541, -121.15);
+  const int64_t d2 = sun::daysFromCivil(2026, 10, 29) * 86400;
+  CHECK_NEAR((t.rise_s - d2) / 60.0, 14 * 60 + 38, 4);
+  CHECK_NEAR((t.set_s - d2) / 60.0, 25 * 60, 4);  // after midnight UTC
+  // Tromso: polar night in December, midnight sun in June.
+  CHECK(sun::times(2026, 12, 21, 69.65, 18.96).kind == sun::Times::Kind::AlwaysDown);
+  CHECK(sun::times(2026, 6, 21, 69.65, 18.96).kind == sun::Times::Kind::AlwaysUp);
+}
+
+void testDeflate() {
+  std::string data;
+  uint32_t seed = 7;
+  for (int i = 0; i < 200000; ++i) {
+    seed = seed * 1103515245u + 12345u;
+    if (i % 5000 < 3000) data.push_back(static_cast<char>(i % 3 == 0 ? 20 : 10));  // runs, like a screen
+    else data.push_back(static_cast<char>(seed >> 24));                            // noise
+  }
+  const auto* p = reinterpret_cast<const uint8_t*>(data.data());
+  const std::string raw = core::deflateRaw(p, data.size());
+  std::string back;
+  CHECK(core::inflateRaw(raw.data(), raw.size(), &back, 1 << 20));
+  CHECK(back == data);
+  CHECK(raw.size() < data.size() / 2);
+  const std::string z = core::zlibCompress(p, data.size());
+  std::vector<uint8_t> out(data.size());
+  uLongf n = out.size();
+  CHECK(uncompress(out.data(), &n, reinterpret_cast<const Bytef*>(z.data()), z.size()) == Z_OK);
+  CHECK(n == data.size() && std::memcmp(out.data(), data.data(), n) == 0);
+  CHECK(core::crc32(0, "123456789", 9) == 0xCBF43926u);
+  CHECK(core::adler32(1, reinterpret_cast<const uint8_t*>("Wikipedia"), 9) == 0x11E60398u);
+  // Edge cases: empty and tiny inputs.
+  for (const std::string& s : {std::string(), std::string("a"), std::string("abcabcabcabc")}) {
+    const std::string r = core::deflateRaw(reinterpret_cast<const uint8_t*>(s.data()), s.size());
+    std::string b;
+    CHECK(core::inflateRaw(r.data(), r.size(), &b, 1000) && b == s);
+  }
+}
+
+void testPngEncode() {
+  const int w = 61, h = 47;
+  std::vector<uint8_t> bgr(static_cast<size_t>(w) * 3 * h + 5 * h);
+  const int stride = w * 3 + 5;
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      uint8_t* q = &bgr[static_cast<size_t>(y) * stride + x * 3];
+      q[0] = static_cast<uint8_t>(x * 4);        // blue
+      q[1] = static_cast<uint8_t>(y * 5);        // green
+      q[2] = static_cast<uint8_t>((x ^ y) * 3);  // red
+    }
+  }
+  const std::string png = core::png::encodeRgb(bgr.data(), w, h, stride, true);
+  core::png::Image img;
+  CHECK(core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img));
+  CHECK(img.width == w && img.height == h);
+  bool same = img.width == w;
+  for (int y = 0; same && y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const uint8_t* q = &img.rgba[(static_cast<size_t>(y) * w + x) * 4];
+      if (q[0] != static_cast<uint8_t>((x ^ y) * 3) || q[1] != static_cast<uint8_t>(y * 5) ||
+          q[2] != static_cast<uint8_t>(x * 4) || q[3] != 255) same = false;
+    }
+  }
+  CHECK(same);
+}
+
+std::string fakeImage(const char* project, const char* version, const char* board) {
+  std::string img(4096, '\0');
+  img[0] = static_cast<char>(0xE9);
+  const uint32_t magic = 0xABCD5432;
+  std::memcpy(&img[32], &magic, 4);
+  std::memcpy(&img[48], version, std::strlen(version));
+  std::memcpy(&img[80], project, std::strlen(project));
+  std::string m = core::kBoardMarker;  // the checker's own copy: no board after it
+  std::memcpy(&img[1000], m.c_str(), m.size() + 1);
+  if (board) {
+    m += board;
+    std::memcpy(&img[2040], m.c_str(), m.size() + 1);  // straddles the 2048-byte pieces below
+  }
+  return img;
+}
+
+std::string checkImage(const std::string& img, const char* board) {
+  core::FirmwareCheck c("plane_radar_p4", board);
+  for (size_t i = 0; i < img.size(); i += 2048) {
+    c.feed(reinterpret_cast<const uint8_t*>(img.data()) + i, std::min<size_t>(2048, img.size() - i));
+  }
+  return c.finalProblem();
+}
+
+void testFirmwareCheck() {
+  const std::string good = fakeImage("plane_radar_p4", "1.18.0", "4in-720x720-chip-v1");
+  CHECK(checkImage(good, "4in-720x720-chip-v1").empty());
+  CHECK(checkImage(good, "3.4in-800x800-chip-v1").find("for the 4in-720x720-chip-v1 board") != std::string::npos);
+  CHECK(checkImage(fakeImage("plane_radar_p4", "1.17.1", nullptr), "4in-720x720-chip-v1").empty());  // older: can't tell
+  CHECK(checkImage(fakeImage("other_app", "1.0", nullptr), "x").find("isn't Plane Radar") != std::string::npos);
+  std::string merged(4096, static_cast<char>(0xFF));
+  CHECK(checkImage(merged, "x").find("-ota.bin") != std::string::npos);
+  CHECK(checkImage("tiny", "x").find("too small") != std::string::npos);
+  core::FirmwareCheck c("plane_radar_p4", "b");
+  c.feed(reinterpret_cast<const uint8_t*>(good.data()), 200);
+  CHECK(c.headerProblem().empty() && c.version() == "1.18.0");
+}
+
+void testLookupCache() {
+  namespace r = core::route;
+  CHECK(r::airframePath("A1B2C3") == "lookups/aircraft/a1/a1b2c3.txt");
+  CHECK(r::airframePath("~a1b2c3").empty());
+  CHECK(r::routePath("ryr12ab") == "lookups/routes/RYR/RYR12AB.txt");
+  CHECK(r::routePath("N1").empty() == false && r::routePath("").empty() && r::routePath("A B").empty());
+  r::Info in;
+  std::snprintf(in.registration, sizeof(in.registration), "EI-DAC");
+  std::snprintf(in.model, sizeof(in.model), "Boeing 737-8AS");
+  std::snprintf(in.icao_type, sizeof(in.icao_type), "B738");
+  std::snprintf(in.mode_s, sizeof(in.mode_s), "4ca7b5");
+  std::snprintf(in.airline, sizeof(in.airline), "Ryanair");
+  in.has_route = true;
+  std::snprintf(in.origin.code, sizeof(in.origin.code), "DUB");
+  std::snprintf(in.origin.city, sizeof(in.origin.city), "Dublin");
+  std::snprintf(in.destination.code, sizeof(in.destination.code), "ACE");
+  std::snprintf(in.destination.city, sizeof(in.destination.city), "Lanzarote");
+  r::Info back;
+  int date = 0;
+  bool empty = true;
+  CHECK(r::parseCached(r::serializeAirframe(in, 20261029), &back, &date, &empty) && date == 20261029 && !empty);
+  CHECK(r::parseCached(r::serializeRoute(in, 20261029), &back, &date, &empty) && !empty);
+  CHECK(std::strcmp(back.model, "Boeing 737-8AS") == 0 && std::strcmp(back.airline, "Ryanair") == 0 && back.has_route &&
+        std::strcmp(back.destination.city, "Lanzarote") == 0 && std::strcmp(back.mode_s, "4ca7b5") == 0);
+  r::Info none;
+  CHECK(r::parseCached(r::serializeRoute(r::Info{}, 20261029), &none, &date, &empty) && empty && !none.has_route);
+  CHECK(!r::parseCached("garbage", &none, &date, &empty));
+  CHECK(r::routeFresh(20261001, 20261029, false) && !r::routeFresh(20260901, 20261029, false));
+  CHECK(r::routeFresh(20261027, 20261029, true) && !r::routeFresh(20261020, 20261029, true));
+  CHECK(r::airframeFresh(20260601, 20261029, false) && !r::airframeFresh(20250101, 20261029, false));
+}
+
+void testWeb() {
+  namespace w = core::web;
+  CHECK(w::urlDecode("a%20b+c%2Fd%zz") == "a b c/d%zz");
+  auto f = w::parseForm("text=night_dim%20%3D%20on&x=&y");
+  CHECK(f["text"] == "night_dim = on" && f.count("x") && f["x"].empty() && f.count("y"));
+  CHECK(w::cookie("a=1; radar=abc123; b=2", "radar") == "abc123" && w::cookie("radarx=1", "radar").empty());
+  CHECK(w::jsonEscape("a\"b\\c\n\x01") == "a\\\"b\\\\c\\n\\u0001");
+  w::LoginGuard g;
+  for (int i = 0; i < 4; ++i) g.failed(1000);
+  CHECK(g.lockedFor(1000) == 0);
+  g.failed(1000);
+  CHECK(g.lockedFor(1000) == 60 && g.lockedFor(61001) == 0);
+  g.failed(61001);  // one more wrong try after the lock: locked again
+  CHECK(g.lockedFor(61001) > 0);
+  g.succeeded();
+  CHECK(g.lockedFor(61001) == 0);
+  CHECK(std::strstr(w::kPage, "/api/settings") != nullptr);
+}
+
+void testWatch() {
+  core::Settings s;
+  core::Aircraft a = mk("ae1234", 44.3, -121.1, 9000);
+  std::snprintf(a.callsign, sizeof(a.callsign), "RCH471");
+  std::snprintf(a.type, sizeof(a.type), "C17");
+  a.military = true;
+  CHECK(core::watchReason(a, s).empty() && !core::watchActive(s));
+  s.watch_military = true;
+  CHECK(core::watchActive(s) && core::watchReason(a, s) == "military");
+  std::snprintf(s.watch_types, sizeof(s.watch_types), "A388, c1*");
+  CHECK(core::watchReason(a, s) == "C17");
+  std::snprintf(s.watch_callsigns, sizeof(s.watch_callsigns), "rch*");
+  CHECK(core::watchReason(a, s) == "RCH471");
+  s.watch_enabled = false;
+  CHECK(core::watchReason(a, s).empty());
+  s = core::Settings{};
+  s.watch_rotor = true;
+  core::Aircraft heli = mk("a00001", 44.3, -121.1, 900);
+  std::snprintf(heli.category, sizeof(heli.category), "A7");
+  CHECK(core::watchReason(heli, s) == "helicopter");
+  heli.on_ground = true;
+  CHECK(core::watchReason(heli, s).empty());
+
+  // In the traffic store: announced once, inside the radius.
+  core::TrafficStore store;
+  core::FavoriteWatch fw;
+  fw.center = {44.25, -121.15};
+  fw.watch_radius_km = 20;
+  s = core::Settings{};
+  s.watch_military = true;
+  fw.watch = [&s](const core::Aircraft& x) { return core::watchReason(x, s); };
+  core::Aircraft far = a;
+  far.lat = 45.5;  // ~140 km north
+  auto ev = store.update({far}, 1000, {}, fw);
+  CHECK(ev.watch_hits.empty());
+  ev = store.update({a}, 6000, {}, fw);
+  CHECK(ev.watch_hits.size() == 1 && ev.watch_hits[0].name == "RCH471" && ev.watch_hits[0].reason == "military" &&
+        ev.watch_hits[0].km < 20);
+  ev = store.update({a}, 11000, {}, fw);
+  CHECK(ev.watch_hits.empty());
+}
+
+void testSettingsJson() {
+  core::Settings s;
+  std::snprintf(s.wifi_pass, sizeof(s.wifi_pass), "secret-pass");
+  const std::string j = core::settings_text::toJson(s);
+  CHECK(j.find("secret-pass") == std::string::npos);
+  cJSON* root = cJSON_Parse(j.c_str());
+  CHECK(root != nullptr);
+  int fields = 0;
+  bool zone = false, watch = false;
+  const cJSON* secs = cJSON_GetObjectItem(root, "sections");
+  for (const cJSON* sec = secs ? secs->child : nullptr; sec; sec = sec->next) {
+    for (const cJSON* f = cJSON_GetObjectItem(sec, "fields")->child; f; f = f->next) {
+      ++fields;
+      const char* key = cJSON_GetObjectItem(f, "key")->valuestring;
+      if (std::strcmp(key, "time_zone") == 0) zone = cJSON_GetArraySize(cJSON_GetObjectItem(f, "options")) > 10;
+      if (std::strcmp(key, "watch_types") == 0) watch = true;
+    }
+  }
+  CHECK(fields > 90 && zone && watch);
+  cJSON_Delete(root);
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -1225,6 +1461,14 @@ int main() {
   testNightWindow();
   testDayLog();
   testSounds();
+  testSun();
+  testDeflate();
+  testPngEncode();
+  testFirmwareCheck();
+  testLookupCache();
+  testWeb();
+  testWatch();
+  testSettingsJson();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

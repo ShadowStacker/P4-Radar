@@ -11,7 +11,7 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # resets before it confirms itself) goes back to the previous one.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="1.17.1"
+CONFIG_APP_PROJECT_VER="1.18.0"
 
 # ---- CPU / memory -------------------------------------------------------------
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
@@ -52,6 +52,10 @@ CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
 CONFIG_ESP_HOSTED_SDIO_SLOT_1=y
 CONFIG_ESP_HOSTED_HOST_SDIO_BUS_WIDTH_4=y
 CONFIG_LWIP_LOCAL_HOSTNAME="plane-radar"
+# Room for the phone page's connections next to the feed, map and lookup
+# downloads (the default 10 sockets would run out); browsers send long headers.
+CONFIG_LWIP_MAX_SOCKETS=16
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
 # If the C6 link fails, keep the radar running (offline) instead of rebooting
 # the whole board in a loop.
 # CONFIG_ESP_HOSTED_HOST_TRANSPORT_RESTART_ON_FAILURE is not set
@@ -93,6 +97,9 @@ CONFIG_LV_FONT_MONTSERRAT_32=y
 CONFIG_LV_FONT_MONTSERRAT_40=y
 CONFIG_LV_FONT_MONTSERRAT_44=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_22=y
+# QR code for the phone settings page; screen snapshots for screenshots.
+CONFIG_LV_USE_QRCODE=y
+CONFIG_LV_USE_SNAPSHOT=y
 CONFIG_LV_USE_LOG=y
 CONFIG_LV_LOG_LEVEL_WARN=y
 CONFIG_LV_LOG_PRINTF=y

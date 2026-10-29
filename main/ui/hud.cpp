@@ -44,6 +44,7 @@ struct Hud {
   lv_obj_t* mute_label = nullptr;
   lv_obj_t* clock = nullptr;
   lv_obj_t* sleep = nullptr;
+  lv_obj_t* camera = nullptr;     // screenshot
   lv_obj_t* alt_key = nullptr;    // altitude color scale under the status pill
   lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
@@ -556,6 +557,7 @@ void leavePickMode() {
   setHidden(h.mute, false);
   setHidden(h.clock, false);
   setHidden(h.sleep, false);
+  setHidden(h.camera, false);
   updateCard();
 }
 
@@ -609,7 +611,15 @@ void enterPickMode() {
   setHidden(h.mute, true);
   setHidden(h.clock, true);
   setHidden(h.sleep, true);
+  setHidden(h.camera, true);
   updateCard();
+}
+
+bool hideForSnapshot(bool hide) {
+  if (h.controls == nullptr) return false;
+  const bool was_hidden = lv_obj_has_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
+  setHidden(h.controls, hide);
+  return was_hidden;
 }
 
 void exitPickMode() { leavePickMode(); }
@@ -665,7 +675,7 @@ void create(lv_obj_t* parent) {
 
   // Background map picker, between the zoom-in and Home buttons.
   h.map_btn = iconButton(h.controls, LV_SYMBOL_IMAGE, d, [] { openMapPicker(); });
-  placePolar(h.map_btn, 157, 0.80f);
+  placePolar(h.map_btn, 160, 0.80f);
 
   // Map credit (the tile providers require it); fades with the buttons and
   // comes back on any touch.
@@ -698,6 +708,17 @@ void create(lv_obj_t* parent) {
   }
   placePolar(h.clock, 103, 0.80f);
 
+  // Screenshot, between the clock and zoom-in buttons: saved on the SD card.
+  h.camera = iconButton(h.controls, "", d, [] { takeScreenshot(); });
+  {
+    lv_obj_t* icon = lv_image_create(h.camera);
+    lv_image_set_src(icon, sprites::cameraIcon(sc(34) | 1));
+    lv_obj_center(icon);
+    lv_obj_set_style_image_recolor(icon, p.text, 0);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+  }
+  placePolar(h.camera, 121.5f, 0.80f);
+
   // Sleep, mirroring the clock button: screen off and quiet until a tap
   // (or an alarm, with Wake on alarm on).
   h.sleep = iconButton(h.controls, LV_SYMBOL_POWER, d, [] { app::setSleeping(true); });
@@ -725,17 +746,17 @@ void create(lv_obj_t* parent) {
 
   h.zoom_in = iconButton(h.controls, LV_SYMBOL_PLUS, d, nullptr);
   zoomButton(h.zoom_in, +1);
-  placePolar(h.zoom_in, 135, 0.80f);
+  placePolar(h.zoom_in, 140, 0.80f);
   h.zoom_out = iconButton(h.controls, LV_SYMBOL_MINUS, d, nullptr);
   zoomButton(h.zoom_out, -1);
-  placePolar(h.zoom_out, 225, 0.80f);
+  placePolar(h.zoom_out, 220, 0.80f);
 
   h.home = iconButton(h.controls, LV_SYMBOL_HOME, sc(84), [] { RadarView::get().goHome(); });
   placePolar(h.home, 180, 0.82f);
 
   // Firmware update, mirroring the map button.
   h.update_btn = iconButton(h.controls, LV_SYMBOL_DOWNLOAD, d, [] { onUpdatePressed(); });
-  placePolar(h.update_btn, 203, 0.80f);
+  placePolar(h.update_btn, 200, 0.80f);
   h.update_lit = false;
   styleUpdateButton(false);
 

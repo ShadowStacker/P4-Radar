@@ -138,4 +138,32 @@ bool serviceUpdate() {
   return job != Job::None;
 }
 
+bool uploadBegin(size_t total) {
+  std::lock_guard<std::mutex> lock(s_mu);
+  if (s_status.state == UpdateState::Installing || s_status.state == UpdateState::Installed) return false;
+  s_status.state = UpdateState::Installing;
+  s_status.install_failed = false;
+  s_status.error[0] = '\0';
+  std::snprintf(s_status.latest, sizeof(s_status.latest), "a file");
+  s_status.done = 0;
+  s_status.total = total;
+  s_job = Job::None;
+  return true;
+}
+
+void uploadProgress(size_t done, const char* version) {
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_status.done = done;
+  if (version != nullptr && version[0] != '\0') std::snprintf(s_status.latest, sizeof(s_status.latest), "v%s", version);
+}
+
+void uploadEnd(bool ok, const std::string& error) {
+  if (!ok) {
+    fail(error, true);
+    return;
+  }
+  std::lock_guard<std::mutex> lock(s_mu);
+  s_status.state = UpdateState::Installed;
+}
+
 }  // namespace app

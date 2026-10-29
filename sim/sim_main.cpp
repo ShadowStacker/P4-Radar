@@ -5,7 +5,9 @@
 
 #include <zlib.h>
 
+#include <atomic>
 #include <chrono>
+#include <thread>
 #include <cmath>
 #include <malloc.h>
 
@@ -17,6 +19,8 @@
 
 #include "app/app.h"
 #include "app/maps.h"
+#include "app/web.h"
+#include "core/png.h"
 #include "core/clock.h"
 #include "platform/platform.h"
 #include "core/filter.h"
@@ -138,8 +142,10 @@ void run(uint32_t ms, uint32_t step = 16) {
     if (g_step_hook) g_step_hook();
     g_traffic->advance(step / 1000.0);
     feedTraffic();
+    // In the network task's order: card work first, then downloads.
+    const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
     if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
-    if (!app::maps::serviceSd() && !app::serviceSdFiles()) app::maps::service(true);
+    if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -234,7 +240,69 @@ bool findAircraftOnScreen(int* x, int* y) {
   return best < 1e9f;
 }
 
+/** True if a label under `obj` contains `needle` (the toasts on the top layer). */
+bool hasLabel(lv_obj_t* obj, const char* needle) {
+  if (lv_obj_check_type(obj, &lv_label_class) && std::strstr(lv_label_get_text(obj), needle) != nullptr) return true;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+    if (hasLabel(lv_obj_get_child(obj, static_cast<int32_t>(i)), needle)) return true;
+  }
+  return false;
+}
+
+/** A request to the phone page, answered while the UI keeps running (as on the device). */
+plat::WebResponse web(const char* method, const std::string& path, const std::string& body = "",
+                      const std::string& cookie = "") {
+  plat::WebResponse out;
+  std::atomic<bool> done{false};
+  std::thread th([&] {
+    plat::WebRequest r;
+    r.method = method;
+    const size_t q = path.find('?');
+    r.path = path.substr(0, q);
+    if (q != std::string::npos) r.query = path.substr(q + 1);
+    r.body = body;
+    r.content_length = body.size();
+    r.cookie = cookie;
+    out = sim::g_web_handler(r);
+    done = true;
+  });
+  while (!done) run(16);
+  th.join();
+  return out;
+}
+
+std::string readFile(const std::string& path) {
+  std::string out;
+  if (FILE* f = std::fopen(path.c_str(), "rb")) {
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) out.append(buf, n);
+    std::fclose(f);
+  }
+  return out;
+}
+
 }  // namespace
+
+/** Serves the phone page on http://localhost:8080 in real time: --web. */
+int runWeb() {
+  sim::g_preset_wifi = true;
+  setenv("SIM_WEB", "1", 1);
+  app::init();
+  auto& st = app::settings();
+  st.home_set = true;
+  sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 42);
+  g_traffic = &traffic;
+  sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
+  ui::init(g_disp);
+  run(2000);
+  std::printf("[sim] PIN %s - %s\n", st.web_pin, app::web::loginUrl().c_str());
+  std::fflush(stdout);
+  for (;;) {
+    run(16);
+    std::this_thread::sleep_for(std::chrono::milliseconds(12));
+  }
+}
 
 /** Timing at several zooms with heavy traffic: --bench. Host-CPU numbers;
  *  compare them with each other, not with the device. */
@@ -382,9 +450,14 @@ int main(int argc, char** argv) {
   bool bench = false;
   int soak = 0;
   bool page_timing = false;
+  bool web_mode = false;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--bench") == 0) {
       bench = true;
+      continue;
+    }
+    if (std::strcmp(argv[i], "--web") == 0) {
+      web_mode = true;
       continue;
     }
     if (std::strcmp(argv[i], "--pages") == 0) {
@@ -424,6 +497,7 @@ int main(int argc, char** argv) {
   if (bench) return runBench();
   if (soak) return runSoak(soak);
   if (page_timing) return runPages();
+  if (web_mode) return runWeb();
 
   sim::g_preset_wifi = false;  // start like a fresh device
   // A blank card: no settings.txt or favorites.txt from an earlier run.
@@ -979,6 +1053,191 @@ int main(int argc, char** argv) {
     std::printf("saved wifi networks: %s\n", ok ? "OK" : "FAILED");
     if (!ok) return 1;
     run(500);
+  }
+
+  // Screenshot button: the picture lands on the card as a PNG.
+  {
+    ui::RadarView::get().clearSelection();
+    lv_display_trigger_activity(nullptr);
+    run(600);
+    shot((p + "66_camera_button").c_str());
+    const size_t before = app::screenshots().size();
+    tap(S(673), S(567));
+    run(1500);
+    const std::vector<std::string> shots = app::screenshots();
+    bool ok = shots.size() == before + 1;
+    if (ok) {
+      const std::string png = readFile(app::screenshotPath(shots[0]));
+      core::png::Image img;
+      ok = core::png::decode(reinterpret_cast<const uint8_t*>(png.data()), png.size(), &img, g_size * g_size) &&
+           img.width == g_size && img.height == g_size;
+      std::printf("screenshot %s, %u KB\n", shots[0].c_str(), static_cast<unsigned>(png.size() / 1024));
+    }
+    std::printf("screenshot button: %s\n", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+  }
+
+  // Watchlist: military aircraft near home are announced.
+  {
+    auto& st = app::settings();
+    st.watch_military = true;
+    st.watch_radius_km = 400;
+    app::traffic().clear();  // seen again: announced
+    bool announced = false;
+    for (int i = 0; i < 40 && !announced; ++i) {
+      run(250);
+      announced = hasLabel(lv_layer_top(), "Watchlist: ");
+    }
+    std::printf("watchlist alert: %s\n", announced ? "OK" : "FAILED");
+    if (!announced) return 1;
+    run(300);
+    shot((p + "67_watchlist_alert").c_str());
+    run(4500);
+    ui::openSettings(ui::Page::Watchlist);
+    run(600);
+    shot((p + "68_settings_watchlist").c_str());
+    ui::closeSettings();
+    st.watch_military = false;
+    run(300);
+  }
+
+  // Night by the sun: daytime at home now (10 AM in Oregon); night where the
+  // sun has set (Sydney, 4 AM there).
+  {
+    auto& st = app::settings();
+    st.night_dim = true;
+    st.night_by_sun = true;
+    const bool day = !app::isNight();
+    const double lat = st.home_lat, lon = st.home_lon;
+    st.home_lat = -33.87;
+    st.home_lon = 151.21;
+    const bool night = app::isNight();
+    st.home_lat = lat;
+    st.home_lon = lon;
+    int set = 0, rise = 0;
+    const bool times = app::sunTimesToday(&set, &rise) && set > 16 * 60 && rise < 9 * 60;
+    std::printf("night by the sun: day %s, night %s, times %s\n", day ? "OK" : "FAILED", night ? "OK" : "FAILED",
+                times ? "OK" : "FAILED");
+    if (!day || !night || !times) return 1;
+    ui::openSettings(ui::Page::Display);
+    run(400);
+    lv_obj_scroll_to_y(settingsList(), 99999, LV_ANIM_OFF);
+    run(400);
+    shot((p + "69_night_by_sun").c_str());
+    ui::closeSettings();
+    st.night_dim = false;
+    st.night_by_sun = false;
+    run(300);
+  }
+
+  // Phone settings page: the QR code, then requests as a phone would make them.
+  {
+    ui::openSettings(ui::Page::Phone);
+    run(600);
+    shot((p + "70_phone_qr").c_str());
+    ui::closeSettings();
+    run(300);
+    const std::string pin = app::settings().web_pin;
+    bool ok = pin.size() == 4 && sim::g_web_handler != nullptr;
+    ok = ok && app::web::loginUrl() == "http://192.168.1.42:8080/?pin=" + pin;
+    plat::WebResponse r = web("GET", "/");
+    ok = ok && r.status == 200 && r.body.find("<title>Plane Radar</title>") != std::string::npos;
+    ok = ok && web("GET", "/api/status").status == 401;
+    ok = ok && web("POST", "/api/login", "pin=0000" == "pin=" + pin ? "pin=1111" : "pin=0000").status == 403;
+    r = web("POST", "/api/login", "pin=" + pin);
+    const size_t c = r.set_cookie.find(';');
+    const std::string cookie = r.set_cookie.substr(0, c);
+    ok = ok && r.status == 200 && cookie == std::string("radar=") + app::settings().web_token;
+    const bool login_ok = ok;
+    r = web("GET", "/api/status", "", cookie);
+    ok = ok && r.status == 200 && r.body.find("\"board\":\"4in-720x720-chip-v1\"") != std::string::npos;
+    r = web("GET", "/api/settings", "", cookie);
+    ok = ok && r.body.find("\"watch_types\"") != std::string::npos && r.body.find("hunter") == std::string::npos;
+    r = web("POST", "/api/settings", "text=volume%20%3D%2042", cookie);
+    ok = ok && r.status == 200 && app::settings().volume == 42;
+    r = web("POST", "/api/settings", "text=volume%20%3D%20loud", cookie);
+    ok = ok && r.body.find("bad value") != std::string::npos && app::settings().volume == 42;
+    const bool settings_ok = ok;
+    r = web("POST", "/api/wifi/add", "ssid=Cabin%20Wi-Fi&pass=pines123", cookie);
+    ok = ok && r.status == 200 && app::isSavedWifi("Cabin Wi-Fi") &&
+         std::strcmp(app::settings().wifi_ssid, "Cabin Wi-Fi") != 0;  // saved, not switched to
+    r = web("GET", "/api/wifi", "", cookie);
+    ok = ok && r.body.find("\"Cabin Wi-Fi\"") != std::string::npos;
+    web("POST", "/api/wifi/forget", "ssid=Cabin%20Wi-Fi", cookie);
+    ok = ok && !app::isSavedWifi("Cabin Wi-Fi");
+    const bool wifi_ok = ok;
+    r = web("GET", "/api/favorites", "", cookie);
+    ok = ok && r.status == 200 && r.body.find("\"max\":32") != std::string::npos;
+    r = web("GET", "/api/daylog", "", cookie);
+    ok = ok && r.body.find("different") != std::string::npos;
+    r = web("POST", "/api/screenshot", "", cookie);
+    run(1500);
+    r = web("GET", "/api/shots", "", cookie);
+    const size_t q1 = r.body.find("\"files\":[\"");
+    const std::string first = q1 == std::string::npos ? "" : r.body.substr(q1 + 10, r.body.find('"', q1 + 10) - q1 - 10);
+    r = web("GET", "/shots/" + first, "", cookie);
+    ok = ok && r.status == 200 && r.type == "image/png" && r.body.compare(1, 3, "PNG") == 0;
+    ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
+    const bool shots_ok = ok;
+    // Wrong PINs lock the login for a minute.
+    for (int i = 0; i < 5; ++i) web("POST", "/api/login", "pin=x");
+    ok = ok && web("POST", "/api/login", "pin=" + pin).status == 429;
+    std::printf("phone page: login %s, settings %s, wifi %s, screenshots %s, lockout %s\n", login_ok ? "OK" : "FAILED",
+                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
+                ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+    app::settings().volume = 60;
+    run(61000, 500);  // the lock runs out
+  }
+
+  // Airline and route lookups on the SD card: earlier taps were saved there,
+  // and a saved one is shown without asking the internet.
+  {
+    const std::string root = std::string(plat::sdRoot()) + "/lookups/aircraft";
+    const bool saved = std::system(("ls -R '" + root + "' | grep -q '\\.txt'").c_str()) == 0;
+    int x = 0, y = 0;
+    bool ok = saved && findAircraftOnScreen(&x, &y);
+    std::vector<core::Track> tracks;
+    app::traffic().snapshot(tracks);
+    const core::Track* pick = nullptr;
+    auto& vp = ui::RadarView::get().viewport();
+    for (const auto& t : tracks) {
+      const core::PointF pt = vp.project(core::positionAt(t, sim::g_ms));
+      if (std::hypot(pt.x - x, pt.y - y) < 2) pick = &t;
+    }
+    if (ok && pick != nullptr) {
+      const std::string hex = pick->ac.hex, cs = pick->ac.callsign;
+      char today[32];
+      const std::tm tm = core::localTime(plat::unixTimeMs() / 1000);
+      std::snprintf(today, sizeof(today), "%04d%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+      const std::string dir = root + "/" + hex.substr(0, 2);
+      if (std::system(("mkdir -p '" + dir + "'").c_str()) != 0) return 1;
+      if (FILE* f = std::fopen((dir + "/" + hex + ".txt").c_str(), "wb")) {
+        std::fprintf(f, "saved = %s\nmodel = Seen Before 123\nregistration = N-CARD\n", today);
+        std::fclose(f);
+      }
+      if (!cs.empty()) {
+        const std::string rdir = std::string(plat::sdRoot()) + "/lookups/routes/" + cs.substr(0, 3);
+        if (std::system(("mkdir -p '" + rdir + "'").c_str()) != 0) return 1;
+        if (FILE* f = std::fopen((rdir + "/" + cs + ".txt").c_str(), "wb")) {
+          std::fprintf(f, "saved = %s\nairline = Card Airways\n", today);
+          std::fclose(f);
+        }
+      }
+      auto server = sim::g_route_server;
+      sim::g_route_server = nullptr;  // offline for lookups
+      tap(x, y);
+      run(800);
+      const app::RouteState rs = app::routeState();
+      ok = rs.status == app::RouteStatus::Ready && std::strcmp(rs.info.model, "Seen Before 123") == 0;
+      sim::g_route_server = server;
+    } else {
+      ok = false;
+    }
+    std::printf("lookups saved on the SD card: %s, read back: %s\n", saved ? "OK" : "FAILED", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+    ui::RadarView::get().clearSelection();
+    run(300);
   }
 
   // Firmware update: the radar button is grayed out (up to date), the hourly
