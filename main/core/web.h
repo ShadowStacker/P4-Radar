@@ -18,24 +18,6 @@ std::string jsonEscape(const std::string& s);
 /** "\"...\"" */
 std::string jsonString(const std::string& s);
 
-/**
- * Wrong PINs: after 5 in a row, logins are refused for a minute (a 4-digit
- * PIN would otherwise fall to a script in minutes).
- */
-class LoginGuard {
- public:
-  static constexpr int kMaxTries = 5;
-  static constexpr uint32_t kLockMs = 60000;
-  /** Seconds to wait before the next try is accepted (0 = go ahead). */
-  int lockedFor(uint32_t now_ms) const;
-  void failed(uint32_t now_ms);
-  void succeeded() { fails_ = 0; }
-
- private:
-  int fails_ = 0;
-  uint32_t locked_until_ = 0;
-};
-
 /** The whole phone page: HTML, style and script in one. */
 extern const char kPage[];
 

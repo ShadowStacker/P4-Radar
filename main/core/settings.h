@@ -192,10 +192,10 @@ struct Settings {
 
   // v1.18.0
   bool night_by_sun = false;              // night is sunset to sunrise at home (else night_from/to_min)
-  // Settings page for phones, served on the local network (PIN protected).
+  // Settings page for phones, served on the local network.
   bool web_enabled = true;
-  char web_pin[5] = "";                   // 4 digits, made up on first start
-  char web_token[17] = "";                // what a logged-in phone keeps as its cookie
+  char unused_web_pin[5] = "";            // unused since v1.18.2 (no PIN any more); keeps the layout
+  char unused_web_token[17] = "";
   // Watchlist: announce these aircraft when they come within watch_radius_km of home.
   bool watch_enabled = true;
   bool watch_military = false;

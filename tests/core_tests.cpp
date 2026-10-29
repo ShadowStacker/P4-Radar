@@ -1362,15 +1362,6 @@ void testWeb() {
   CHECK(f["text"] == "night_dim = on" && f.count("x") && f["x"].empty() && f.count("y"));
   CHECK(w::cookie("a=1; radar=abc123; b=2", "radar") == "abc123" && w::cookie("radarx=1", "radar").empty());
   CHECK(w::jsonEscape("a\"b\\c\n\x01") == "a\\\"b\\\\c\\n\\u0001");
-  w::LoginGuard g;
-  for (int i = 0; i < 4; ++i) g.failed(1000);
-  CHECK(g.lockedFor(1000) == 0);
-  g.failed(1000);
-  CHECK(g.lockedFor(1000) == 60 && g.lockedFor(61001) == 0);
-  g.failed(61001);  // one more wrong try after the lock: locked again
-  CHECK(g.lockedFor(61001) > 0);
-  g.succeeded();
-  CHECK(g.lockedFor(61001) == 0);
   CHECK(std::strstr(w::kPage, "/api/settings") != nullptr);
 }
 

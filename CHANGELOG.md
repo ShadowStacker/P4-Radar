@@ -10,7 +10,22 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
-## [v1.18.1] - 2026-10-29
+## [v1.18.2] - 2026-10-29
+
+### Fixed
+- **The phone settings page didn't open.** It's now on port 50080 (the QR
+  code and the address on the radar include it). The radar's Wi-Fi chip can
+  keep incoming connections on port 80 for itself; ports 49152-61439 always
+  reach the radar.
+
+### Removed
+- The PIN: the page opens directly. Anyone on your network can use it; it
+  isn't reachable from the internet, and it can be turned off on the radar
+  (Settings → Phone settings page).
+- `plane-radar.local`: with the Wi-Fi chip keeping network announcements for
+  itself it can't work reliably. Use the address shown on the radar.
+
+ - 2026-10-29
 
 ### Fixed
 - Wi-Fi power saving is off: asleep between beacons, the radio could be slow

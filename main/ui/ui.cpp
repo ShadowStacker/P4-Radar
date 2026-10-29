@@ -475,8 +475,6 @@ void closeSettings(bool discard) {
     std::memcpy(s_snapshot.wifi_ssid, st.wifi_ssid, sizeof(st.wifi_ssid));
     std::memcpy(s_snapshot.wifi_pass, st.wifi_pass, sizeof(st.wifi_pass));
     std::memcpy(s_snapshot.wifi_saved, st.wifi_saved, sizeof(st.wifi_saved));
-    std::memcpy(s_snapshot.web_pin, st.web_pin, sizeof(st.web_pin));  // a new PIN has logged phones out already
-    std::memcpy(s_snapshot.web_token, st.web_token, sizeof(st.web_token));
     const bool filters_changed =
         st.military_only != s_snapshot.military_only || st.show_ground != s_snapshot.show_ground ||
         st.min_alt_ft != s_snapshot.min_alt_ft || st.max_alt_ft != s_snapshot.max_alt_ft ||

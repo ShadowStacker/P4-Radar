@@ -1478,7 +1478,7 @@ void pagePhone() {
   lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(box, sc(10), 0);
-  const std::string url = app::web::loginUrl();
+  const std::string url = app::web::address();
   if (!st.web_enabled) {
     label(box, "The phone page is off.", font(FontSize::M), p.text_dim);
   } else if (url.empty()) {
@@ -1500,9 +1500,7 @@ void pagePhone() {
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
   }
   if (st.web_enabled) {
-    infoRow("Or open", app::web::address().empty() ? std::string("-") : app::web::address());
-    infoRow("or", fmtStr("http://%s", app::web::kHostName));
-    infoRow("PIN", st.web_pin);
+    infoRow("Or open", url.empty() ? std::string("-") : url);
   }
   lv_obj_t* server = nullptr;
   lv_obj_t* visits = nullptr;
@@ -1513,15 +1511,11 @@ void pagePhone() {
     app::web::startSelfTest();
   }
   switchRow("Phone settings page", &st.web_enabled, [] { lv_async_call([](void*) { showPage(Page::Phone); }, nullptr); });
-  actionRow(LV_SYMBOL_REFRESH, "New PIN (logs out every phone)", [] {
-    app::web::newPin();
-    showPage(Page::Phone);
-  }, p.accent);
   lv_obj_t* note = label(s.list,
                          "Change settings, favorites and Wi-Fi networks from a phone or computer on the same "
-                         "network, see the daily log and screenshots, and install a firmware file. The QR code "
-                         "includes the PIN; typing the address asks for it. The page only works on your own "
-                         "network.",
+                         "network, see the daily log and screenshots, and install a firmware file. Anyone on your "
+                         "network can open it; it isn't reachable from the internet. Turn it off below when "
+                         "you don't need it.",
                          font(FontSize::S), p.text_dim);
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
@@ -1537,7 +1531,7 @@ void pagePhone() {
   // The address appears once Wi-Fi connects.
   const bool had_url = !url.empty();
   s.tick = [had_url, server, visits] {
-    if (!app::web::loginUrl().empty() != had_url) showPage(Page::Phone);
+    if (!app::web::address().empty() != had_url) showPage(Page::Phone);
     if (server == nullptr) return;
     const plat::WebStats ws = plat::webStats();
     const int test = app::web::selfTest();

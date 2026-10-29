@@ -27,9 +27,6 @@ namespace {
 
 using core::web::jsonString;
 
-std::mutex s_mu;  // guards the copies below (the server's task reads them)
-std::string s_pin, s_token;
-core::web::LoginGuard s_guard;
 bool s_running = false;           // UI task
 uint32_t s_restart_at_ms = 0;     // UI task: restart asked for from the page
 std::vector<plat::WifiNetwork> s_scan;  // last scan, for the page
@@ -51,42 +48,6 @@ plat::WebResponse error(const std::string& what, int status = 400) {
 plat::WebResponse ok(const std::string& extra = "") { return json("{\"ok\":true" + extra + "}"); }
 
 plat::WebResponse busy() { return error("The radar is busy - try again", 503); }
-
-std::string randomDigits(int n) {
-  std::string s;
-  for (int i = 0; i < n; ++i) s.push_back(static_cast<char>('0' + plat::random32() % 10));
-  return s;
-}
-
-std::string randomHex(int n) {
-  static const char kHex[] = "0123456789abcdef";
-  std::string s;
-  for (int i = 0; i < n; ++i) s.push_back(kHex[plat::random32() % 16]);
-  return s;
-}
-
-bool loggedIn(const plat::WebRequest& r) {
-  const std::string c = core::web::cookie(r.cookie, "radar");
-  std::lock_guard<std::mutex> lock(s_mu);
-  return !s_token.empty() && c == s_token;
-}
-
-plat::WebResponse login(const plat::WebRequest& r) {
-  const std::string pin = core::web::parseForm(r.body)["pin"];
-  std::lock_guard<std::mutex> lock(s_mu);
-  const uint32_t now = plat::millis();
-  if (const int wait = s_guard.lockedFor(now)) {
-    return error("Too many wrong PINs - try again in " + std::to_string(wait) + " s", 429);
-  }
-  if (s_pin.empty() || pin != s_pin) {
-    s_guard.failed(now);
-    return error("Wrong PIN", 403);
-  }
-  s_guard.succeeded();
-  plat::WebResponse res = ok();
-  res.set_cookie = "radar=" + s_token + "; Path=/; Max-Age=31536000; SameSite=Strict; HttpOnly";
-  return res;
-}
 
 std::string boolJson(bool v) { return v ? "true" : "false"; }
 
@@ -381,10 +342,8 @@ plat::WebResponse handle(plat::WebRequest& r) {
     res.body = core::web::kPage;
     return res;
   }
-  if (p == "/api/login" && r.method == "POST") return login(r);
   if (p == "/api/ping") return ok();  // the radar's own check that the server answers
   if (p.compare(0, 5, "/api/") != 0 && p.compare(0, 7, "/shots/") != 0) return error("Not found", 404);
-  if (!loggedIn(r)) return error("login", 401);
 
   const bool post = r.method == "POST";
   if (p == "/api/status") return status();
@@ -410,16 +369,6 @@ plat::WebResponse handle(plat::WebRequest& r) {
 
 void service() {
   core::Settings& st = settings();
-  if (st.web_pin[0] == '\0' || st.web_token[0] == '\0') {
-    std::snprintf(st.web_pin, sizeof(st.web_pin), "%s", randomDigits(4).c_str());
-    std::snprintf(st.web_token, sizeof(st.web_token), "%s", randomHex(16).c_str());
-    settingsChanged();
-  }
-  {
-    std::lock_guard<std::mutex> lock(s_mu);
-    s_pin = st.web_pin;
-    s_token = st.web_token;
-  }
   if (st.web_enabled && !s_running) {
     s_running = plat::webServerStart(handle);
     std::printf("web: %s\n", s_running ? "phone page running" : "phone page FAILED to start");
@@ -442,7 +391,7 @@ void startSelfTest() {
   s_self_test = 0;
   plat::startTask("webtest", [] {
     std::string body;
-    const int code = plat::httpGet("http://127.0.0.1/api/ping", &body, 5000);
+    const int code = plat::httpGet(("http://127.0.0.1:" + std::to_string(plat::kWebPort) + "/api/ping").c_str(), &body, 5000);
     std::printf("web: self-test -> %d %s\n", code, body.c_str());
     s_self_test = code == 200 ? 1 : -1;
     s_self_testing = false;
@@ -454,24 +403,8 @@ int selfTest() { return s_self_test; }
 std::string address() {
   const plat::WifiStatus ws = plat::wifiStatus();
   if (ws.state != plat::WifiState::Connected || ws.ip[0] == '\0') return "";
-  std::string a = std::string("http://") + ws.ip;
-#ifdef SIM_WEB_PORT
-  a += ":" + std::to_string(SIM_WEB_PORT);
-#endif
-  return a;
+  return std::string("http://") + ws.ip + ":" + std::to_string(plat::kWebPort);
 }
 
-std::string loginUrl() {
-  const std::string a = address();
-  return a.empty() ? "" : a + "/?pin=" + settings().web_pin;
-}
-
-void newPin() {
-  core::Settings& st = settings();
-  st.web_pin[0] = '\0';
-  st.web_token[0] = '\0';
-  service();
-  settingsFlush();
-}
 
 }  // namespace app::web

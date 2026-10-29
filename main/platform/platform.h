@@ -172,9 +172,15 @@ struct WebResponse {
 
 using WebHandler = std::function<WebResponse(WebRequest& req)>;
 /**
- * Serves HTTP on the local network (port 80; 8080 in the simulator) and
- * announces the name plane-radar.local. Handlers run in the server's own
- * task, one request at a time.
+ * The page's port. Not 80: the Wi-Fi co-processor (ESP32-C6, ESP-Hosted) can
+ * run its own network stack ("network split"), and then it keeps incoming
+ * connections for itself unless their port is in the main processor's range,
+ * 49152-61439, where this one is. (8080 in the simulator.)
+ */
+extern const int kWebPort;
+/**
+ * Serves HTTP on the local network on kWebPort. Handlers run in the
+ * server's own task, one request at a time.
  */
 bool webServerStart(WebHandler handler);
 void webServerStop();

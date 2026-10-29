@@ -296,7 +296,7 @@ int runWeb() {
   sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
   ui::init(g_disp);
   run(2000);
-  std::printf("[sim] PIN %s - %s\n", st.web_pin, app::web::loginUrl().c_str());
+  std::printf("[sim] phone page: %s\n", app::web::address().c_str());
   std::fflush(stdout);
   for (;;) {
     run(16);
@@ -1139,17 +1139,10 @@ int main(int argc, char** argv) {
     shot((p + "70_phone_qr").c_str());
     ui::closeSettings();
     run(300);
-    const std::string pin = app::settings().web_pin;
-    bool ok = pin.size() == 4 && sim::g_web_handler != nullptr;
-    ok = ok && app::web::loginUrl() == "http://192.168.1.42:8080/?pin=" + pin;
+    bool ok = sim::g_web_handler != nullptr && app::web::address() == "http://192.168.1.42:8080";
     plat::WebResponse r = web("GET", "/");
     ok = ok && r.status == 200 && r.body.find("<title>Plane Radar</title>") != std::string::npos;
-    ok = ok && web("GET", "/api/status").status == 401;
-    ok = ok && web("POST", "/api/login", "pin=0000" == "pin=" + pin ? "pin=1111" : "pin=0000").status == 403;
-    r = web("POST", "/api/login", "pin=" + pin);
-    const size_t c = r.set_cookie.find(';');
-    const std::string cookie = r.set_cookie.substr(0, c);
-    ok = ok && r.status == 200 && cookie == std::string("radar=") + app::settings().web_token;
+    const std::string cookie;
     const bool login_ok = ok;
     r = web("GET", "/api/status", "", cookie);
     ok = ok && r.status == 200 && r.body.find("\"board\":\"4in-720x720-chip-v1\"") != std::string::npos;
@@ -1181,15 +1174,10 @@ int main(int argc, char** argv) {
     ok = ok && r.status == 200 && r.type == "image/png" && r.body.compare(1, 3, "PNG") == 0;
     ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
     const bool shots_ok = ok;
-    // Wrong PINs lock the login for a minute.
-    for (int i = 0; i < 5; ++i) web("POST", "/api/login", "pin=x");
-    ok = ok && web("POST", "/api/login", "pin=" + pin).status == 429;
-    std::printf("phone page: login %s, settings %s, wifi %s, screenshots %s, lockout %s\n", login_ok ? "OK" : "FAILED",
-                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
-                ok ? "OK" : "FAILED");
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s\n", login_ok ? "OK" : "FAILED",
+                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED");
     if (!ok) return 1;
     app::settings().volume = 60;
-    run(61000, 500);  // the lock runs out
   }
 
   // Airline and route lookups on the SD card: earlier taps were saved there,

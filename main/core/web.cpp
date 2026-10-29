@@ -83,15 +83,4 @@ std::string jsonEscape(const std::string& s) {
 
 std::string jsonString(const std::string& s) { return "\"" + jsonEscape(s) + "\""; }
 
-int LoginGuard::lockedFor(uint32_t now_ms) const {
-  if (fails_ < kMaxTries) return 0;
-  const int32_t left = static_cast<int32_t>(locked_until_ - now_ms);
-  return left > 0 ? (left + 999) / 1000 : 0;
-}
-
-void LoginGuard::failed(uint32_t now_ms) {
-  if (fails_ >= kMaxTries && lockedFor(now_ms) == 0) fails_ = kMaxTries - 1;  // the lock ran out: one more try
-  if (++fails_ >= kMaxTries) locked_until_ = now_ms + kLockMs;
-}
-
 }  // namespace core::web

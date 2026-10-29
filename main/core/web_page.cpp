@@ -62,18 +62,12 @@ button:disabled{opacity:.5}
 .bar div{height:100%;width:0;background:var(--acc);transition:width .2s}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--acc);color:var(--text);padding:10px 16px;border-radius:20px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center;z-index:9}
 #toast.show{opacity:1}
-#login{max-width:320px;margin:60px auto;text-align:center}
-#login input{font-size:28px;letter-spacing:12px;text-align:center;width:180px;margin:14px 0}
 .hidden{display:none!important}
 .sig{color:var(--dim);font-size:13px;white-space:nowrap}
 </style></head><body>
 <header><h1><span class="dot"></span>Plane Radar<small id="ver"></small></h1>
 <nav id="tabs"></nav></header>
 <main>
-<div id="login" class="hidden card"><h2>Enter the PIN</h2>
-<p class="muted">The 4-digit PIN is on the radar: Settings &rsaquo; Phone settings page.</p>
-<input id="pin" inputmode="numeric" maxlength="4" autocomplete="off"><br>
-<button class="btn" onclick="login($('#pin').value)">Open</button><p id="loginmsg" class="muted"></p></div>
 <div id="view"></div>
 </main>
 <div id="toast"></div>
@@ -85,17 +79,9 @@ function toast(t,ms){const e=$('#toast');e.textContent=t;e.classList.add('show')
 async function api(path,body){
   const opt=body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)};
   const r=await fetch(path,opt);
-  if(r.status==401){showLogin();throw new Error('login')}
   const j=await r.json().catch(()=>({ok:false,error:'Bad answer from the radar'}));
   if(!r.ok&&!j.error)j.error='Error '+r.status;
   return j;
-}
-function showLogin(){$('#login').classList.remove('hidden');$('#view').innerHTML='';$('#tabs').innerHTML='';$('#pin').focus()}
-async function login(pin){
-  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'pin='+encodeURIComponent(pin)});
-  const j=await r.json().catch(()=>({}));
-  if(r.ok){$('#login').classList.add('hidden');start();return}
-  $('#login').classList.remove('hidden');$('#loginmsg').textContent=j.error||'Wrong PIN';
 }
 const TABS=[['settings','Settings'],['watch','Watchlist'],['favorites','Favorites'],['wifi','Wi-Fi'],['log','Daily log'],['shots','Screenshots'],['update','Update']];
 let tab='settings',status={};
@@ -104,7 +90,7 @@ function nav(){
 }
 function go(k){tab=k;nav();try{localStorage.tab=k}catch(e){}render()}
 async function start(){
-  try{status=await api('/api/status')}catch(e){return}
+  try{status=await api('/api/status')}catch(e){$('#view').innerHTML='<div class="card">Can\'t reach the radar. Is this phone on the same Wi-Fi?</div>';return}
   $('#ver').textContent=status.version+' · '+status.aircraft+' aircraft';
   try{if(localStorage.tab)tab=localStorage.tab}catch(e){}
   nav();render();
@@ -238,7 +224,6 @@ function upload(){
   x.upload.onprogress=e=>{if(e.lengthComputable)$('#fwbar').style.width=(100*e.loaded/e.total)+'%'};
   x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
     $('#fwgo').disabled=false;
-    if(x.status==401){showLogin();return}
     $('#fwmsg').textContent=j.ok?('Installed '+j.version+'. The radar restarts by itself in a moment.'):(j.error||'Failed');
     if(j.ok)$('#fwrestart').classList.remove('hidden');else $('#fwbar').style.width='0';};
   x.onerror=()=>{$('#fwgo').disabled=false;$('#fwmsg').textContent='The upload stopped (Wi-Fi?)'};
@@ -246,8 +231,7 @@ function upload(){
 }
 async function restart(){await api('/api/restart',{});toast('Restarting... reload this page in a minute',5000)}
 (async()=>{
-  const p=new URLSearchParams(location.search).get('pin');
-  if(p){history.replaceState(null,'',location.pathname);await login(p);}else start();
+  start();
 })();
 </script></body></html>
 )PAGE";

@@ -528,10 +528,9 @@ roughly what's on screen. To watch a wide area, zoom out.
 
 Change settings from a phone or computer instead of the touch screen. That's
 handy for Wi-Fi passwords and tail numbers. Open **Settings → Phone settings
-page** on the radar and scan the QR code with your phone's camera: the page
-opens already logged in. Or type the address shown there
-(`http://plane-radar.local`, or the radar's IP address, e.g.
-`http://192.168.1.42`) and enter the 4-digit **PIN** shown on the radar.
+page** on the radar and scan the QR code with your phone's camera. Or type
+the address shown there, the radar's IP address with port 50080, e.g.
+`http://192.168.1.42:50080`.
 
 The page has tabs for:
 
@@ -549,12 +548,14 @@ The page has tabs for:
   another board, shows the same progress screen as an update from GitHub, then
   restarts.
 
-The page only works on your own network (the radar isn't reachable from the
-internet), and only with the PIN. Five wrong PINs lock the login for a
-minute. **New PIN** on the radar's page logs every phone out. Turn the page
-off with the **Phone settings page** switch. `plane-radar.local` works on
-iPhones, Macs, Windows and most Android phones. If it doesn't, use the IP
-address.
+Anyone on your own network can open the page; it isn't reachable from the
+internet. Turn it off with the **Phone settings page** switch when you don't
+need it.
+
+Why port 50080 and not a plain address: the radar's Wi-Fi chip (an ESP32-C6
+next to the main processor) can run a network stack of its own, and then it
+keeps incoming connections on ordinary ports such as 80 for itself. Only
+ports 49152 to 61439 always reach the main processor.
 
 **If the page doesn't open on the phone**, scroll down on the radar's Phone
 settings page:
@@ -574,12 +575,10 @@ doesn't show, send the serial log; every request is logged as
 
 | Option | What it does | Default |
 |---|---|---|
-| QR code | Opens the page on a phone, logged in | |
+| QR code | Opens the page on a phone | |
+| Or open | The page's address | |
 | Server / Phone visits | Whether the page is working and reached, see above | |
-| Or open / or | The page's addresses | |
-| PIN | Asked for when you type the address | made up on first start |
 | Phone settings page | Turn the page on or off | On |
-| New PIN | A new PIN; phones that were logged in must enter it again | |
 
 ### Daily log
 

@@ -73,7 +73,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   satellite photos, or a street map with street names, under the radar (streets and topo tinted to the
   theme), with tiles saved on an optional microSD card for instant and offline use.
 - **Settings from your phone**: scan the QR code on the radar and change settings, favorites and Wi-Fi
-  networks from a phone page served by the radar itself (`http://plane-radar.local`, PIN protected).
+  networks from a phone page served by the radar itself (on your network only).
   It also shows the daily log and screenshots, and installs firmware files.
 - **Watchlist alerts**: a notice and a sound when military aircraft, helicopters, fast jets, chosen
   types (A388, C17, ...) or callsigns (RCH*, N123AB) come near home.

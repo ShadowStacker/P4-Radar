@@ -52,7 +52,6 @@ file(GLOB APP_SOURCES
 add_executable(plane_radar_sim ${APP_SOURCES} sim_main.cpp platform_sim.cpp fake_traffic.cpp)
 target_include_directories(plane_radar_sim PRIVATE ${ROOT}/main ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(plane_radar_sim PRIVATE lvgl cjson ZLIB::ZLIB pthread m)
-target_compile_definitions(plane_radar_sim PRIVATE SIM_WEB_PORT=8080)
 target_compile_options(plane_radar_sim PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
 
 # Host unit tests for the pure core logic.

@@ -17,6 +17,8 @@
 
 namespace plat {
 
+const int kWebPort = 50080;
+
 namespace {
 
 const char* TAG = "web";
@@ -124,7 +126,7 @@ void startMdns() {
   }
   mdns_hostname_set("plane-radar");
   mdns_instance_name_set("Plane Radar");
-  mdns_service_add("Plane Radar", "_http", "_tcp", 80, nullptr, 0);
+  mdns_service_add("Plane Radar", "_http", "_tcp", static_cast<uint16_t>(kWebPort), nullptr, 0);
   s_mdns = true;
   esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, announce, nullptr);
   announce(nullptr, nullptr, 0, nullptr);  // already connected
@@ -144,6 +146,7 @@ bool webServerStart(WebHandler handler) {
   cfg.recv_wait_timeout = 10;
   cfg.send_wait_timeout = 10;
   cfg.uri_match_fn = httpd_uri_match_wildcard;
+  cfg.server_port = static_cast<uint16_t>(kWebPort);
   const esp_err_t err = httpd_start(&s_server, &cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "server didn't start: %s", esp_err_to_name(err));
@@ -161,7 +164,7 @@ bool webServerStart(WebHandler handler) {
     httpd_register_uri_handler(s_server, &u);
   }
   startMdns();
-  ESP_LOGI(TAG, "phone page on port 80 (plane-radar.local)");
+  ESP_LOGI(TAG, "phone page on port %d", kWebPort);
   return true;
 }
 
