@@ -30,4 +30,7 @@ void closeSettings(bool discard = false);
  */
 void rebuild();
 
+/** Asks "Install vX.Y.Z?" and starts the firmware update if confirmed (needs an available update). */
+void confirmInstallUpdate();
+
 }  // namespace ui

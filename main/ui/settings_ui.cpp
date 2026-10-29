@@ -1199,17 +1199,7 @@ void pageAbout() {
   lv_obj_t* upd = infoRow("Latest version", "");
   lv_label_set_long_mode(upd, LV_LABEL_LONG_WRAP);
   actionRow(LV_SYMBOL_REFRESH, "Check for updates", [] { app::checkForUpdate(); }, pal().accent);
-  lv_obj_t* install = actionRow(LV_SYMBOL_DOWNLOAD, "Install update", [] {
-    const app::UpdateStatus u = app::updateStatus();
-    if (u.state != app::UpdateState::Available) return;
-    confirm(fmtStr("Install %s?", u.latest).c_str(),
-            fmtStr("Downloads about %u MB from GitHub and restarts. Takes a few minutes; keep the power on. "
-                   "Settings and favorites are kept, and if the new version doesn't start, the radar "
-                   "goes back to this one.",
-                   static_cast<unsigned>((u.total + 500000) / 1000000))
-                .c_str(),
-            "Install", [] { app::installUpdate(); });
-  }, pal().accent);
+  lv_obj_t* install = actionRow(LV_SYMBOL_DOWNLOAD, "Install update", [] { confirmInstallUpdate(); }, pal().accent);
   lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
 
   section("MAINTENANCE");

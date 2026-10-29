@@ -510,8 +510,16 @@ their sound is off. The **Sound** master switch silences everything.
 
 ## Updating over Wi-Fi
 
-From v1.13.0 on, the radar can update itself: **Settings > About > Check
-for updates**. If there's a newer release, tap **Install vX.Y.Z** and confirm.
+From v1.13.0 on, the radar can update itself.
+
+- **Update button on the radar** (v1.14.0 and later; the download arrow
+  between Home and zoom-out). The radar checks GitHub a minute after it starts
+  and then every hour. Normally the button is grayed out and fades with the
+  others; tap it to check right away. When an update is available it **lights
+  up** and stays visible. Tap it to install.
+- **Settings > About > Check for updates**, then **Install vX.Y.Z**.
+
+Either way, you confirm before anything is downloaded.
 It downloads about 6 MB from GitHub, shows the progress, and restarts into
 the new version. This takes a few minutes; keep the power on.
 
@@ -522,8 +530,8 @@ the new version. This takes a few minutes; keep the power on.
   old version; just try again.
 - **A bad update undoes itself.** A new version that crashes or resets in its
   first minute is rolled back to the previous one at the next start.
-- The radar picks the file for its own board and chip revision, so it can't
-  install the wrong one.
+- The radar picks the file for its own board, so it can't install the wrong
+  one.
 
 **Coming from v1.12.x or older:** update over USB once to v1.13.0 (see below).
 Older versions can't update themselves, and v1.13.0 splits the flash into
@@ -532,30 +540,26 @@ v1.12.x.
 
 ## Flashing the firmware
 
-Each [release](https://github.com/ShadowStacker/P4-Radar/releases) has four
-images. Pick by board **and** chip revision:
+Each [release](https://github.com/ShadowStacker/P4-Radar/releases) has one
+image per board:
 
-| File | Board | Chip |
-|---|---|---|
-| `plane-radar-3.4in-800x800-chip-v3-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v3.x |
-| `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C | revision v0.x / v1.x |
-| `plane-radar-4in-720x720-chip-v3-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v3.x |
-| `plane-radar-4in-720x720-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-4C | revision v0.x / v1.x |
+| File | Board |
+|---|---|
+| `plane-radar-4in-720x720-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-4C |
+| `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | ESP32-P4-WIFI6-Touch-LCD-3.4C |
+
+They're built for ESP32-P4 chip revision v0.x / v1.x, which is what these
+boards have. (Releases up to v1.13.0 also had `chip-v3` images for revision
+v3.x chips; those are no longer built.)
 
 **Use the file without `-ota` in its name.** The `*-ota.bin` files next to
 them are for [updates over Wi-Fi](#updating-over-wi-fi) only. They have no
 bootloader, so flashing one over USB gives a black screen and the serial log
 shows `invalid header`. Flashing the right file fixes it.
 
-**Finding your chip revision**, any of:
-- Connect with [esptool-js](https://espressif.github.io/esptool-js/) and read
-  `Chip is ESP32-P4 (revision vX.Y)`.
-- Run `python -m esptool --chip esp32p4 chip_id`.
-- Check the first line of the serial log: `ESP-ROM:esp32p4-eco2-…` means a
-  v1.x chip.
-
-A wrong-revision image doesn't boot. The serial log shows
-`Illegal instruction` right after `entry 0x...`, or `Image requires chip rev`.
+On a board with a v3.x chip the image doesn't boot (the serial log shows
+`Illegal instruction` right after `entry 0x...`, or `Image requires chip rev`).
+`python -m esptool --chip esp32p4 chip_id` shows the revision.
 
 ### With esptool (recommended)
 
@@ -598,7 +602,7 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 
 | Symptom | Likely cause and fix |
 |---|---|
-| Black screen, USB keeps disconnecting | Wrong address or wrong chip image. `invalid header: 0xffffffff` → flash at `0x0`. `Illegal instruction` at `entry` → use the other `chip-v1`/`chip-v3` file. |
+| Black screen, USB keeps disconnecting | Wrong address or wrong chip image. `invalid header: 0xffffffff` → flash at `0x0`. `Illegal instruction` at `entry` → the board has a v3.x chip, which current releases don't support. |
 | "PLANE RADAR – Loading..." then a reboot | A crash during start-up. Send the log; the `abort()` line plus backtrace pinpoints it. |
 | Boot screen says "Wi-Fi module not responding" | The P4 can't talk to the ESP32-C6. The radar still runs, but offline. Power-cycle the board. If it persists, the C6's ESP-Hosted firmware may need updating. |
 | Log says `major version mismatch — OTA coprocessor` | A recommendation to update the C6 firmware. Older C6 firmware still works with this version. |
@@ -611,7 +615,7 @@ press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 | Animation feels slow | The radar sweep is the most expensive animation: lower **Sweep trail** (0 = clean bar is cheapest), turn off Smooth trail fade, or turn the sweep off. Zoomed far out with hundreds of aircraft, symbols get smaller automatically. The serial log prints a `perf:` line every 30 s (frame rate and where the time goes); send it along when reporting slowness. |
 | Picture is the wrong way round | Set **Display → Screen rotation**, then restart. |
 | Menus or touch feel sluggish at times | Background work (map tiles, the flight history of a selected aircraft) now pauses while you touch the screen and while the menu is open. If it still happens, deselect the aircraft and try with the background map off to narrow it down. The serial log prints a `health:` line every 30 s: free memory, CPU load per core, the busiest tasks, and the longest the screen went without updating. Send a few of those lines from around the slowdown when reporting it. |
-| Black screen right after flashing | Make sure you flashed the file **without** `-ota` in its name, at `0x0`, and the right chip revision (`chip-v1` vs `chip-v3`). Hold BOOT, tap RESET, release BOOT, and flash again. If it's still black, the first lines of the serial log (115200 baud) say why. |
+| Black screen right after flashing | Make sure you flashed the file **without** `-ota` in its name, at `0x0`. Hold BOOT, tap RESET, release BOOT, and flash again. If it's still black, the first lines of the serial log (115200 baud) say why. |
 | Background map stays blank | It needs Wi-Fi the first time an area is viewed (or saved tiles on the SD card). The serial log shows `map: tile ... -> HTTP <code>` for tiles that failed. |
 | SD card says "No card" | Insert it with the power off, or tap **Look for a card again**. It must be FAT32. |
 | Clock shows "Waiting for the time..." | It hasn't reached an internet time server yet. Check Wi-Fi; the time is set within a few seconds of connecting. |

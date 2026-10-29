@@ -10,6 +10,26 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.14.0] - 2026-10-29
+
+### Added
+- **Update button on the radar** (the download arrow between Home and
+  zoom-out):
+  - The radar checks GitHub for a new version a minute after it starts and
+    then every hour.
+  - Normally the button is grayed out and fades with the others. Tap it to
+    check right away.
+  - When an update is available, it **lights up** and stays visible while
+    the other buttons fade. Tap it, confirm, and the update installs (the
+    same as from Settings → About).
+
+### Changed
+- **Only chip-v1 images are released now:** the boards in use all have
+  ESP32-P4 revision v1.x, and the extra `chip-v3` files were confusing. File
+  names keep `chip-v1`, so boards on v1.13.0 still find their updates.
+- Release notes and the guide list exact file names and warn not to flash
+  the `-ota.bin` update files over USB (that gives a black screen).
+
 ## [v1.13.0] - 2026-10-28
 
 ### Added

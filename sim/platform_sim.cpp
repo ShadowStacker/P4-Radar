@@ -19,6 +19,7 @@ namespace sim {
 uint32_t g_ms = 1000;
 Touch g_touch;
 bool g_preset_wifi = true;
+bool g_update_available = false;
 std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
 std::function<std::string(const std::string&)> g_route_server;
@@ -223,9 +224,10 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
   }
   if (std::strstr(url, "adsbdb.com") != nullptr) return 404;
   if (std::strstr(url, "api.github.com/repos/") != nullptr) {
-    // A newer release with an update image for the simulated board.
-    *body = R"({"tag_name":"v1.13.0","assets":[{"name":"plane-radar-4in-720x720-chip-v1-v1.13.0-ota.bin",)"
-            R"("size":6000000,"browser_download_url":"https://github.com/sim/v1.13.0-ota.bin"}]})";
+    // The latest release: the running version, or a newer one with an update image.
+    const char* tag = sim::g_update_available ? "v1.13.0" : "v1.12.1";
+    *body = std::string(R"({"tag_name":")") + tag + R"(","assets":[{"name":"plane-radar-4in-720x720-chip-v1-)" + tag +
+            R"(-ota.bin","size":6000000,"browser_download_url":"https://github.com/sim/ota.bin"}]})";
     return 200;
   }
   const char* name = std::strstr(url, "/trace_full_");

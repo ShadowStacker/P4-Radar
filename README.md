@@ -23,13 +23,11 @@ higher-resolution, touch-driven take on
 
 ## Quick start
 
-1. **Find your chip revision.** Connect the board to
-   [esptool-js](https://espressif.github.io/esptool-js/) and read
-   `Chip is ESP32-P4 (revision vX.Y)`.
-2. **Download** the image for your board and chip from the
+1. **Download** the image for your board from the
    [latest release](https://github.com/ShadowStacker/P4-Radar/releases/latest),
-   e.g. `plane-radar-4in-720x720-chip-v1-….bin` for a 4" board with a v1.x chip.
-3. **Flash it at address `0x0`.** In esptool-js, change the default `0x1000`.
+   e.g. `plane-radar-4in-720x720-chip-v1-<version>.bin` for a 4" board (not the
+   `-ota.bin` file, which is for updates over Wi-Fi).
+2. **Flash it at address `0x0`.** In esptool-js, change the default `0x1000`.
    With esptool:
    `python -m esptool --chip esp32p4 write_flash 0x0 <file>.bin`
 4. **Set up on the touchscreen.** The device walks you through Wi-Fi, then your
@@ -74,7 +72,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Background maps**: dark street map, topo map or FAA VFR sectional
   charts under the radar (streets and topo tinted to the theme), with tiles saved on an optional microSD card for instant and
   offline use.
-- **Updates over Wi-Fi** from Settings → About → Check for updates, with automatic rollback if a new version fails to start.
+- **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when there is one (also Settings → About → Check for updates), with automatic rollback if a new version fails to start.
 - **Settings and favorites on the SD card**: `settings.txt` (Wi-Fi included) and `favorites.txt` are kept in the card's
   root, read at startup and editable on a computer. Add favorites there by hex code or tail number.
 - **Clock mode**: the bezel turns into a clock dial with hour, minute and
@@ -188,13 +186,12 @@ it on overflows the P4's internal RAM at link time.
 
 ### Chip revision (important)
 
-ESP32-P4 chips come in two incompatible families. Newer boards have
-**revision v3.x**, older ones **v0.x/v1.x**, and an image built for one won't
-boot on the other: the screen stays black and USB keeps disconnecting as the
-board resets. Check yours with `python -m esptool --chip esp32p4 chip_id`, or
-connect in esptool-js and read "Chip is ESP32-P4 (revision vX.Y)".
+ESP32-P4 chips come in two incompatible families, **revision v3.x** and
+**v0.x/v1.x**; an image built for one won't boot on the other. The boards
+this project is used with are all v1.x, and releases only include v1.x
+images (`chip-v1` in the file name).
 
-The default build targets v3.x. For a v1.x chip, add the overlay:
+The default build targets v3.x. For a v1.x chip (the released images), add the overlay:
 
 ```bash
 idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" build
@@ -209,7 +206,7 @@ Revision v3 support needs ESP-IDF **v5.5.2 or newer** (CI uses v5.5.6).
 A merged image (bootloader + partition table + app) is written at offset `0x0`:
 
 ```bash
-python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-chip-v3-v1.0.1.bin
+python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-4in-720x720-chip-v1-<version>.bin
 ```
 
 Ready-made images for both boards are on the
@@ -228,7 +225,7 @@ boards, runs the unit tests and renders simulator screenshots on every push.
    bump `CONFIG_APP_PROJECT_VER` in `sdkconfig.defaults`.
 2. Push, then either push a `vX.Y.Z` tag, or run the **Build** workflow from the
    Actions tab with *release_version* set to `vX.Y.Z`.
-3. CI builds all four images and publishes the release. Its notes start with
+3. CI builds an image per board (plus the `-ota.bin` update files) and publishes the release. Its notes start with
    that version's changelog section.
 
 ### If something doesn't work
@@ -237,8 +234,7 @@ See [Troubleshooting](docs/USER_GUIDE.md#troubleshooting) in the user guide.
 The two most common problems:
 
 - **Black screen, USB keeps reconnecting**: the image is at the wrong address
-  (flash at `0x0`), or it's for the wrong chip revision (`chip-v1` vs
-  `chip-v3`).
+  (flash at `0x0`), or it's the `-ota.bin` update file instead of the USB image.
 - **Crash after "Loading..."**: capture the serial log at 115200 baud and open
   an issue. Releases include `symbols-*.elf` files for decoding backtraces.
 

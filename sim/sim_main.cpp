@@ -876,20 +876,49 @@ int main(int argc, char** argv) {
     shot((p + "54_settings_from_sd").c_str());
   }
 
-  // Firmware update from the About page (GitHub and the installer are faked).
+  // Firmware update: the radar button is grayed out (up to date), the hourly
+  // check finds a newer release and it lights up, then it installs.
   {
-    ui::openSettings(ui::Page::About);
-    run(300);
-    app::checkForUpdate();
+    const bool gray = app::updateStatus().state == app::UpdateState::UpToDate;
+    std::printf("update auto-check (up to date): %s\n", gray ? "OK" : "FAILED");
+    if (!gray) return 1;
+    ui::RadarView::get().clearSelection();
+    lv_display_trigger_activity(nullptr);  // as if touched: the buttons come back
+    run(600);
+    shot((p + "57_update_button_gray").c_str());
+    // Tapping the grayed-out button checks right away.
+    sim::g_update_available = true;
+    tap(S(275), S(694));
     run(1500);
+    const bool tapped = app::updateStatus().state == app::UpdateState::Available;
+    std::printf("update check from the radar button: %s\n", tapped ? "OK" : "FAILED");
+    if (!tapped) return 1;
+    // The hourly check: back to gray when the release goes away, lit again when it's back.
+    sim::g_update_available = false;
+    run(3600 * 1000 + 2000, 500);
+    const bool regray = app::updateStatus().state == app::UpdateState::UpToDate;
+    std::printf("update auto-check (up to date again): %s\n", regray ? "OK" : "FAILED");
+    if (!regray) return 1;
+    sim::g_update_available = true;
+    run(3600 * 1000 + 2000, 500);  // an hour later
     const app::UpdateStatus u = app::updateStatus();
     const bool found = u.state == app::UpdateState::Available && std::strcmp(u.latest, "v1.13.0") == 0;
-    std::printf("update check: %s\n", found ? "OK" : "FAILED");
+    std::printf("update auto-check (newer release): %s\n", found ? "OK" : "FAILED");
     if (!found) return 1;
+    run(12000);  // the other buttons fade; the lit one stays
+    shot((p + "58_update_button_lit").c_str());
+    ui::openSettings(ui::Page::About);
+    run(300);
     lv_obj_scroll_to_y(lv_obj_get_child(lv_screen_active(), 3), S(260), LV_ANIM_OFF);
     run(300);
     shot((p + "55_update_available").c_str());
+    ui::closeSettings();
+    run(500);
+    ui::confirmInstallUpdate();
+    run(300);
+    shot((p + "59_update_confirm").c_str());
     app::installUpdate();
+    lv_obj_clean(lv_layer_top());  // the confirm dialog
     run(600);
     const bool installed = app::updateStatus().state == app::UpdateState::Installed;
     std::printf("update install: %s\n", installed ? "OK" : "FAILED");

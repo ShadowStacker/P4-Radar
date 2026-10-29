@@ -182,7 +182,7 @@ struct UpdateStatus {
   size_t done = 0, total = 0;   // bytes, while installing
 };
 
-/** Asks the poller to look up the latest release. */
+/** Asks the poller to look up the latest release (it also checks by itself every hour). */
 void checkForUpdate();
 /** Downloads and installs the release found by the last check (state Available). */
 void installUpdate();

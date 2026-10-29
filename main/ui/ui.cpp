@@ -281,6 +281,19 @@ void onSettingsLoaded(const core::Settings& before) {
 
 bool settingsOpen() { return s_settings_screen != nullptr; }
 
+void confirmInstallUpdate() {
+  const app::UpdateStatus u = app::updateStatus();
+  if (u.state != app::UpdateState::Available) return;
+  char title[48], body[320];
+  std::snprintf(title, sizeof(title), "Install %s?", u.latest);
+  std::snprintf(body, sizeof(body),
+                "You have %s. The update downloads about %u MB from GitHub and restarts; it takes a few "
+                "minutes, so keep the power on. Settings and favorites are kept, and if the new version "
+                "doesn't start, the radar goes back to this one.",
+                plat::firmwareVersion(), static_cast<unsigned>((u.total + 500000) / 1000000));
+  confirm(title, body, "Install", [] { app::installUpdate(); });
+}
+
 void openSettings(Page page) {
   if (s_settings_screen != nullptr) return;
   s_snapshot = app::settings();

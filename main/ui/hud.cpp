@@ -28,6 +28,11 @@ struct Hud {
   lv_obj_t* status_label = nullptr;
   bool status_problem = false;   // offline/errors: keep everything visible
   lv_obj_t* filter = nullptr;
+  // Firmware update: grayed out (fades with the other buttons), lit and
+  // always shown while an update is available.
+  lv_obj_t* update_btn = nullptr;
+  bool update_lit = false;
+  bool update_check_asked = false;  // tapped while grayed: report the result
   lv_obj_t* map_btn = nullptr;
   lv_obj_t* credit = nullptr;
   lv_obj_t* credit_label = nullptr;
@@ -335,7 +340,71 @@ void updateCard() {
   else lv_obj_remove_state(h.follow_btn, LV_STATE_CHECKED);
 }
 
+void styleUpdateButton(bool lit) {
+  const Palette& p = pal();
+  lv_obj_t* b = h.update_btn;
+  lv_obj_t* l = lv_obj_get_child(b, 0);
+  lv_obj_set_style_bg_color(b, lit ? p.accent : p.panel, 0);
+  lv_obj_set_style_bg_opa(b, lit ? LV_OPA_COVER : 120, 0);
+  lv_obj_set_style_border_color(b, lit ? p.accent : p.panel_border, 0);
+  lv_obj_set_style_shadow_color(b, p.accent, 0);
+  lv_obj_set_style_shadow_width(b, lit ? sc(18) : 0, 0);
+  lv_obj_set_style_shadow_opa(b, 160, 0);
+  lv_obj_set_style_text_color(l, lit ? p.bg : p.text_dim, 0);
+}
+
+void updateUpdateButton() {
+  if (h.update_btn == nullptr) return;
+  const app::UpdateStatus u = app::updateStatus();
+  const bool lit = u.state == app::UpdateState::Available;
+  if (lit != h.update_lit) {
+    h.update_lit = lit;
+    styleUpdateButton(lit);
+    lv_anim_delete(h.update_btn, nullptr);
+    if (lit) {
+      setHidden(h.update_btn, false);  // stays up even while the other buttons are hidden
+      lv_obj_set_style_opa(h.update_btn, LV_OPA_COVER, 0);
+      static std::string s_announced;  // once per version, not after every screen rebuild
+      if (s_announced != u.latest) {
+        s_announced = u.latest;
+        toast((std::string(LV_SYMBOL_DOWNLOAD "  Update ") + u.latest + " available - tap the glowing button")
+                  .c_str(),
+              5000);
+      }
+      h.update_check_asked = false;
+    } else if (h.controls_hidden) {
+      setHidden(h.update_btn, true);
+    }
+  }
+  if (h.update_check_asked && u.state != app::UpdateState::Checking) {
+    h.update_check_asked = false;
+    if (u.state == app::UpdateState::UpToDate) {
+      toast((std::string(LV_SYMBOL_OK "  Up to date (") + plat::firmwareVersion() + ")").c_str(), 3000);
+    } else if (u.state == app::UpdateState::NoImage) {
+      toast((std::string(LV_SYMBOL_WARNING "  ") + u.latest + " has no update file for this board").c_str(), 4000);
+    } else if (u.state == app::UpdateState::Failed) {
+      toast((std::string(LV_SYMBOL_WARNING "  ") + u.error).c_str(), 4000);
+    }
+  }
+}
+
+void onUpdatePressed() {
+  const app::UpdateStatus u = app::updateStatus();
+  if (u.state == app::UpdateState::Available) {
+    confirmInstallUpdate();
+    return;
+  }
+  if (plat::wifiStatus().state != plat::WifiState::Connected) {
+    toast(LV_SYMBOL_WIFI "  Needs Wi-Fi to check for updates", 2500);
+    return;
+  }
+  if (u.state != app::UpdateState::Checking) app::checkForUpdate();
+  h.update_check_asked = true;
+  toast(LV_SYMBOL_REFRESH "  Checking for updates...", 2000);
+}
+
 void onTimer(lv_timer_t*) {
+  updateUpdateButton();
   updateStatus();
   updateCard();
   std::string notice;
@@ -365,15 +434,22 @@ void onAutoHideTimer(lv_timer_t*) {
       lv_anim_delete(h.controls, nullptr);
       lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
       lv_obj_fade_in(h.controls, kFadeMs / 2, 0);
+      if (h.update_btn && !h.update_lit) {
+        lv_anim_delete(h.update_btn, nullptr);
+        setHidden(h.update_btn, false);
+        lv_obj_fade_in(h.update_btn, kFadeMs / 2, 0);
+      }
     } else if (h.hide_done_ms != 0 && static_cast<int32_t>(now - h.hide_done_ms) >= 0) {
       // Fully transparent: hide it so invisible buttons can't be pressed.
       lv_obj_add_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
+      if (h.update_btn && !h.update_lit) setHidden(h.update_btn, true);
       h.hide_done_ms = 0;
     }
   } else if (may_hide && idle >= kAutoHideIdleMs) {
     h.controls_hidden = true;
     h.hide_done_ms = now + kFadeMs;
     lv_obj_fade_out(h.controls, kFadeMs, 0);
+    if (h.update_btn && !h.update_lit) lv_obj_fade_out(h.update_btn, kFadeMs, 0);
   }
 }
 
@@ -642,6 +718,13 @@ void create(lv_obj_t* parent) {
 
   h.home = iconButton(h.controls, LV_SYMBOL_HOME, sc(84), [] { RadarView::get().goHome(); });
   placePolar(h.home, 180, 0.82f);
+
+  // Firmware update, mirroring the map button. Not in h.controls: when lit it
+  // has to stay visible while the others fade.
+  h.update_btn = iconButton(parent, LV_SYMBOL_DOWNLOAD, d, [] { onUpdatePressed(); });
+  placePolar(h.update_btn, 203, 0.80f);
+  h.update_lit = false;
+  styleUpdateButton(false);
 
   buildCard(parent);
   buildPickMode(parent);

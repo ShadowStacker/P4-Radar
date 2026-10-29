@@ -22,9 +22,10 @@ jobs:
           - name: 4in-720x720
             defaults: sdkconfig.defaults;sdkconfig.defaults.4inch
         chip:
-          # ESP32-P4 v3.x (current boards) and v1.x need separate images.
-          - name: chip-v3
-            defaults: ""
+          # Only ESP32-P4 revision v1.x boards are in use. (v3.x chips would need
+          # a separate image built without sdkconfig.defaults.p4rev1.) The
+          # "chip-v1" stays in the file names: boards look for that name when
+          # they check for updates.
           - name: chip-v1
             defaults: ";sdkconfig.defaults.p4rev1"
     steps:
@@ -46,11 +47,7 @@ jobs:
       - name: Check chip revision range
         run: |
           grep -E "^CONFIG_ESP32P4_REV_MIN_FULL|^CONFIG_ESP32P4_REV_MAX_FULL" sdkconfig
-          if [ "${{ matrix.chip.name }}" = chip-v3 ]; then
-            grep -q "^CONFIG_ESP32P4_REV_MAX_FULL=399" sdkconfig
-          else
-            grep -q "^CONFIG_ESP32P4_REV_MAX_FULL=199" sdkconfig
-          fi
+          grep -q "^CONFIG_ESP32P4_REV_MAX_FULL=199" sdkconfig
       - name: Report build errors
         if: failure()
         run: |
@@ -112,7 +109,7 @@ jobs:
         run: |
           mkdir dist
           for board in 3.4in-800x800 4in-720x720; do
-            for chip in chip-v3 chip-v1; do
+            for chip in chip-v1; do
               cp "artifacts/plane-radar-$board-$chip/plane-radar-merged.bin" "dist/plane-radar-$board-$chip-${VERSION}.bin"
               # App only, for updates over Wi-Fi (Settings > About > Check for updates).
               cp "artifacts/plane-radar-$board-$chip/plane_radar_p4.bin" "dist/plane-radar-$board-$chip-${VERSION}-ota.bin"
@@ -148,31 +145,24 @@ jobs:
 
           Flashable firmware for the Waveshare ESP32-P4 round touch displays.
 
-          Pick the file for your board **and** your ESP32-P4 chip revision
-          (`chip-v3` for revision v3.x, `chip-v1` for v0.x/v1.x). The wrong revision
-          won't boot. To check yours, run `python -m esptool --chip esp32p4 chip_id`
-          or connect in esptool-js and look for "Chip is ESP32-P4 (revision vX.Y)".
+          Pick the file for your board. The images are for ESP32-P4 chip revision
+          v0.x / v1.x (`chip-v1`), which is what these boards have.
 
-          | File | Board | Chip |
-          |---|---|---|
-          | `plane-radar-3.4in-800x800-chip-v3-<version>.bin` | 3.4C (800x800) | rev v3.x |
-          | `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | 3.4C (800x800) | rev v0.x / v1.x |
-          | `plane-radar-4in-720x720-chip-v3-<version>.bin` | 4C (720x720) | rev v3.x |
-          | `plane-radar-4in-720x720-chip-v1-<version>.bin` | 4C (720x720) | rev v0.x / v1.x |
+          | File | Board |
+          |---|---|
+          | `plane-radar-4in-720x720-chip-v1-<version>.bin` | 4C (720x720) |
+          | `plane-radar-3.4in-800x800-chip-v1-<version>.bin` | 3.4C (800x800) |
 
           Each is a merged image (bootloader + partition table + app). Flash it at offset `0x0`:
 
           ```
-          python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-3.4in-800x800-chip-v3-<version>.bin
+          python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-4in-720x720-chip-v1-<version>.bin
           ```
 
           Or use https://espressif.github.io/esptool-js/ from Chrome/Edge. **Change the
           Flash Address from its default 0x1000 to 0x0.** At the wrong address the board
           logs `invalid header: 0xffffffff` and resets in a loop.
 
-          Not sure of your chip? The first serial line tells you:
-          `ESP-ROM:esp32p4-eco2-...` means revision v1.x (use `chip-v1`); a v3.x chip
-          (use `chip-v3`) reports a newer ROM, and esptool shows "revision v3.x".
           If the board isn't detected: hold BOOT, tap RESET, release BOOT.
 
           The `*-ota.bin` files are for updates over Wi-Fi: the radar downloads the
