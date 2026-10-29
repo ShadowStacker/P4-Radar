@@ -19,6 +19,8 @@ namespace ui {
 
 namespace {
 
+constexpr int kStaticBands = 4;  // background static renders take this many frames
+
 constexpr uint32_t kFastFrameMs = 33;   // ~30 fps while animating
 constexpr uint32_t kSlowFrameMs = 100;  // 10 fps is plenty for dead-reckoned motion
 // Sweep trail: one translucent triangle per slice. Standard mode uses ~3.5 deg
@@ -159,7 +161,15 @@ void RadarView::create(lv_obj_t* parent) {
   app::setQueryArea(query_center_, query_radius_km_);
 
   static_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
+  back_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
   map_.create(parent);
+  if (back_buf_ != nullptr) {
+    back_canvas_ = lv_canvas_create(parent);
+    lv_canvas_set_draw_buf(back_canvas_, back_buf_);
+    lv_obj_add_flag(back_canvas_, LV_OBJ_FLAG_HIDDEN);
+  }
+  back_band_ = -1;
+  static_shown_ = false;
   canvas_ = lv_canvas_create(parent);
   lv_canvas_set_draw_buf(canvas_, static_buf_);
   lv_obj_set_pos(canvas_, 0, 0);
@@ -184,11 +194,14 @@ void RadarView::destroy() {
   if (timer_ != nullptr) lv_timer_delete(timer_);
   timer_ = nullptr;
   canvas_ = nullptr;
+  back_canvas_ = nullptr;  // the canvases go with their screen
   overlay_ = nullptr;
   destroyImageBuf(static_buf_);
   static_buf_ = nullptr;
+  destroyImageBuf(back_buf_);
+  back_buf_ = nullptr;
+  back_band_ = -1;
   map_.destroy();
-  weather_.destroy();
   gesture_ = Gesture::None;
   interacting_ = false;
   static_dirty_ = true;
@@ -307,7 +320,6 @@ void RadarView::frame() {
     look.tint_b = a.blue;
     look.brightness = st.map_brightness;
     if (map_.update(vp_, look, busy, pal().bg)) static_dirty_ = true;
-    if (weather_.update(vp_, st.weather_radar, st.weather_animate, st.weather_opacity, busy, now)) static_dirty_ = true;
     light_map_ = map_.active() && core::tiles::isLight(look.variant) && !look.tint;
   }
 
@@ -337,13 +349,34 @@ void RadarView::frame() {
   const bool view_changed = vp_.center().lat != static_center_.lat ||
                             vp_.center().lon != static_center_.lon || vp_.kmPerPx() != static_kmpp_;
   const bool want_trails = st.show_trails && !busy;
-  if (static_dirty_ || view_changed || (want_trails && !static_has_trails_) ||
-      (want_trails && tracks_version_ != static_tracks_version_)) {
-    const uint64_t s0 = plat::micros();
-    renderStatic(want_trails);
-    stats_.static_us += plat::micros() - s0;
+  const bool need_static = static_dirty_ || view_changed || (want_trails && !static_has_trails_) ||
+                           (want_trails && tracks_version_ != static_tracks_version_);
+  const uint64_t s0 = plat::micros();
+  if (need_static) {
+    if (view_changed || busy || !static_shown_ || back_canvas_ == nullptr) {
+      // The view moved: draw it now, whole.
+      back_band_ = -1;
+      renderStatic(want_trails, canvas_, -1);
+      static_shown_ = true;
+    } else {
+      // Same view, new content: build it in the background buffer.
+      back_trails_ = want_trails;
+      renderStatic(want_trails, back_canvas_, 0);
+      back_band_ = 1;
+    }
     stats_.static_renders++;
+  } else if (back_band_ > 0) {
+    renderStatic(back_trails_, back_canvas_, back_band_);
+    if (++back_band_ == kStaticBands) {
+      // Done: show it.
+      std::swap(static_buf_, back_buf_);
+      lv_canvas_set_draw_buf(canvas_, static_buf_);
+      lv_canvas_set_draw_buf(back_canvas_, back_buf_);
+      lv_obj_invalidate(canvas_);
+      back_band_ = -1;
+    }
   }
+  if (need_static || back_band_ >= 0) stats_.static_us += plat::micros() - s0;
 
   prepareBlips(now);
   placeLabels();
@@ -380,7 +413,6 @@ void RadarView::syncTrace() {
   const int sel = findSelected();
   if (sel >= 0) app::requestRoute(tracks_[sel].ac.hex, tracks_[sel].ac.callsign);
   else app::requestRoute("", "");
-  app::requestPhoto(sel >= 0 ? tracks_[sel].ac.hex : "");
 
   const std::string want = app::settings().extended_trail ? selected_hex_ : std::string();
   if (want != trace_req_hex_) {
@@ -407,27 +439,39 @@ void RadarView::updateQueryArea(bool refresh) {
 // ---------------------------------------------------------------------------
 // Static layer: background, rings, bezel, runways, airports, trails
 
-void RadarView::renderStatic(bool with_trails) {
+void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
   const Palette& p = pal();
   const auto& st = app::settings();
   const float W = static_cast<float>(screenW()), H = static_cast<float>(screenH());
   const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
 
-  static_dirty_ = false;
-  static_center_ = vp_.center();
-  static_kmpp_ = vp_.kmPerPx();
-  static_has_trails_ = with_trails;
-  static_tracks_version_ = tracks_version_;
+  if (band <= 0) {  // what this render shows (a band render commits on its first band)
+    static_dirty_ = false;
+    static_center_ = vp_.center();
+    static_kmpp_ = vp_.kmPerPx();
+    static_has_trails_ = with_trails;
+    static_tracks_version_ = tracks_version_;
+  }
 
-  lv_canvas_fill_bg(canvas_, p.bg, LV_OPA_COVER);
+  if (band < 0) lv_canvas_fill_bg(target, p.bg, LV_OPA_COVER);
   lv_layer_t layer;
-  lv_canvas_init_layer(canvas_, &layer);
+  lv_canvas_init_layer(target, &layer);
+  if (band >= 0) {
+    // Only this strip: everything below is clipped to it.
+    const int32_t y1 = static_cast<int32_t>(H) * band / kStaticBands;
+    const int32_t y2 = static_cast<int32_t>(H) * (band + 1) / kStaticBands - 1;
+    layer._clip_area = {0, y1, static_cast<int32_t>(W) - 1, y2};
+    lv_draw_rect_dsc_t bg;
+    lv_draw_rect_dsc_init(&bg);
+    bg.bg_color = p.bg;
+    bg.bg_opa = LV_OPA_COVER;
+    lv_draw_rect(&layer, &bg, &layer._clip_area);
+  }
 
   // Background map if enabled (and loaded), else a soft radial glow.
   if (!map_.draw(&layer, vp_)) {
     for (int i = 0; i < 4; ++i) drawCircle(&layer, cx, cy, R * (0.98f - i * 0.22f), p.bg_center, 45);
   }
-  weather_.draw(&layer, vp_);  // precipitation over the map
 
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
   const float home_dist = distPx(home.x, home.y, cx, cy);
@@ -632,8 +676,8 @@ void RadarView::renderStatic(bool with_trails) {
     }
   }
 
-  lv_canvas_finish_layer(canvas_, &layer);
-  lv_obj_invalidate(canvas_);
+  lv_canvas_finish_layer(target, &layer);
+  if (target == canvas_) lv_obj_invalidate(canvas_);
 }
 
 /**

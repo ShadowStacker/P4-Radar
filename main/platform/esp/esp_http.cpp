@@ -24,7 +24,7 @@ struct KeptClient {
   esp_http_client_handle_t client = nullptr;
   uint32_t last_used = 0;
 };
-constexpr int kMaxKeptClients = 4;  // feed, map tiles, weather list, weather tiles
+constexpr int kMaxKeptClients = 4;  // feed, map tiles, and room for the occasional other host
 KeptClient s_kept[kMaxKeptClients];
 uint32_t s_use_counter = 0;
 

@@ -9,7 +9,6 @@
 #include "core/viewport.h"
 #include "lvgl.h"
 #include "ui/map_layer.h"
-#include "ui/weather_layer.h"
 
 namespace ui {
 
@@ -54,8 +53,6 @@ class RadarView {
   size_t visibleCount() const { return blips_.size(); }
   /** Map shown under the radar (None when off). */
   core::tiles::Variant mapVariant() const { return map_.variant(); }
-  /** Time (unix s) of the weather radar frame on show, 0 when there's none. */
-  int64_t weatherTime() const { return weather_.active() ? weather_.shownTime() : 0; }
 
   /** Where frame time goes (accumulated since the last reset). */
   struct Stats {
@@ -108,7 +105,8 @@ class RadarView {
 
   void prepareBlips(uint32_t now);
   void placeLabels();
-  void renderStatic(bool with_trails);
+  /** Renders the static layer into `target`; `band` 0..kStaticBands-1 renders only that strip, -1 all of it. */
+  void renderStatic(bool with_trails, lv_obj_t* target, int band);
   void drawHistory(lv_layer_t* layer, bool fine);
   void syncTrace();
   void drawOverlay(lv_layer_t* layer);
@@ -119,8 +117,16 @@ class RadarView {
 
   core::Viewport vp_;
   bool vp_initialized_ = false;
-  lv_obj_t* canvas_ = nullptr;   // static layer
+  lv_obj_t* canvas_ = nullptr;   // static layer, on screen
   lv_draw_buf_t* static_buf_ = nullptr;
+  // Updates that aren't urgent (new traffic every few seconds, tiles, settings)
+  // are rendered into a hidden second buffer a band per frame, then swapped
+  // in: no frame pays for a whole static render, so the sweep doesn't hitch.
+  lv_obj_t* back_canvas_ = nullptr;
+  lv_draw_buf_t* back_buf_ = nullptr;
+  int back_band_ = -1;          // next band to render into the back buffer, -1 = none
+  bool back_trails_ = false;
+  bool static_shown_ = false;   // the on-screen buffer holds a complete render
   lv_obj_t* overlay_ = nullptr;  // per-frame drawing + touch target
   lv_timer_t* timer_ = nullptr;
 
@@ -147,7 +153,6 @@ class RadarView {
   // Selection / follow
   std::string selected_hex_;
   MapLayer map_;
-  WeatherLayer weather_;
   bool light_map_ = false;  // a light map in its own colors is showing (labels get a backing)
   Stats stats_;
 

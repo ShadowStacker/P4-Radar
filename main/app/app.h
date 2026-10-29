@@ -168,20 +168,6 @@ core::daylog::Day dayLogToday();
 /** Earlier days from the SD card, newest first (up to `days`). Reads the card: UI task, on demand. */
 std::vector<core::daylog::Day> dayLogHistory(int days);
 
-// --- Photo of the selected aircraft (planespotters.net) --------------------------
-struct Photo {
-  char hex[8] = "";
-  int width = 0, height = 0;
-  uint16_t* pixels = nullptr;  // RGB565 from plat::allocLarge(); the receiver frees it (plat::freeLarge)
-  char credit[72] = "";        // "Photo: Jane Doe / planespotters.net", shown next to it
-};
-/** Asks the poller for a photo of the aircraft ("" cancels). Nothing happens with show_photos off. */
-void requestPhoto(const char* hex);
-/** UI task: the photo for the latest request, once ready. The caller owns the pixels. */
-bool popPhoto(Photo* out);
-/** Network task: runs a pending photo download. True if it made a request. */
-bool servicePhoto();
-
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);
 

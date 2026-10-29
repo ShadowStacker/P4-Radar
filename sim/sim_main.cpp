@@ -17,7 +17,6 @@
 
 #include "app/app.h"
 #include "app/maps.h"
-#include "app/weather.h"
 #include "core/clock.h"
 #include "platform/platform.h"
 #include "core/filter.h"
@@ -139,10 +138,8 @@ void run(uint32_t ms, uint32_t step = 16) {
     if (g_step_hook) g_step_hook();
     g_traffic->advance(step / 1000.0);
     feedTraffic();
-    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute() && !app::servicePhoto()) {
-      app::serviceTrace();
-    }
-    if (!app::maps::serviceSd() && !app::serviceSdFiles() && !app::maps::service(true)) app::weather::service();
+    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
+    if (!app::maps::serviceSd() && !app::serviceSdFiles()) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -254,6 +251,7 @@ int runBench() {
               "static_us", "overlay_us", "lvgl_us");
   // BENCH_MAP / BENCH_RADIUS limit the run to one case (for profilers).
   const int only_map = std::getenv("BENCH_MAP") ? std::atoi(std::getenv("BENCH_MAP")) : -1;
+  if (std::getenv("BENCH_NO_TRAILS")) st.show_trails = false;
   const double only_r = std::getenv("BENCH_RADIUS") ? std::atof(std::getenv("BENCH_RADIUS")) : -1;
   for (int map = 0; map <= 2; ++map) {
     if (only_map >= 0 && map != only_map) continue;
@@ -830,22 +828,6 @@ int main(int argc, char** argv) {
     st.map_style = 4;  // satellite
     run(4000);
     shot((p + "62_map_satellite").c_str());
-    // Weather radar over the dark street map: tiles arrive, then the last
-    // hour loops.
-    st.map_style = 1;
-    st.weather_radar = true;
-    run(8000);
-    const bool wx = ui::RadarView::get().weatherTime() != 0;
-    std::printf("weather radar: %s\n", wx ? "OK" : "FAILED");
-    if (!wx) return 1;
-    shot((p + "63_weather_radar").c_str());
-    const int64_t t1 = ui::RadarView::get().weatherTime();
-    run(1200);
-    const bool animating = ui::RadarView::get().weatherTime() != t1;
-    std::printf("weather radar animation: %s\n", animating ? "OK" : "FAILED");
-    if (!animating) return 1;
-    st.weather_radar = false;
-    run(500);
     st.map_style = 3;
     st.map_style = 2;
     st.map_tint = false;
@@ -935,6 +917,27 @@ int main(int argc, char** argv) {
                 fav_file_ok ? "OK" : "FAILED");
     if (!fav_ok || !fav_file_ok) return 1;
     shot((p + "54_settings_from_sd").c_str());
+  }
+
+  // Night mode set to sleep: the night starts (screen off), then ends (awake).
+  {
+    auto& st = app::settings();
+    const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+    const int now_min = t.tm_hour * 60 + t.tm_min;
+    st.night_dim = true;
+    st.night_sleep = true;
+    st.night_from_min = static_cast<uint16_t>((now_min + 1439) % 1440);
+    st.night_to_min = static_cast<uint16_t>((now_min + 60) % 1440);
+    run(6000);
+    const bool asleep = app::sleeping();
+    st.night_to_min = st.night_from_min;  // the night is over (empty window)
+    run(6000);
+    const bool awake = !app::sleeping();
+    std::printf("night sleep: %s, morning wake: %s\n", asleep ? "OK" : "FAILED", awake ? "OK" : "FAILED");
+    if (!asleep || !awake) return 1;
+    st.night_dim = false;
+    st.night_sleep = false;
+    run(300);
   }
 
   // Daily log of the traffic near home, and the on-screen stats.

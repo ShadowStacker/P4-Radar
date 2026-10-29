@@ -10,6 +10,24 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.17.1] - 2026-10-29
+
+### Added
+- **Sleep at night** (Display → Night mode → At night: Sleep): instead of
+  dimming, the radar goes to sleep (screen off, sounds muted) when the night
+  starts and wakes by itself when it ends. A tap wakes it during the night;
+  after a minute without a touch it goes back to sleep.
+
+### Fixed
+- A brief stutter every few seconds: when new traffic arrived, the whole
+  background layer (rings, runways, trails, labels) was redrawn in one frame.
+  It is now redrawn off-screen a quarter at a time and swapped in when done.
+  The map credit line is also no longer rewritten twice a second.
+
+### Removed
+- The weather radar and aircraft photos, which didn't work reliably. Their
+  saved settings are ignored and the rest of your settings are kept.
+
 ## [v1.17.0] - 2026-10-29
 
 ### Added

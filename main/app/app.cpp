@@ -16,7 +16,6 @@
 #include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
-#include "app/weather.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
 #include "core/route.h"
@@ -323,7 +322,9 @@ bool isNight() {
 }
 
 /** Brightness while in use: the normal one, or the night one. */
-int normalBrightness() { return isNight() ? s_settings.night_brightness : s_settings.brightness; }
+int normalBrightness() {
+  return isNight() && !s_settings.night_sleep ? s_settings.night_brightness : s_settings.brightness;
+}
 
 void applyHardware() {
   if (s_sleeping) plat::setBrightness(0);
@@ -490,14 +491,14 @@ void networkLoop() {
     }
     if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
-        (serviceFavoriteLookup() || (!menu && (serviceRoute() || servicePhoto() || serviceTrace())))) {
+        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
     if (!due) {
       // Map tiles fill the gaps between traffic updates (different servers,
       // so the ADS-B rate limit doesn't apply).
-      if (menu || (!maps::service(true) && !weather::service())) plat::sleepMs(100);
+      if (menu || !maps::service(true)) plat::sleepMs(100);
       continue;
     }
     first = false;
@@ -693,15 +694,30 @@ void tick(uint32_t now_ms) {
   }
   applySettingsFile();
   serviceWifi(now_ms);
-  // Night dimming starts and ends by the clock.
+  // Night mode starts and ends by the clock: dimmer, or asleep.
   static uint32_t s_night_check_ms = 0;
   static int s_night = -1;
+  static bool s_night_slept = false;  // asleep because of night mode (so the morning wakes it)
+  constexpr uint32_t kNightResleepMs = 60000;  // woken by a tap at night: back to sleep after this idle
   if (now_ms - s_night_check_ms >= 5000) {
     s_night_check_ms = now_ms;
     const int night = isNight() ? 1 : 0;
     if (night != s_night) {
+      const bool first = s_night < 0;  // just started: don't put it to sleep under someone's fingers
       s_night = night;
+      if (s_settings.night_sleep && night && !first && !s_sleeping) {
+        setSleeping(true);
+        s_night_slept = true;
+      } else if (!night && s_night_slept) {
+        if (s_sleeping) setSleeping(false);
+        s_night_slept = false;
+      }
       applyHardware();
+    }
+    if (night && s_settings.night_sleep && !s_sleeping && s_ringing < 0 &&
+        now_ms - s_last_activity >= kNightResleepMs) {
+      setSleeping(true);
+      s_night_slept = true;
     }
   }
   checkAlarms(now_ms);

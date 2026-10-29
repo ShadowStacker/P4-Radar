@@ -548,7 +548,6 @@ void pageDisplay() {
   switchRow("Trails", &st.show_trails);
   switchRow("Flight history on tap", &st.extended_trail);
   switchRow("Airline and route on tap", &st.show_route_info);
-  switchRow("Aircraft photo on tap", &st.show_photos);
   switchRow("Speed vectors (1 min)", &st.show_speed_vectors);
 
   section("MAP");
@@ -586,11 +585,6 @@ void pageDisplay() {
   sliderRow("Map brightness", 10, 100, st.map_brightness,
             [](int v) { app::settings().map_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
-  switchRow("Weather radar (RainViewer)", &st.weather_radar);
-  switchRow("Loop the last hour", &st.weather_animate);
-  sliderRow("Weather opacity", 20, 100, st.weather_opacity,
-            [](int v) { app::settings().weather_opacity = static_cast<uint8_t>(v); },
-            [](int v) { return fmtStr("%d%%", v); });
   navRow(LV_SYMBOL_SD_CARD, "SD card", "", Page::SdCard);
   static const char* const kCodeStyles[] = {"ICAO (KRDM)", "IATA (RDM)", ""};
   choiceRow("Airport code style", kCodeStyles, st.airport_codes > 1 ? 0 : st.airport_codes,
@@ -618,8 +612,11 @@ void pageDisplay() {
             [](int v) { app::settings().dim_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
 
-  // Night dimming, by the clock (in 15-minute steps).
-  switchRow("Dim at night", &st.night_dim);
+  // Night mode, by the clock (in 15-minute steps): dim, or sleep.
+  switchRow("Night mode", &st.night_dim);
+  static const char* const kNightModes[] = {"Dim the screen", "Sleep", ""};
+  choiceRow("At night", kNightModes, st.night_sleep ? 1 : 0,
+            [](int v) { app::settings().night_sleep = v == 1; });
   auto timeText = [](int quarter) {
     char buf[16];
     core::formatTime(quarter / 4, quarter % 4 * 15, app::settings().clock_24h, buf, sizeof(buf));
@@ -629,7 +626,7 @@ void pageDisplay() {
             [](int v) { app::settings().night_from_min = static_cast<uint16_t>(v * 15); }, timeText);
   sliderRow("Night ends", 0, 95, st.night_to_min / 15,
             [](int v) { app::settings().night_to_min = static_cast<uint16_t>(v * 15); }, timeText);
-  sliderRow("Night brightness", 1, 100, st.night_brightness,
+  sliderRow("Night brightness (when dimming)", 1, 100, st.night_brightness,
             [](int v) { app::settings().night_brightness = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d%%", v); });
 }

@@ -11,7 +11,6 @@
 #include "core/adsb.h"
 #include "core/clock.h"
 #include "core/filter.h"
-#include "core/weather.h"
 #include "core/tiles.h"
 #include "platform/platform.h"
 #include "ui/radar_view.h"
@@ -59,13 +58,6 @@ struct Hud {
   lv_obj_t* card_sub = nullptr;
   lv_obj_t* card_route = nullptr;    // "Dublin (DUB) > Lanzarote (ACE)"
   lv_obj_t* card_airline = nullptr;  // "Ryanair  -  Boeing 737-8AS"
-  // Photo of the aircraft (planespotters.net), with the photographer's credit.
-  lv_obj_t* photo_row = nullptr;
-  lv_obj_t* photo_img = nullptr;
-  lv_obj_t* photo_credit = nullptr;
-  lv_image_dsc_t photo_dsc{};
-  uint16_t* photo_pixels = nullptr;
-  char photo_hex[8] = "";
   lv_obj_t* stat_title[6] = {};
   lv_obj_t* stat_value[6] = {};
   lv_obj_t* follow_btn = nullptr;
@@ -148,20 +140,12 @@ void updateStatus() {
   }
 
   if (h.credit) {
-    // Credits the sources require, plus the time of the weather radar picture.
     const core::tiles::Variant v = RadarView::get().mapVariant();
-    const int64_t wx = RadarView::get().weatherTime();
-    std::string text = v != core::tiles::Variant::None ? core::tiles::attribution(v) : "";
-    if (wx != 0) {
-      const std::tm t = core::localTime(wx);
-      char hm[16];
-      core::formatTime(t.tm_hour, t.tm_min, app::settings().clock_24h, hm, sizeof(hm));
-      if (!text.empty()) text += "\n";
-      text += std::string(core::weather::kAttribution) + ", " + hm;
-    }
-    setHidden(h.credit, text.empty());
-    if (!text.empty()) lv_label_set_text(h.credit_label, text.c_str());
-    lv_obj_set_style_text_align(h.credit_label, LV_TEXT_ALIGN_CENTER, 0);
+    setHidden(h.credit, v == core::tiles::Variant::None);
+    // Only when it changes: setting a label's text re-lays it out and redraws it.
+    static core::tiles::Variant s_shown = core::tiles::Variant::kCount;
+    if (v != core::tiles::Variant::None && v != s_shown) lv_label_set_text(h.credit_label, core::tiles::attribution(v));
+    s_shown = v;
   }
 
   if (h.mute_label) {
@@ -259,16 +243,6 @@ void openMapPicker() {
                              current);
     lv_obj_set_width(b, lv_pct(100));
   }
-  // Weather radar goes over any of them.
-  const bool wx = app::settings().weather_radar;
-  lv_obj_t* w = pillButton(box, wx ? "Weather radar: on" : "Weather radar: off", [scrim] {
-    app::settings().weather_radar = !app::settings().weather_radar;
-    app::settingsChanged();
-    RadarView::get().markStaticDirty();
-    lv_obj_delete_async(scrim);
-  }, wx);
-  lv_obj_set_width(w, lv_pct(100));
-  lv_obj_set_style_margin_top(w, sc(10), 0);  // set apart: it goes with any map
 }
 
 void setStat(int i, const char* title, const char* value) {
@@ -276,76 +250,11 @@ void setStat(int i, const char* title, const char* value) {
   lv_label_set_text(h.stat_value[i], value);
 }
 
-void dropPhoto() {
-  if (h.photo_pixels == nullptr) return;
-  lv_image_set_src(h.photo_img, nullptr);
-  lv_image_cache_drop(&h.photo_dsc);
-  plat::freeLarge(h.photo_pixels);
-  h.photo_pixels = nullptr;
-  h.photo_hex[0] = '\0';
-  setHidden(h.photo_row, true);
-}
-
-/** Shrinks an RGB565 picture to `w` x `h` (box average); frees the original. */
-uint16_t* shrinkPhoto(uint16_t* src, int sw, int sh, int w, int h) {
-  if (w >= sw || h >= sh) return src;
-  auto* out = static_cast<uint16_t*>(plat::allocLarge(static_cast<size_t>(w) * h * 2));
-  if (out == nullptr) return src;
-  for (int y = 0; y < h; ++y) {
-    const int y0 = y * sh / h, y1 = std::max(y0 + 1, (y + 1) * sh / h);
-    for (int x = 0; x < w; ++x) {
-      const int x0 = x * sw / w, x1 = std::max(x0 + 1, (x + 1) * sw / w);
-      uint32_t r = 0, g = 0, b = 0, n = 0;
-      for (int yy = y0; yy < y1; ++yy) {
-        for (int xx = x0; xx < x1; ++xx) {
-          const uint16_t c = src[yy * sw + xx];
-          r += c >> 11;
-          g += c >> 5 & 63;
-          b += c & 31;
-          ++n;
-        }
-      }
-      out[y * w + x] = static_cast<uint16_t>((r / n) << 11 | (g / n) << 5 | (b / n));
-    }
-  }
-  plat::freeLarge(src);
-  return out;
-}
-
-void updatePhoto(const core::Aircraft& a) {
-  app::Photo ph;
-  if (app::popPhoto(&ph)) {
-    dropPhoto();
-    // Shown at a fixed width: shrink it once here rather than scale on every redraw.
-    const int w = std::min(static_cast<int>(sc(200)), ph.width);
-    const int hh = std::max(1, w * ph.height / std::max(ph.width, 1));
-    ph.pixels = shrinkPhoto(ph.pixels, ph.width, ph.height, w, hh);
-    if (ph.pixels != nullptr && w < ph.width) {
-      ph.width = w;
-      ph.height = hh;
-    }
-    h.photo_pixels = ph.pixels;
-    std::snprintf(h.photo_hex, sizeof(h.photo_hex), "%s", ph.hex);
-    h.photo_dsc = lv_image_dsc_t{};
-    h.photo_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
-    h.photo_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    h.photo_dsc.header.w = static_cast<uint32_t>(ph.width);
-    h.photo_dsc.header.h = static_cast<uint32_t>(ph.height);
-    h.photo_dsc.header.stride = static_cast<uint32_t>(ph.width) * 2;
-    h.photo_dsc.data_size = h.photo_dsc.header.stride * ph.height;
-    h.photo_dsc.data = reinterpret_cast<const uint8_t*>(ph.pixels);
-    lv_image_set_src(h.photo_img, &h.photo_dsc);
-    lv_label_set_text(h.photo_credit, ph.credit);
-  }
-  setHidden(h.photo_row, h.photo_pixels == nullptr || std::strcmp(h.photo_hex, a.hex) != 0);
-}
-
 void updateCard() {
   RadarView& rv = RadarView::get();
   const core::Track* t = rv.selected();
   const bool show = t != nullptr && !rv.pickMode();
   setHidden(h.card, !show);
-  if (!show) dropPhoto();
   setHidden(h.zoom_in, show || rv.pickMode());
   setHidden(h.zoom_out, show || rv.pickMode());
   setHidden(h.map_btn, show || rv.pickMode());
@@ -356,7 +265,6 @@ void updateCard() {
   char badge[16];
   std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
   lv_label_set_text(h.card_type, badge);
-  updatePhoto(a);
 
   // Airline and route (adsbdb), once looked up.
   {
@@ -616,21 +524,6 @@ void buildCard(lv_obj_t* parent) {
     updateCard();
   });
 
-  h.photo_row = lv_obj_create(h.card);
-  lv_obj_remove_style_all(h.photo_row);
-  lv_obj_set_size(h.photo_row, lv_pct(100), LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(h.photo_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(h.photo_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-  lv_obj_set_style_pad_column(h.photo_row, sc(12), 0);
-  lv_obj_set_style_pad_ver(h.photo_row, sc(4), 0);
-  lv_obj_remove_flag(h.photo_row, LV_OBJ_FLAG_CLICKABLE);
-  h.photo_img = lv_image_create(h.photo_row);
-  lv_obj_set_style_radius(h.photo_img, sc(8), 0);
-  h.photo_credit = label(h.photo_row, "", font(FontSize::S), p.text_dim);
-  lv_obj_set_flex_grow(h.photo_credit, 1);
-  lv_label_set_long_mode(h.photo_credit, LV_LABEL_LONG_WRAP);
-  setHidden(h.photo_row, true);
-
   h.card_route = label(h.card, "", font(FontSize::M), p.text);
   lv_obj_set_width(h.card_route, lv_pct(100));
   lv_label_set_long_mode(h.card_route, LV_LABEL_LONG_DOT);
@@ -872,10 +765,6 @@ void create(lv_obj_t* parent) {
 }
 
 void destroy() {
-  if (h.photo_pixels) {
-    lv_image_cache_drop(&h.photo_dsc);
-    plat::freeLarge(h.photo_pixels);  // the widgets go with their screen
-  }
   if (h.timer) lv_timer_delete(h.timer);
   if (h.autohide_timer) lv_timer_delete(h.autohide_timer);
   h = Hud{};

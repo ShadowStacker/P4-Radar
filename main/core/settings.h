@@ -40,7 +40,8 @@ struct Settings {
   //  11: up to wifi_saved (v1.15.0)
   //  12: up to auto_update_check (v1.16.0)
   //  13: up to log_radius_km (v1.17.0)
-  static constexpr uint16_t kVersion = 13;
+  //  14: up to night_sleep (v1.17.1)
+  static constexpr uint16_t kVersion = 14;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -177,11 +178,16 @@ struct Settings {
   uint16_t night_from_min = 22 * 60;      // local time, minutes after midnight
   uint16_t night_to_min = 7 * 60;
   uint8_t night_brightness = 20;          // % during the night
-  bool weather_radar = false;             // precipitation radar over the map (RainViewer)
-  bool weather_animate = true;            // loop the last hour instead of showing the latest frame
-  uint8_t weather_opacity = 70;           // %
-  bool show_photos = true;                // photo of the tapped aircraft (planespotters.net)
+  // Unused since v1.17.1 (the weather radar and aircraft photos were removed);
+  // kept so the saved settings keep their layout.
+  bool unused_weather_radar = false;
+  bool unused_weather_animate = true;
+  uint8_t unused_weather_opacity = 70;
+  bool unused_show_photos = true;
   float log_radius_km = 40.2336f;         // daily log counts aircraft within this distance of home (25 mi)
+
+  // v1.17.1
+  bool night_sleep = false;               // at night (night_dim on): sleep instead of dimming
 };
 
 }  // namespace core

@@ -18,7 +18,6 @@
 #include "core/geo.h"
 #include "core/inflate.h"
 #include "core/jpeg.h"
-#include "core/photo.h"
 #include "core/png.h"
 #include "core/rotation.h"
 #include "core/route.h"
@@ -27,7 +26,6 @@
 #include "core/tiles.h"
 #include "core/trace.h"
 #include "core/update.h"
-#include "core/weather.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "data/jpeg_fixtures.h"
@@ -1151,80 +1149,6 @@ void testFailover() {
   CHECK(f.next(t) == DataSource::AdsbLol);
 }
 
-void testWeather() {
-  namespace wx = core::weather;
-  const std::string json = R"({"version":"2.0","generated":1761700000,"host":"https://tilecache.rainviewer.com",
-    "radar":{"past":[{"time":1761699600,"path":"/v2/radar/abc123"},{"time":1761699000,"path":"/v2/radar/def456"}],
-             "nowcast":[]},"satellite":{"infrared":[]}})";
-  wx::Maps m;
-  CHECK(wx::parseMaps(json.data(), json.size(), &m));
-  CHECK(m.host == "https://tilecache.rainviewer.com" && m.frames.size() == 2);
-  CHECK(m.frames[0].time == 1761699000 && m.frames[1].path == "/v2/radar/abc123");  // sorted, oldest first
-  CHECK(wx::tileUrl(m, m.frames[1], 6, 10, 22) ==
-        "https://tilecache.rainviewer.com/v2/radar/abc123/256/6/10/22/2/0_1.png");
-  CHECK(!wx::parseMaps("{\"host\":\"x\",\"radar\":{\"past\":[]}}", 33, &m));
-
-  // Palette: clear, two colors, 50 % opacity.
-  std::vector<uint8_t> rgba(wx::kTileSize * wx::kTileSize * 4, 0);
-  for (int i = 0; i < 100; ++i) {
-    uint8_t* p = &rgba[i * 4];
-    p[0] = 0; p[1] = 200; p[2] = 255; p[3] = 255;
-  }
-  for (int i = 100; i < 150; ++i) {
-    uint8_t* p = &rgba[i * 4];
-    p[0] = 255; p[1] = 0; p[2] = 0; p[3] = 200;
-  }
-  auto* t = new wx::Tile;
-  wx::palettize(rgba.data(), 50, t);
-  CHECK(t->index[0] != 0 && t->index[0] == t->index[99] && t->index[100] != t->index[0] && t->index[200] == 0);
-  CHECK(t->palette[t->index[0]] == (127u << 24 | 0x00C8FFu));
-  CHECK(t->palette[t->index[100]] == (100u << 24 | 0xFF0000u));
-
-  // Zoom: wide views use coarse tiles; close ones stop at 7.
-  CHECK(wx::zoomFor(0.05, 44) == wx::kMaxZoom);
-  CHECK(wx::zoomFor(1.2, 44) <= 7 && wx::zoomFor(1.2, 44) >= 6);
-  CHECK(wx::zoomFor(20, 44) < 4);
-  int64_t tm;
-  int z;
-  uint32_t x, y;
-  wx::unpack(wx::key(1761699600, 7, 21, 45), &tm, &z, &x, &y);
-  CHECK(tm == 1761699600 && z == 7 && x == 21 && y == 45);
-
-  // Compose: the whole world at zoom 0 in 256x256, one tile; the top-left
-  // pixel of the picture is the tile's (0, 0), an equator pixel is row 128.
-  std::vector<uint32_t> out(256 * 256, 0xDEADBEEF);
-  for (auto& i : t->index) i = 0;
-  t->index[0] = 1;
-  t->index[128 * 256 + 64] = 1;
-  t->palette[1] = 0xFF112233;
-  int calls = 0;
-  wx::compose(out.data(), 256, 256, -180.0, 360.0 / 256, 85.0, -170.0 / 256, 0, [&](uint32_t tx, uint32_t ty) {
-    ++calls;
-    return tx == 0 && ty == 0 ? t : static_cast<const wx::Tile*>(nullptr);
-  });
-  CHECK(out[0] == 0xFF112233);
-  CHECK(out[128 * 256 + 64] == 0xFF112233);  // the equator lands on row 128 at this scale
-  CHECK(out[5] == 0);                        // cleared
-  CHECK(calls == 256);                       // one lookup per row (a single tile column)
-  delete t;
-}
-
-void testPhoto() {
-  namespace ph = core::photo;
-  CHECK(ph::lookupUrl("a835af") == "https://api.planespotters.net/pub/photos/hex/a835af");
-  const std::string json = R"({"photos":[{"id":"1234","thumbnail":{"src":"https://t.plnspttrs.net/1/small.jpg",
-    "size":{"width":200,"height":133}},"thumbnail_large":{"src":"https://t.plnspttrs.net/1/large.jpg",
-    "size":{"width":420,"height":280}},"link":"https://www.planespotters.net/photo/1234","photographer":"Jane Doe"}]})";
-  ph::Info i;
-  CHECK(ph::parse(json.data(), json.size(), &i));
-  CHECK(i.image_url == "https://t.plnspttrs.net/1/large.jpg" && i.photographer == "Jane Doe" &&
-        i.link == "https://www.planespotters.net/photo/1234");
-  const std::string small_only = R"({"photos":[{"thumbnail":{"src":"https://t/s.jpg"},"photographer":"X"}]})";
-  CHECK(ph::parse(small_only.data(), small_only.size(), &i) && i.image_url == "https://t/s.jpg");
-  CHECK(!ph::parse("{\"photos\":[]}", 13, &i));
-  CHECK(!ph::parse("oops", 4, &i));
-}
-
 bool testIsFavorite(const char* hex) { return std::strcmp(hex, "a1b2c3") == 0; }
 
 void testDayLog() {
@@ -1299,8 +1223,6 @@ int main() {
   testUpdate();
   testFailover();
   testNightWindow();
-  testWeather();
-  testPhoto();
   testDayLog();
   testSounds();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
