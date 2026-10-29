@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -33,6 +34,8 @@ bool s_running = false;           // UI task
 uint32_t s_restart_at_ms = 0;     // UI task: restart asked for from the page
 std::vector<plat::WifiNetwork> s_scan;  // last scan, for the page
 bool s_scan_done = false;
+std::atomic<int> s_self_test{0};
+std::atomic<bool> s_self_testing{false};
 
 plat::WebResponse json(const std::string& body, int status = 200) {
   plat::WebResponse r;
@@ -379,6 +382,7 @@ plat::WebResponse handle(plat::WebRequest& r) {
     return res;
   }
   if (p == "/api/login" && r.method == "POST") return login(r);
+  if (p == "/api/ping") return ok();  // the radar's own check that the server answers
   if (p.compare(0, 5, "/api/") != 0 && p.compare(0, 7, "/shots/") != 0) return error("Not found", 404);
   if (!loggedIn(r)) return error("login", 401);
 
@@ -432,6 +436,20 @@ void service() {
 }
 
 bool running() { return s_running; }
+
+void startSelfTest() {
+  if (!s_running || s_self_testing.exchange(true)) return;
+  s_self_test = 0;
+  plat::startTask("webtest", [] {
+    std::string body;
+    const int code = plat::httpGet("http://127.0.0.1/api/ping", &body, 5000);
+    std::printf("web: self-test -> %d %s\n", code, body.c_str());
+    s_self_test = code == 200 ? 1 : -1;
+    s_self_testing = false;
+  }, 6 * 1024, 2);
+}
+
+int selfTest() { return s_self_test; }
 
 std::string address() {
   const plat::WifiStatus ws = plat::wifiStatus();

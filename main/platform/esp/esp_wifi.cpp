@@ -136,6 +136,9 @@ bool wifiStart() {
     esp_wifi_set_storage(WIFI_STORAGE_RAM);  // credentials live in our own NVS
     esp_wifi_set_mode(WIFI_MODE_STA);
     err = esp_wifi_start();
+    // Mains powered: no modem sleep. Asleep between beacons, the radio is
+    // slow to notice (or misses) phones connecting to the settings page.
+    if (err == ESP_OK) esp_wifi_set_ps(WIFI_PS_NONE);
   }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Wi-Fi co-processor not available: %s", esp_err_to_name(err));

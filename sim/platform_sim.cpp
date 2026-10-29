@@ -202,6 +202,15 @@ std::string fakeTile(bool topo, int z, uint32_t tx, uint32_t ty, bool osm = fals
 // Only the trace endpoint is simulated (traffic is fed directly). Bodies are
 // gzip-compressed like the real servers send them.
 int httpGet(const char* url, std::string* body, int, const char* const*) {
+  if (std::strncmp(url, "http://127.0.0.1/", 17) == 0) {  // the phone page, asked by the radar itself
+    if (!sim::g_web_handler) return -1;
+    WebRequest r;
+    r.method = "GET";
+    r.path = url + 16;
+    const WebResponse res = sim::g_web_handler(r);
+    *body += res.body;
+    return res.status;
+  }
   const bool carto = std::strstr(url, "basemaps.cartocdn.com/") != nullptr;
   const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
   const bool osm = std::strstr(url, "tile.openstreetmap.org/") != nullptr;
@@ -492,5 +501,11 @@ bool webServerStart(WebHandler handler) {
 }
 
 void webServerStop() { sim::g_web_handler = nullptr; }
+
+WebStats webStats() {
+  WebStats s;
+  s.running = sim::g_web_handler != nullptr;
+  return s;
+}
 
 }  // namespace plat

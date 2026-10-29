@@ -1,11 +1,13 @@
 // The phone page's web server (esp_http_server on port 80), its name on the
 // network (mDNS: plane-radar.local), and writing an uploaded firmware file.
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 
 #include "esp_event.h"
 #include "esp_http_server.h"
+#include "lwip/sockets.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_ota_ops.h"
@@ -22,6 +24,7 @@ const char* TAG = "web";
 httpd_handle_t s_server = nullptr;
 WebHandler s_handler;
 bool s_mdns = false;
+WebStats s_stats;  // written by the server task, read by the UI (a torn read only garbles a label)
 
 esp_ota_handle_t s_ota = 0;
 const esp_partition_t* s_ota_part = nullptr;
@@ -49,7 +52,30 @@ const char* statusLine(int code) {
   }
 }
 
+/** The other end's IPv4 address ("" if it's the radar itself). */
+std::string peer(httpd_req_t* req) {
+  sockaddr_in6 a = {};
+  socklen_t len = sizeof(a);
+  if (getpeername(httpd_req_to_sockfd(req), reinterpret_cast<sockaddr*>(&a), &len) != 0) return "?";
+  char ip[48] = "";
+  if (a.sin6_family == AF_INET) {
+    inet_ntop(AF_INET, &reinterpret_cast<sockaddr_in*>(&a)->sin_addr, ip, sizeof(ip));
+  } else {
+    // IPv4 mapped into IPv6 (::ffff:a.b.c.d): the last four bytes.
+    inet_ntop(AF_INET, reinterpret_cast<const uint8_t*>(&a.sin6_addr) + 12, ip, sizeof(ip));
+  }
+  return std::strcmp(ip, "127.0.0.1") == 0 ? "" : ip;
+}
+
 esp_err_t onRequest(httpd_req_t* req) {
+  const std::string from = peer(req);
+  ESP_LOGI(TAG, "%s %s from %s", req->method == HTTP_POST ? "POST" : "GET", req->uri,
+           from.empty() ? "the radar" : from.c_str());
+  if (!from.empty()) {
+    ++s_stats.requests;
+    std::snprintf(s_stats.last_client, sizeof(s_stats.last_client), "%s", from.c_str());
+    s_stats.last_ms = millis();
+  }
   WebRequest r;
   r.method = req->method == HTTP_POST ? "POST" : "GET";
   const char* q = std::strchr(req->uri, '?');
@@ -118,10 +144,15 @@ bool webServerStart(WebHandler handler) {
   cfg.recv_wait_timeout = 10;
   cfg.send_wait_timeout = 10;
   cfg.uri_match_fn = httpd_uri_match_wildcard;
-  if (httpd_start(&s_server, &cfg) != ESP_OK) {
+  const esp_err_t err = httpd_start(&s_server, &cfg);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "server didn't start: %s", esp_err_to_name(err));
+    std::snprintf(s_stats.error, sizeof(s_stats.error), "Didn't start (%s)", esp_err_to_name(err));
     s_server = nullptr;
     return false;
   }
+  s_stats.running = true;
+  s_stats.error[0] = '\0';
   for (httpd_method_t m : {HTTP_GET, HTTP_POST}) {
     httpd_uri_t u = {};
     u.uri = "/*";
@@ -138,7 +169,10 @@ void webServerStop() {
   if (s_server == nullptr) return;
   httpd_stop(s_server);
   s_server = nullptr;
+  s_stats.running = false;
 }
+
+WebStats webStats() { return s_stats; }
 
 uint32_t random32() { return esp_random(); }
 

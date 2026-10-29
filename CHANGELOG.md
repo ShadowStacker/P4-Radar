@@ -10,7 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
-## [v1.18.0] - 2026-10-29
+## [v1.18.1] - 2026-10-29
+
+### Fixed
+- Wi-Fi power saving is off: asleep between beacons, the radio could be slow
+  to notice (or miss) a phone opening the settings page.
+
+### Added
+- The radar's Phone settings page says whether the page is working: **Server**
+  (the radar asks its own page) and **Phone visits** (requests that reached the
+  radar, and from where), to tell a network problem from a radar problem.
+  Every request is also in the serial log (`web: GET / from ...`).
+
+ - 2026-10-29
 
 ### Added
 - **Phone settings page**: Settings → Phone settings page shows a QR code;

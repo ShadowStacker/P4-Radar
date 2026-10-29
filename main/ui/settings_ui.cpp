@@ -1504,6 +1504,14 @@ void pagePhone() {
     infoRow("or", fmtStr("http://%s", app::web::kHostName));
     infoRow("PIN", st.web_pin);
   }
+  lv_obj_t* server = nullptr;
+  lv_obj_t* visits = nullptr;
+  if (st.web_enabled) {
+    server = infoRow("Server", "");
+    visits = infoRow("Phone visits", "");
+    for (lv_obj_t* l : {server, visits}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    app::web::startSelfTest();
+  }
   switchRow("Phone settings page", &st.web_enabled, [] { lv_async_call([](void*) { showPage(Page::Phone); }, nullptr); });
   actionRow(LV_SYMBOL_REFRESH, "New PIN (logs out every phone)", [] {
     app::web::newPin();
@@ -1518,10 +1526,32 @@ void pagePhone() {
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_pad_left(note, sc(16), 0);
+  lv_obj_t* tips = label(s.list,
+                         "If the page doesn't open on the phone: the phone must be on the same Wi-Fi as the "
+                         "radar, not mobile data or a guest network (guest networks keep devices apart). "
+                         "\"Phone visits\" above counts every time a phone reached the radar.",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(tips, lv_pct(90));
+  lv_label_set_long_mode(tips, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(tips, sc(16), 0);
   // The address appears once Wi-Fi connects.
   const bool had_url = !url.empty();
-  s.tick = [had_url] {
+  s.tick = [had_url, server, visits] {
     if (!app::web::loginUrl().empty() != had_url) showPage(Page::Phone);
+    if (server == nullptr) return;
+    const plat::WebStats ws = plat::webStats();
+    const int test = app::web::selfTest();
+    if (!ws.running) lv_label_set_text(server, ws.error[0] ? ws.error : "Not running");
+    else if (test == 0) lv_label_set_text(server, "Running, checking...");
+    else lv_label_set_text(server, test > 0 ? "Running and answering" : "Running, but not answering");
+    if (ws.requests == 0) {
+      lv_label_set_text(visits, "None yet");
+    } else {
+      const unsigned ago = (plat::millis() - ws.last_ms) / 1000;
+      lv_label_set_text(visits, fmtStr("%u, last from %s, %s ago", static_cast<unsigned>(ws.requests), ws.last_client,
+                                       ago < 120 ? fmtStr("%u s", ago).c_str() : fmtStr("%u min", ago / 60).c_str())
+                                    .c_str());
+    }
   };
 }
 

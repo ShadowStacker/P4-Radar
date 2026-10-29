@@ -22,6 +22,14 @@ std::string loginUrl();
 /** The page's name on the network. */
 constexpr char kHostName[] = "plane-radar.local";
 
+/**
+ * Checks that the server answers by asking it from the radar itself
+ * (in the background). selfTest(): 0 = not known yet, 1 = answers,
+ * -1 = doesn't answer.
+ */
+void startSelfTest();
+int selfTest();
+
 /** UI task: a new PIN; phones that were logged in have to enter it again. */
 void newPin();
 

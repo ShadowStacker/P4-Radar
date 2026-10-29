@@ -179,6 +179,16 @@ using WebHandler = std::function<WebResponse(WebRequest& req)>;
 bool webServerStart(WebHandler handler);
 void webServerStop();
 
+/** What the web server has seen, for the radar's own phone page screen (problems without a serial cable). */
+struct WebStats {
+  bool running = false;
+  uint32_t requests = 0;      // requests from other devices
+  char last_client[16] = "";  // their address
+  uint32_t last_ms = 0;       // when (plat::millis())
+  char error[48] = "";        // why it didn't start
+};
+WebStats webStats();
+
 /** Free heap / PSRAM in bytes for the About page. */
 size_t freeInternalHeap();
 size_t freePsram();

@@ -556,9 +556,26 @@ off with the **Phone settings page** switch. `plane-radar.local` works on
 iPhones, Macs, Windows and most Android phones. If it doesn't, use the IP
 address.
 
+**If the page doesn't open on the phone**, scroll down on the radar's Phone
+settings page:
+
+- **Server**: *Running and answering* means the radar asked its own page and
+  got it, so the server works.
+- **Phone visits**: counts every request that reached the radar from another
+  device, and shows the last one's address.
+
+If the server answers but *Phone visits* stays at *None yet* after you scan
+the code, the phone can't reach the radar. Check that the phone is on the
+same Wi-Fi network (not mobile data, not a guest network: guest networks keep
+devices apart, and some routers have an "AP isolation" or "client isolation"
+option that does the same). If visits are counted but the page still
+doesn't show, send the serial log; every request is logged as
+`web: GET / from 192.168.1.23`.
+
 | Option | What it does | Default |
 |---|---|---|
 | QR code | Opens the page on a phone, logged in | |
+| Server / Phone visits | Whether the page is working and reached, see above | |
 | Or open / or | The page's addresses | |
 | PIN | Asked for when you type the address | made up on first start |
 | Phone settings page | Turn the page on or off | On |
@@ -738,6 +755,17 @@ or newer.
 **The serial log helps with everything.** Open a terminal at **115200 baud**,
 press RESET, and copy everything from `ESP-ROM:` onward. Each release has
 `symbols-*.elf` files for decoding crash backtraces.
+
+**Opening the serial port restarts the radar.** That's the board, not the
+firmware: the USB-serial chip's DTR/RTS lines are wired to the reset and boot
+pins (so esptool can flash without pressing buttons), and most terminals
+switch them when they open the port. The log still shows everything after
+that restart. Leave the terminal open, wait for the radar to start, then do
+what you want to log. To connect without a restart, turn DTR and RTS off in
+the terminal before opening the port (e.g. Tera Term, CoolTerm or
+`python -m serial.tools.miniterm --dtr 0 --rts 0 COM5 115200`). Don't
+open and close the port three times in a row within 20 seconds of each start,
+or the radar goes back to the previous version (see [About](#about)).
 
 | Symptom | Likely cause and fix |
 |---|---|
