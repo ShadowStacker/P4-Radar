@@ -5,7 +5,7 @@
 namespace ui {
 
 enum class Page {
-  Main, Wifi, Location, Display, Sound, Traffic, Filters, Favorites, About,
+  Main, Wifi, Location, Display, Sound, Traffic, Filters, Favorites, Updates, About,
   CustomTheme, Clock, TimeZone, AlarmEdit, SdCard,
 };
 

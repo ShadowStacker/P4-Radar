@@ -33,6 +33,9 @@ class RadarView {
   /** Animates back to the home location and home zoom. */
   void goHome(bool animate = true);
   void zoomBy(double factor);
+  /** Zoom buttons: a smooth step per tap (steps add up), continuous while held. */
+  void zoomStep(double factor);
+  void setZoomRate(double octaves_per_s);
   bool atHome() const;
 
   const core::Track* selected() const;

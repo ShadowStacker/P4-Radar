@@ -8,6 +8,7 @@
 #include "app/app.h"
 #include "core/adsb.h"
 #include "core/filter.h"
+#include "core/tiles.h"
 #include "platform/platform.h"
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
@@ -28,8 +29,8 @@ struct Hud {
   lv_obj_t* status_label = nullptr;
   bool status_problem = false;   // offline/errors: keep everything visible
   lv_obj_t* filter = nullptr;
-  // Firmware update: grayed out (fades with the other buttons), lit and
-  // always shown while an update is available.
+  // Firmware update: grayed out, or lit while an update is available. Fades
+  // with the other buttons either way.
   lv_obj_t* update_btn = nullptr;
   bool update_lit = false;
   bool update_check_asked = false;  // tapped while grayed: report the result
@@ -217,12 +218,14 @@ void openMapPicker() {
   lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_all(box, sc(22), 0);
-  lv_obj_set_style_pad_row(box, sc(12), 0);
+  lv_obj_set_style_pad_row(box, sc(8), 0);
   lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);  // taps on the box don't close it
   label(box, "Background map", font(FontSize::L), p.text);
 
-  static const char* const kNames[] = {"Off", "Dark streets", "Topo", "FAA sectional"};
-  for (int i = 0; i < 4; ++i) {
+  static const char* const kNames[] = {"Off", "Dark streets", "Topo", "FAA sectional", "Satellite",
+                                       "Street map (names)"};
+  static_assert(sizeof(kNames) / sizeof(kNames[0]) == core::tiles::kStyleCount, "one name per map style");
+  for (int i = 0; i < core::tiles::kStyleCount; ++i) {
     const bool current = app::settings().map_style == i;
     lv_obj_t* b = pillButton(box, current ? (std::string(LV_SYMBOL_OK "  ") + kNames[i]).c_str() : kNames[i],
                              [scrim, i] {
@@ -360,10 +363,7 @@ void updateUpdateButton() {
   if (lit != h.update_lit) {
     h.update_lit = lit;
     styleUpdateButton(lit);
-    lv_anim_delete(h.update_btn, nullptr);
     if (lit) {
-      setHidden(h.update_btn, false);  // stays up even while the other buttons are hidden
-      lv_obj_set_style_opa(h.update_btn, LV_OPA_COVER, 0);
       static std::string s_announced;  // once per version, not after every screen rebuild
       if (s_announced != u.latest) {
         s_announced = u.latest;
@@ -372,8 +372,6 @@ void updateUpdateButton() {
               5000);
       }
       h.update_check_asked = false;
-    } else if (h.controls_hidden) {
-      setHidden(h.update_btn, true);
     }
   }
   if (h.update_check_asked && u.state != app::UpdateState::Checking) {
@@ -434,23 +432,31 @@ void onAutoHideTimer(lv_timer_t*) {
       lv_anim_delete(h.controls, nullptr);
       lv_obj_remove_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
       lv_obj_fade_in(h.controls, kFadeMs / 2, 0);
-      if (h.update_btn && !h.update_lit) {
-        lv_anim_delete(h.update_btn, nullptr);
-        setHidden(h.update_btn, false);
-        lv_obj_fade_in(h.update_btn, kFadeMs / 2, 0);
-      }
     } else if (h.hide_done_ms != 0 && static_cast<int32_t>(now - h.hide_done_ms) >= 0) {
       // Fully transparent: hide it so invisible buttons can't be pressed.
       lv_obj_add_flag(h.controls, LV_OBJ_FLAG_HIDDEN);
-      if (h.update_btn && !h.update_lit) setHidden(h.update_btn, true);
       h.hide_done_ms = 0;
     }
   } else if (may_hide && idle >= kAutoHideIdleMs) {
     h.controls_hidden = true;
     h.hide_done_ms = now + kFadeMs;
     lv_obj_fade_out(h.controls, kFadeMs, 0);
-    if (h.update_btn && !h.update_lit) lv_obj_fade_out(h.update_btn, kFadeMs, 0);
   }
+}
+
+// Zoom buttons: each tap zooms a 1.25x step, smoothly (quick taps add up);
+// holding one zooms continuously, speeding up gently, until it's released.
+constexpr double kZoomStep = 1.25;
+constexpr double kZoomHoldOctavesPerS = 1.4;  // about 2.6x per second
+
+void zoomButton(lv_obj_t* b, int dir) {
+  onEvent(b, LV_EVENT_PRESSED, [dir] {
+    app::sound(core::Sound::Click);
+    RadarView::get().zoomStep(dir > 0 ? kZoomStep : 1.0 / kZoomStep);
+  });
+  onEvent(b, LV_EVENT_LONG_PRESSED, [dir] { RadarView::get().setZoomRate(dir * kZoomHoldOctavesPerS); });
+  onEvent(b, LV_EVENT_RELEASED, [] { RadarView::get().setZoomRate(0); });
+  onEvent(b, LV_EVENT_PRESS_LOST, [] { RadarView::get().setZoomRate(0); });
 }
 
 void buildCard(lv_obj_t* parent) {
@@ -711,17 +717,18 @@ void create(lv_obj_t* parent) {
   });
   placePolar(h.sweep, -45, 0.80f);
 
-  h.zoom_in = iconButton(h.controls, LV_SYMBOL_PLUS, d, [] { RadarView::get().zoomBy(2.0); });
+  h.zoom_in = iconButton(h.controls, LV_SYMBOL_PLUS, d, nullptr);
+  zoomButton(h.zoom_in, +1);
   placePolar(h.zoom_in, 135, 0.80f);
-  h.zoom_out = iconButton(h.controls, LV_SYMBOL_MINUS, d, [] { RadarView::get().zoomBy(0.5); });
+  h.zoom_out = iconButton(h.controls, LV_SYMBOL_MINUS, d, nullptr);
+  zoomButton(h.zoom_out, -1);
   placePolar(h.zoom_out, 225, 0.80f);
 
   h.home = iconButton(h.controls, LV_SYMBOL_HOME, sc(84), [] { RadarView::get().goHome(); });
   placePolar(h.home, 180, 0.82f);
 
-  // Firmware update, mirroring the map button. Not in h.controls: when lit it
-  // has to stay visible while the others fade.
-  h.update_btn = iconButton(parent, LV_SYMBOL_DOWNLOAD, d, [] { onUpdatePressed(); });
+  // Firmware update, mirroring the map button.
+  h.update_btn = iconButton(h.controls, LV_SYMBOL_DOWNLOAD, d, [] { onUpdatePressed(); });
   placePolar(h.update_btn, 203, 0.80f);
   h.update_lit = false;
   styleUpdateButton(false);

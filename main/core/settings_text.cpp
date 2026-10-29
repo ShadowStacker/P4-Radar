@@ -47,7 +47,7 @@ const char* const kColorModes[] = {"theme", "altitude"};
 const char* const kSources[] = {"adsb.fi", "airplanes.live", "adsb.lol"};
 const char* const kLabelSizes[] = {"small", "normal", "large"};
 const char* const kCodeStyles[] = {"icao", "iata"};
-const char* const kMaps[] = {"off", "streets", "topo", "faa"};
+const char* const kMaps[] = {"off", "streets", "topo", "faa", "satellite", "streetmap"};
 const char* const kCategories[] = {"light", "small", "airliner", "heavy", "fast", "rotor", "other", "unknown"};
 const char* const kDays[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 
@@ -128,8 +128,8 @@ const Field kFields[] = {
     U16(custom_alt_high_hue, 0, 359, nullptr),
 
     SECTION("Background map"),
-    ENUM(map_style, kMaps, "off, streets, topo or faa"),
-    BOOL(map_labels, "Place names on the street map"),
+    ENUM(map_style, kMaps, "off, streets (dark), topo, faa, satellite or streetmap (street names)"),
+    BOOL(map_labels, "Place names on the dark street map"),
     BOOL(map_tint, "Recolor the map in the theme color"),
     U8(map_brightness, 10, 100, "Percent"),
     BOOL(sd_cache, "Keep downloaded map tiles on the SD card"),
@@ -163,6 +163,9 @@ const Field kFields[] = {
     SECTION("Data"),
     ENUM(source, kSources, "adsb.fi, airplanes.live or adsb.lol"),
     U8(poll_interval_s, 2, 30, "Seconds between updates"),
+
+    SECTION("Updates"),
+    BOOL(auto_update_check, "Look for new firmware on GitHub a minute after start, then hourly"),
 
     SECTION("Clock"),
     BOOL(clock_mode, "Clock face instead of compass headings"),

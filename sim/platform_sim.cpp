@@ -195,7 +195,8 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
   const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
   const bool osm = std::strstr(url, "tile.openstreetmap.org/") != nullptr;
   const bool faa = std::strstr(url, "VFR_Sectional/MapServer/tile/") != nullptr;
-  if (carto || topo || osm || faa) {
+  const bool sat = std::strstr(url, "World_Imagery/MapServer/tile/") != nullptr;
+  if (carto || topo || osm || faa || sat) {
     if (std::getenv("SIM_NO_TILES")) return -1;
     // .../<z>/<x>/<y>.png
     int z = 0;
@@ -205,11 +206,11 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     const size_t p2 = u.rfind('/', p3 - 1);
     const size_t p1 = u.rfind('/', p2 - 1);
     // .../z/x/y.png, or ArcGIS .../tile/z/y/x
-    if (faa ? std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u", &z, &y, &x) != 3
+    if (faa || sat ? std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u", &z, &y, &x) != 3
             : std::sscanf(u.c_str() + p1 + 1, "%d/%u/%u.png", &z, &x, &y) != 3) {
       return 404;
     }
-    body->append(fakeTile(topo, z, x, y, osm, faa));
+    body->append(fakeTile(topo || sat, z, x, y, osm, faa));  // (satellite: the topo look will do)
     return 200;
   }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {

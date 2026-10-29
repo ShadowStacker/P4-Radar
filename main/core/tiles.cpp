@@ -19,6 +19,8 @@ Variant variantFor(Style style, bool labels, bool have_carto_key) {
       return labels ? Variant::DarkLabels : Variant::DarkNoLabels;
     case Style::Topo: return Variant::Topo;
     case Style::FaaSectional: return Variant::FaaSectional;
+    case Style::Satellite: return Variant::Satellite;
+    case Style::StreetMap: return Variant::StreetMap;
     default: return Variant::None;
   }
 }
@@ -27,13 +29,18 @@ int maxZoom(Variant v) {
   switch (v) {
     case Variant::Topo: return 17;
     case Variant::FaaSectional: return 12;  // sectionals are 1:500,000 scans; closer is just enlarged
+    case Variant::StreetMap: return 19;
     default: return 18;
   }
 }
 
 int minZoom(Variant v) { return v == Variant::FaaSectional ? 8 : 1; }
 
-bool keepColors(Variant v) { return v == Variant::FaaSectional; }
+// Charts, photos and the street map are shown as they are: tinting would hide
+// what they show (the street map would lose its colors and readable names).
+bool keepColors(Variant v) {
+  return v == Variant::FaaSectional || v == Variant::Satellite || v == Variant::StreetMap;
+}
 
 const char* dirName(Variant v) {
   switch (v) {
@@ -44,6 +51,8 @@ const char* dirName(Variant v) {
     case Variant::Topo: return "topo";
     case Variant::OsmStandard: return "osm";
     case Variant::FaaSectional: return "faavfr";
+    case Variant::Satellite: return "esrisat";
+    case Variant::StreetMap: return "osm";  // the same tiles as OsmStandard, only drawn differently
     default: return "none";
   }
 }
@@ -56,11 +65,17 @@ const char* attribution(Variant v) {
     case Variant::Topo: return "(c) OpenStreetMap contributors, SRTM | (c) OpenTopoMap (CC-BY-SA)";
     case Variant::OsmStandard: return "(c) OpenStreetMap contributors";
     case Variant::FaaSectional: return "FAA VFR Sectional - not for navigation";
+    case Variant::Satellite: return "Esri, Maxar, Earthstar Geographics";
+    case Variant::StreetMap: return "(c) OpenStreetMap contributors";
     default: return "";
   }
 }
 
-bool isLight(Variant v) { return v == Variant::Topo || v == Variant::OsmStandard || v == Variant::FaaSectional; }
+// Light maps get dark backings behind aircraft labels (photos too: they're busy).
+bool isLight(Variant v) {
+  return v == Variant::Topo || v == Variant::OsmStandard || v == Variant::FaaSectional || v == Variant::Satellite ||
+         v == Variant::StreetMap;
+}
 
 std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative, const char* key) {
   char buf[192];
@@ -78,8 +93,15 @@ std::string url(Variant v, int z, uint32_t x, uint32_t y, int alternative, const
                     static_cast<unsigned>(x), static_cast<unsigned>(y));
       break;
     case Variant::OsmStandard:
+    case Variant::StreetMap:
       std::snprintf(buf, sizeof(buf), "https://tile.openstreetmap.org/%d/%u/%u.png", z, static_cast<unsigned>(x),
                     static_cast<unsigned>(y));
+      break;
+    case Variant::Satellite:
+      // Esri World Imagery (JPEG). ArcGIS orders the path z/row/column.
+      std::snprintf(buf, sizeof(buf),
+                    "https://%s.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%d/%u/%u",
+                    alternative ? "services" : "server", z, static_cast<unsigned>(y), static_cast<unsigned>(x));
       break;
     case Variant::FaaSectional:
       // The FAA's own ArcGIS tile service (Aeronautical Information Services);

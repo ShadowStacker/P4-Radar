@@ -67,8 +67,23 @@ class Viewport {
   void flyTo(const LatLon& c, double radius_km, uint32_t now_ms, uint32_t duration_ms = 700);
   /** Advances fly-to and fling. Returns true while the view is still moving. */
   bool update(uint32_t now_ms);
-  bool animating() const { return flying_ || flinging_; }
-  void stopAnimation() { flying_ = flinging_ = false; }
+  bool animating() const { return flying_ || flinging_ || zoom_rate_ != 0; }
+  void stopAnimation() {
+    flying_ = flinging_ = false;
+    zoom_rate_ = 0;
+  }
+
+  /**
+   * Animated zoom by `factor` (>1 = in) about the center. Steps in quick
+   * succession add up: each starts from where the previous one is heading.
+   */
+  void zoomStep(double factor, uint32_t now_ms, uint32_t duration_ms = 220);
+  /**
+   * Continuous zoom (a held button): `octaves_per_s` > 0 zooms in, < 0 out,
+   * 0 stops. Eases in over the first 300 ms.
+   */
+  void setZoomRate(double octaves_per_s, uint32_t now_ms);
+  double targetRadiusKm() const { return (flying_ ? fly_to_kmpp_ : km_per_px_) * radiusPx(); }
 
  private:
   void clampScale();
@@ -97,6 +112,10 @@ class Viewport {
   LatLon fly_from_, fly_to_;
   double fly_from_kmpp_ = 0, fly_to_kmpp_ = 0;
   uint32_t fly_start_ms_ = 0, fly_dur_ms_ = 1;
+
+  // continuous zoom
+  double zoom_rate_ = 0;  // octaves per second
+  uint32_t zoom_start_ms_ = 0, zoom_last_ms_ = 0;
 };
 
 /** Picks a "nice" ring spacing (1/2/2.5/5 x 10^n) so ~`target_rings` fit in `radius`. */

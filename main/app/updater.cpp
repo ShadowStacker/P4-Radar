@@ -126,7 +126,8 @@ bool serviceUpdate() {
     s_job = Job::None;
     const bool idle = s_status.state != UpdateState::Installing && s_status.state != UpdateState::Installed &&
                       s_status.state != UpdateState::Checking;
-    if (job == Job::None && idle && static_cast<int32_t>(now - s_next_auto_ms) >= 0) {
+    if (job == Job::None && idle && settings().auto_update_check &&
+        static_cast<int32_t>(now - s_next_auto_ms) >= 0) {
       job = Job::Check;
       quiet = true;
     }

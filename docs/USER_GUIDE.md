@@ -87,12 +87,12 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 |---|---|---|
 | ⚙ Gear | top right | Open Settings |
 | 👁 Eye | right | Open the [Filters](#filters) page (same eye as in Settings). Lit while a filter is hiding aircraft. |
-| 🖼 Picture | lower right, next to Home | Choose the [background map](#background-maps): Off, Dark streets, Topo or FAA sectional |
+| 🖼 Picture | lower right, next to Home | Choose the [background map](#background-maps): Off, Dark streets, Topo, FAA sectional, Satellite or Street map |
 | 🔊 Speaker | left | Mute or unmute all sounds (same as **Sound → Sound**) |
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
-| ＋ / − | lower right / lower left | Zoom in / out by 2× |
+| ＋ / − | lower right / lower left | Tap: zoom in / out a little (1.25×), smoothly; quick taps add up. Hold: keeps zooming, gently speeding up, until you let go. |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
 
 With **Auto-hide buttons** on (the default), the buttons and the status pill
@@ -171,6 +171,13 @@ feed saw it). Zoom out to see the whole route.
   printed at 1:500,000, so when you zoom in close they're simply enlarged,
   and when zoomed far out (beyond about 150 mi) the chart pieces are shrunk.
   **Not for navigation.**
+- **Satellite**: aerial and satellite photos from Esri World Imagery, in their
+  own colors (**Map brightness** tones them down). Aircraft labels get a dark
+  backing.
+- **Street map**: OpenStreetMap's standard map in its own colors, with
+  **street names once you zoom in** to a few miles (at the closest zoom, 1 km,
+  every street is named). Use this rather than Dark streets when you want to
+  read the names.
 
 With **Tint map to theme color** on (the default) the map is redrawn in the
 theme's color, so it looks like part of the radar; topo is inverted so its
@@ -283,7 +290,7 @@ proximity and favorite alerts.
 | Range rings | Distance rings and crosshair around home | On |
 | Runways | Draw airport runways | On |
 | Airport codes | Label airports with their code | On |
-| Background map | **Off**, **Streets** (dark street map), **Topo** (terrain contours, forests and roads) or **FAA** (VFR sectional charts). See [Background maps](#background-maps). | Off |
+| Background map | **Off**, **Dark streets**, **Topo** (terrain contours, forests and roads), **FAA** (VFR sectional charts), **Satellite** (photos) or **Street map** (street names when zoomed in). See [Background maps](#background-maps). | Off |
 | Place names (street map) | Show town and road names on the dark street map | On |
 | Tint map to theme color | Recolor the map in the theme's color (green, amber, blue, red at night). Topo is inverted so it stays dark. Off shows the map's own colors, dimmed. | On |
 | Map brightness | How bright the map is behind the radar, 10–100 % | 60 % |
@@ -480,6 +487,16 @@ has a remove button.
 Favorites are only "detected" inside the area the radar is fetching: roughly
 what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 
+### Updates
+
+| Item | Meaning | Default |
+|---|---|---|
+| Installed version | The firmware running now | |
+| Latest version | Result of the last check: *Up to date*, *vX.Y.Z available*, or why it couldn't check | |
+| Check now | Looks up the latest release on GitHub | |
+| Install vX.Y.Z | Appears when a newer version is available; see [Updating over Wi-Fi](#updating-over-wi-fi) | |
+| Check for updates automatically | A minute after start and then hourly. Nothing installs without asking. | On |
+
 ### About
 
 | Item | Meaning |
@@ -489,9 +506,6 @@ what's on screen plus a margin, up to 250 nm. Zoom out to watch a wider area.
 | Wi-Fi | IP address and signal strength |
 | Feed | Aircraft count and seconds since the last successful update, or the last error |
 | Free memory | Internal RAM and PSRAM free (useful for bug reports) |
-| Latest version | Result of the last update check |
-| Check for updates | Looks up the latest release on GitHub |
-| Install vX.Y.Z | Appears when a newer version is available; see [Updating over Wi-Fi](#updating-over-wi-fi) |
 | Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
 
@@ -525,10 +539,12 @@ From v1.13.0 on, the radar can update itself.
 
 - **Update button on the radar** (v1.14.0 and later; the download arrow
   between Home and zoom-out). The radar checks GitHub a minute after it starts
-  and then every hour. Normally the button is grayed out and fades with the
-  others; tap it to check right away. When an update is available it **lights
-  up** and stays visible. Tap it to install.
-- **Settings > About > Check for updates**, then **Install vX.Y.Z**.
+  and then every hour (turn that off under **Settings > Updates**). Normally
+  the button is grayed out; tap it to check right away. When an update is
+  available it **lights up**. It fades with the other buttons; touch the
+  screen to bring them back, then tap it to install.
+- **Settings > Updates > Check now**, then **Install vX.Y.Z**. (Before
+  v1.16.0 these were on the About page.)
 
 Either way, you confirm before anything is downloaded.
 It downloads about 6 MB from GitHub, shows the progress, and restarts into

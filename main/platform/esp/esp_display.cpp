@@ -112,6 +112,13 @@ lv_display_t* displayStart(int quarter_turns) {
   ESP_ERROR_CHECK(bsp_display_new(nullptr, &panel, &io));  // also sets up the backlight PWM
   bsp_display_brightness_set(0);  // stay dark until the first frame is ready
   s_backlight_ready = true;
+  // The panel's DMA (DW-GDMA) reads the frame buffer from PSRAM 60 times a
+  // second and must never fall behind, or the screen flashes cyan. By default
+  // it competes equally with both CPUs; heavy work (map tiles, downloads, the
+  // frame buffer clearing below) can starve it. Give its reads the highest bus
+  // priority, as soon as it starts streaming.
+  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, 15);
+  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, 15);
   clearFrameBuffers(panel);
 
   esp_lv_adapter_display_config_t disp_cfg;
@@ -134,12 +141,6 @@ lv_display_t* displayStart(int quarter_turns) {
     ESP_LOGE(TAG, "display registration failed");
     abort();
   }
-  // The panel's DMA (DW-GDMA) reads the frame buffer from PSRAM 60 times a
-  // second and must never fall behind, or the screen flashes cyan. By default
-  // it competes equally with both CPUs; heavy work (map tiles, downloads) can
-  // starve it. Give its reads the highest bus priority.
-  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, 15);
-  axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, 15);
 
   bsp_display_cfg_t touch_cfg;
   std::memset(&touch_cfg, 0, sizeof(touch_cfg));
@@ -182,7 +183,7 @@ void bootScreen(const char* status) {
   // gives no clue where boot stopped). Wait for the panel to pick up the new
   // frame, so the first thing visible is never stale memory.
   if (first) {
-    vTaskDelay(pdMS_TO_TICKS(60));
+    vTaskDelay(pdMS_TO_TICKS(150));  // several refreshes (60 Hz), so a clean frame is up for sure
     bsp_display_brightness_set(60);
   }
 }

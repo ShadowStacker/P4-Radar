@@ -11,12 +11,18 @@ namespace core::tiles {
  * Web map tiles (256 px, Web Mercator, z/x/y) for the background map.
  * Variant = what is actually downloaded: a style plus its options.
  */
-enum class Variant : uint8_t { None = 0, DarkLabels, DarkNoLabels, Topo, OsmStandard, FaaSectional, kCount };
+enum class Variant : uint8_t {
+  None = 0, DarkLabels, DarkNoLabels, Topo, OsmStandard, FaaSectional,
+  Satellite,  // Esri World Imagery
+  StreetMap,  // OpenStreetMap's standard map in its own colors (street names when zoomed in)
+  kCount
+};
 
 constexpr int kTileSize = 256;
 
 /** Map styles offered in Settings (Display -> Background map). */
-enum class Style : uint8_t { Off = 0, DarkStreets = 1, Topo = 2, FaaSectional = 3 };
+enum class Style : uint8_t { Off = 0, DarkStreets = 1, Topo = 2, FaaSectional = 3, Satellite = 4, StreetMap = 5 };
+constexpr int kStyleCount = 6;
 
 /**
  * The dark street map comes from CARTO, which needs a (free) API key; without

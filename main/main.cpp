@@ -50,7 +50,9 @@ extern "C" void app_main(void) {
     ui::installDisplayRotation(disp, quarter_turns);
     plat::esp::lvglUnlock();
   }
-  plat::esp::bootScreen("Starting audio...");
+  // Audio first, while the screen is still dark: it was the moment of the one
+  // cyan flash left at startup (the codec, speaker amp and sound synthesis
+  // start here), and nothing needs to be shown for it.
   plat::esp::audioStart();
   plat::esp::bootScreen("Starting Wi-Fi module...");
   if (!plat::esp::wifiStart()) {

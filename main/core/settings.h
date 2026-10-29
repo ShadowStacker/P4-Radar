@@ -38,7 +38,8 @@ struct Settings {
   //   9: up to wake_on_alarm (v1.9.1)
   //  10: up to carto_key (v1.10.0); rotation re-based (see below)
   //  11: up to wifi_saved (v1.15.0)
-  static constexpr uint16_t kVersion = 11;
+  //  12: up to auto_update_check (v1.16.0)
+  static constexpr uint16_t kVersion = 12;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -150,7 +151,7 @@ struct Settings {
   uint16_t custom_alt_high_hue = 300;
 
   // v1.8.0: background map (core::tiles::Style) and SD card
-  uint8_t map_style = 0;                  // 0 off, 1 dark streets, 2 topo
+  uint8_t map_style = 0;                  // core::tiles::Style: 0 off, 1 dark streets, 2 topo, 3 FAA, 4 satellite, 5 street map
   bool map_labels = true;                 // place names on the dark street map
   bool map_tint = true;                   // recolor the map in the theme color
   uint8_t map_brightness = 60;            // %
@@ -165,6 +166,9 @@ struct Settings {
   // v1.15.0: more Wi-Fi networks, tried in turn when the current one can't
   // connect (empty ssid = unused slot)
   SavedWifi wifi_saved[kMaxSavedWifi];
+
+  // v1.16.0
+  bool auto_update_check = true;          // look for new firmware an hour apart
 };
 
 }  // namespace core

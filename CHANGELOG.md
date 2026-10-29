@@ -10,6 +10,30 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.16.0] - 2026-10-29
+
+### Added
+- **Two new background maps** (map button, or Display → Background map):
+  - **Satellite**: aerial and satellite photos (Esri World Imagery).
+  - **Street map**: OpenStreetMap in its own colors, with street names once
+    you zoom in to a few miles.
+- **Settings → Updates**, a page of its own: installed and latest version,
+  Check now, Install, and **Check for updates automatically** (on by default;
+  turn it off to stop the hourly checks). The update rows moved here from
+  About.
+
+### Changed
+- **Smoother, finer zoom buttons.** A tap zooms 1.25× instead of 2×, with a
+  smooth animation, and quick taps add up. Holding + or − zooms continuously
+  (it eases in, then about 2.6× per second) until you let go.
+- The lit update button fades with the other buttons too.
+
+### Fixed
+- **Cyan flash at startup** (during "Starting audio"). Audio now starts while
+  the screen is still dark. The display gets its memory priority before the
+  first memory-heavy step, and the backlight waits a few more refreshes, so a
+  clean frame is showing when it comes on.
+
 ## [v1.15.0] - 2026-10-29
 
 ### Added

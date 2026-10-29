@@ -15,6 +15,7 @@
 #include "core/adsb.h"
 #include "core/clock.h"
 #include "core/filter.h"
+#include "core/tiles.h"
 #include "data/airports.h"
 #include "platform/platform.h"
 #include "ui/hud.h"
@@ -227,7 +228,9 @@ void choiceRow(const char* text, const char* const* map, int current, std::funct
 
   lv_obj_t* bm = lv_buttonmatrix_create(r);
   lv_buttonmatrix_set_map(bm, map);
-  lv_obj_set_size(bm, lv_pct(100), sc(64));
+  int rows = 1;  // "\n" entries start another row (they don't count as buttons)
+  for (const char* const* m = map; **m != '\0'; ++m) rows += std::strcmp(*m, "\n") == 0;
+  lv_obj_set_size(bm, lv_pct(100), sc(64) * rows + sc(6) * (rows - 1));
   lv_buttonmatrix_set_button_ctrl_all(bm, LV_BUTTONMATRIX_CTRL_CHECKABLE);
   lv_buttonmatrix_set_one_checked(bm, true);
   lv_buttonmatrix_set_button_ctrl(bm, static_cast<uint32_t>(current), LV_BUTTONMATRIX_CTRL_CHECKED);
@@ -252,6 +255,8 @@ void choiceRow(const char* text, const char* const* map, int current, std::funct
 
 // ---------------------------------------------------------------------------
 // Pages
+
+std::string updateSummary();
 
 void pageMain() {
   const auto& st = app::settings();
@@ -283,6 +288,7 @@ void pageMain() {
            Page::SdCard);
   }
   navRow(LV_SYMBOL_BELL, "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())), Page::Favorites);
+  navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
 
@@ -546,8 +552,8 @@ void pageDisplay() {
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
-  static const char* const kMaps[] = {"Off", "Streets", "Topo", "FAA", ""};
-  choiceRow("Background map", kMaps, st.map_style > 3 ? 0 : st.map_style,
+  static const char* const kMaps[] = {"Off", "Dark streets", "Topo", "\n", "FAA", "Satellite", "Street map", ""};
+  choiceRow("Background map", kMaps, st.map_style >= core::tiles::kStyleCount ? 0 : st.map_style,
             [](int v) { app::settings().map_style = static_cast<uint8_t>(v); });
   {
     const char* src = app::maps::cartoKeySource();
@@ -1215,6 +1221,57 @@ void pageTraffic() {
   actionRow(LV_SYMBOL_LIST, "Filters...", [] { showPage(Page::Filters); }, pal().accent);
 }
 
+/** One line for the update state (Updates page, and its row on the main page). */
+std::string updateSummary() {
+  const app::UpdateStatus u = app::updateStatus();
+  switch (u.state) {
+    case app::UpdateState::Idle: return app::settings().auto_update_check ? "Not checked yet" : "Not checked";
+    case app::UpdateState::Checking: return "Checking...";
+    case app::UpdateState::UpToDate: return "Up to date";
+    case app::UpdateState::Available: return fmtStr("%s available", u.latest);
+    case app::UpdateState::NoImage: return fmtStr("%s (flash over USB)", u.latest);
+    case app::UpdateState::Failed: return u.error;
+    case app::UpdateState::Installing: return "Installing...";
+    case app::UpdateState::Installed: return "Installed - restarting";
+  }
+  return "";
+}
+
+void pageUpdates() {
+  infoRow("Installed version", plat::firmwareVersion());
+  lv_obj_t* latest = infoRow("Latest version", "");
+  lv_label_set_long_mode(latest, LV_LABEL_LONG_WRAP);
+  actionRow(LV_SYMBOL_REFRESH, "Check now", [] { app::checkForUpdate(); }, pal().accent);
+  lv_obj_t* install = actionRow(LV_SYMBOL_DOWNLOAD, "Install update", [] { confirmInstallUpdate(); }, pal().accent);
+  lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
+
+  section("AUTOMATIC CHECKS");
+  switchRow("Check for updates automatically", &app::settings().auto_update_check);
+  lv_obj_t* note = label(s.list,
+                         "A minute after it starts and then every hour, the radar looks for a new version on "
+                         "GitHub. Nothing is installed without asking: the update button on the radar lights up, "
+                         "and you tap it to install. With this off, tap that button (or Check now) to look.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+
+  s.tick = [latest, install] {
+    const app::UpdateStatus u = app::updateStatus();
+    std::string text = updateSummary();
+    if (u.state == app::UpdateState::NoImage) {
+      text = fmtStr("%s - no update file for this board; flash it over USB", u.latest);
+    }
+    lv_label_set_text(latest, text.c_str());
+    if (u.state == app::UpdateState::Available) {
+      lv_label_set_text(lv_obj_get_child(install, 1), fmtStr("Install %s", u.latest).c_str());
+      lv_obj_remove_flag(install, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
+    }
+  };
+}
+
 void pageAbout() {
   lv_obj_t* fw = infoRow("Firmware", plat::firmwareVersion());
   (void)fw;
@@ -1222,13 +1279,6 @@ void pageAbout() {
   lv_obj_t* wifi = infoRow("Wi-Fi", "");
   lv_obj_t* feed = infoRow("Feed", "");
   lv_obj_t* mem = infoRow("Free memory", "");
-
-  section("FIRMWARE UPDATE");
-  lv_obj_t* upd = infoRow("Latest version", "");
-  lv_label_set_long_mode(upd, LV_LABEL_LONG_WRAP);
-  actionRow(LV_SYMBOL_REFRESH, "Check for updates", [] { app::checkForUpdate(); }, pal().accent);
-  lv_obj_t* install = actionRow(LV_SYMBOL_DOWNLOAD, "Install update", [] { confirmInstallUpdate(); }, pal().accent);
-  lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
 
   section("MAINTENANCE");
   actionRow(LV_SYMBOL_REFRESH, "Restart", [] {
@@ -1247,27 +1297,7 @@ void pageAbout() {
   label(s.list, "Plane Radar P4 - aircraft data from community\nADS-B feeds; runways from OurAirports.",
         font(FontSize::S), pal().text_dim);
 
-  s.tick = [wifi, feed, mem, upd, install] {
-    const app::UpdateStatus u = app::updateStatus();
-    std::string text;
-    switch (u.state) {
-      case app::UpdateState::Idle: text = "Not checked"; break;
-      case app::UpdateState::Checking: text = "Checking..."; break;
-      case app::UpdateState::UpToDate: text = fmtStr("%s - up to date", u.latest); break;
-      case app::UpdateState::Available: text = fmtStr("%s available", u.latest); break;
-      case app::UpdateState::NoImage: text = fmtStr("%s - flash it over USB (no update file for this board)", u.latest); break;
-      case app::UpdateState::Failed: text = u.error; break;
-      case app::UpdateState::Installing: text = "Installing..."; break;
-      case app::UpdateState::Installed: text = "Installed - restarting"; break;
-    }
-    lv_label_set_text(upd, text.c_str());
-    if (u.state == app::UpdateState::Available) {
-      lv_label_set_text(lv_obj_get_child(install, 1), fmtStr("Install %s", u.latest).c_str());
-      lv_obj_remove_flag(install, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
-    }
-
+  s.tick = [wifi, feed, mem] {
     const plat::WifiStatus ws = plat::wifiStatus();
     lv_label_set_text(wifi, ws.state == plat::WifiState::Connected
                                 ? fmtStr("%s, %d dBm", ws.ip, ws.rssi).c_str()
@@ -1294,6 +1324,7 @@ const char* pageTitle(Page p) {
     case Page::Traffic: return "Traffic & data";
     case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
+    case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
     case Page::Clock: return "Clock & alarms";
@@ -1321,6 +1352,7 @@ void showPage(Page page) {
     case Page::Traffic: pageTraffic(); break;
     case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
+    case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
     case Page::Clock: pageClock(); break;

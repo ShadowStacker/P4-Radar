@@ -38,7 +38,8 @@ size_t validPrefix(uint16_t version) {
     case 8: return offsetof(core::Settings, wake_on_alarm);
     case 9: return offsetof(core::Settings, carto_key);
     case 10: return offsetof(core::Settings, wifi_saved);
-    case 11: return sizeof(core::Settings);
+    case 11: return offsetof(core::Settings, auto_update_check);
+    case 12: return sizeof(core::Settings);
     default: return 0;
   }
 }

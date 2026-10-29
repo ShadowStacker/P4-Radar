@@ -68,6 +68,35 @@ void testGeo() {
   CHECK(e.lon < -179.0);
 }
 
+void testZoomButtons() {
+  core::Viewport vp;
+  vp.setScreen(800, 800);
+  vp.setCenter({44.25, -121.15});
+  vp.setRadiusKm(40);
+  // Two quick taps add up (the second starts from where the first is going).
+  vp.zoomStep(1.25, 1000);
+  vp.update(1050);
+  vp.zoomStep(1.25, 1050);
+  CHECK_NEAR(vp.targetRadiusKm(), 40 / 1.5625, 1e-6);
+  for (uint32_t t = 1060; t <= 1400; t += 16) vp.update(t);
+  CHECK_NEAR(vp.radiusKm(), 40 / 1.5625, 1e-6);
+  CHECK(!vp.animating());
+  CHECK_NEAR(vp.center().lat, 44.25, 1e-9);
+  // Holding: 1 octave/s, eased in over 300 ms, for 1.3 s -> 1.15 octaves in.
+  vp.setRadiusKm(40);
+  vp.setZoomRate(1.0, 2000);
+  for (uint32_t t = 2016; t <= 3300; t += 16) vp.update(t);
+  CHECK_NEAR(vp.radiusKm(), 40 / std::exp2(1.15), 0.4);
+  vp.setZoomRate(0, 3300);
+  CHECK(!vp.update(3316));
+  // Steps and holding stop at the zoom limits.
+  for (int i = 0; i < 40; ++i) vp.zoomStep(1.25, 4000);
+  CHECK_NEAR(vp.targetRadiusKm(), core::Viewport::kMinRadiusKm, 1e-9);
+  vp.setZoomRate(-3.0, 5000);
+  for (uint32_t t = 5016; t <= 12000; t += 16) vp.update(t);
+  CHECK_NEAR(vp.radiusKm(), core::Viewport::kMaxRadiusKm, 1e-6);
+}
+
 void testViewport() {
   core::Viewport vp;
   vp.setScreen(800, 800);
@@ -862,6 +891,14 @@ void testTiles() {
   CHECK(zoomFor(Variant::FaaSectional, 2.0, 45.0) == 8);     // wide view: coarsest zoom it has
   CHECK(zoomFor(Variant::FaaSectional, 0.001, 45.0) == 12);  // close: enlarged
   CHECK(keepColors(Variant::FaaSectional) && !keepColors(Variant::Topo));
+  CHECK(keepColors(Variant::Satellite) && keepColors(Variant::StreetMap));
+  CHECK(variantFor(Style::Satellite, true, false) == Variant::Satellite);
+  CHECK(variantFor(Style::StreetMap, true, true) == Variant::StreetMap);
+  CHECK(url(Variant::Satellite, 15, 5355, 11734) ==
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11734/5355");
+  CHECK(url(Variant::StreetMap, 15, 5355, 11734) == "https://tile.openstreetmap.org/15/5355/11734.png");
+  CHECK(std::string(dirName(Variant::StreetMap)) == dirName(Variant::OsmStandard));  // same tiles, saved once
+  CHECK(key(Variant::StreetMap, 19, 1, 2) != key(Variant::OsmStandard, 19, 1, 2));
   CHECK(url(Variant::DarkLabels, 3, 1, 2, 0, "abc123") ==
         "https://a.basemaps.cartocdn.com/dark_all/3/1/2.png?key=abc123");
   CHECK(url(Variant::OsmStandard, 3, 1, 2) == "https://tile.openstreetmap.org/3/1/2.png");
@@ -1055,6 +1092,7 @@ void testUpdate() {
 int main() {
   testGeo();
   testViewport();
+  testZoomButtons();
   testAdsbParse();
   testTraffic();
   testFavorites();

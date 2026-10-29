@@ -124,7 +124,34 @@ void Viewport::flyTo(const LatLon& c, double radius_km, uint32_t now_ms, uint32_
   flying_ = true;
 }
 
+void Viewport::zoomStep(double factor, uint32_t now_ms, uint32_t duration_ms) {
+  const LatLon c = flying_ ? fly_to_ : center();
+  double kmpp = (flying_ ? fly_to_kmpp_ : km_per_px_) / factor;
+  kmpp = std::min(std::max(kmpp, kMinRadiusKm / radiusPx()), kMaxRadiusKm / radiusPx());
+  zoom_rate_ = 0;
+  flyTo(c, kmpp * radiusPx(), now_ms, duration_ms);
+}
+
+void Viewport::setZoomRate(double octaves_per_s, uint32_t now_ms) {
+  if (octaves_per_s != 0 && zoom_rate_ == 0) {
+    zoom_start_ms_ = zoom_last_ms_ = now_ms;
+    if (flying_) {  // take over from a step in progress, at its target center
+      setCenter(fly_to_);
+      flying_ = false;
+    }
+  }
+  zoom_rate_ = octaves_per_s;
+}
+
 bool Viewport::update(uint32_t now_ms) {
+  if (zoom_rate_ != 0) {
+    const double ramp = std::min(1.0, (now_ms - zoom_start_ms_) / 300.0);
+    const double dt_s = (now_ms - zoom_last_ms_) / 1000.0;
+    zoom_last_ms_ = now_ms;
+    km_per_px_ *= std::exp2(-zoom_rate_ * ramp * dt_s);
+    clampScale();
+    return true;
+  }
   if (flying_) {
     float t = static_cast<float>(now_ms - fly_start_ms_) / fly_dur_ms_;
     if (t >= 1.0f) {

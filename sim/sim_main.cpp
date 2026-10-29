@@ -786,6 +786,13 @@ int main(int argc, char** argv) {
     st.map_brightness = 70;
     run(4000);
     shot((p + "53_map_faa_sectional").c_str());
+    st.map_style = 5;  // street map: OSM in its own colors
+    run(4000);
+    shot((p + "61_map_street_names").c_str());
+    st.map_style = 4;  // satellite
+    run(4000);
+    shot((p + "62_map_satellite").c_str());
+    st.map_style = 3;
     st.map_style = 2;
     st.map_tint = false;
     st.map_brightness = 55;
@@ -922,18 +929,24 @@ int main(int argc, char** argv) {
     const bool regray = app::updateStatus().state == app::UpdateState::UpToDate;
     std::printf("update auto-check (up to date again): %s\n", regray ? "OK" : "FAILED");
     if (!regray) return 1;
+    // Automatic checks off: an hour passes and nothing is looked up.
     sim::g_update_available = true;
+    app::settings().auto_update_check = false;
+    run(3600 * 1000 + 2000, 500);
+    const bool quiet = app::updateStatus().state == app::UpdateState::UpToDate;
+    std::printf("update auto-check off: %s\n", quiet ? "OK" : "FAILED");
+    if (!quiet) return 1;
+    app::settings().auto_update_check = true;
     run(3600 * 1000 + 2000, 500);  // an hour later
     const app::UpdateStatus u = app::updateStatus();
     const bool found = u.state == app::UpdateState::Available && std::strcmp(u.latest, "v1.13.0") == 0;
     std::printf("update auto-check (newer release): %s\n", found ? "OK" : "FAILED");
     if (!found) return 1;
-    run(12000);  // the other buttons fade; the lit one stays
+    lv_display_trigger_activity(nullptr);  // the buttons are showing
+    run(600);
     shot((p + "58_update_button_lit").c_str());
-    ui::openSettings(ui::Page::About);
-    run(300);
-    lv_obj_scroll_to_y(lv_obj_get_child(lv_screen_active(), 3), S(260), LV_ANIM_OFF);
-    run(300);
+    ui::openSettings(ui::Page::Updates);
+    run(600);
     shot((p + "55_update_available").c_str());
     ui::closeSettings();
     run(500);
