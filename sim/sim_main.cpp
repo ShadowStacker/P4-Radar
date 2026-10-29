@@ -292,6 +292,35 @@ int runBench() {
   return 0;
 }
 
+/** Time to build each settings page and to scroll it: --pages. Host CPU. */
+int runPages() {
+  sim::g_preset_wifi = true;
+  app::init();
+  auto& st = app::settings();
+  sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 120, 300);
+  g_traffic = &traffic;
+  ui::init(g_disp);
+  run(3000);
+  const ui::Page pages[] = {ui::Page::Main, ui::Page::Display, ui::Page::Sound, ui::Page::Traffic, ui::Page::Filters,
+                            ui::Page::Updates, ui::Page::About, ui::Page::Wifi, ui::Page::Clock};
+  for (ui::Page pg : pages) {
+    ui::closeSettings();
+    run(300);
+    auto t0 = std::chrono::steady_clock::now();
+    ui::openSettings(pg);
+    lv_refr_now(g_disp);
+    const double open_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    g_render_ms_total = 0;
+    g_render_count = 0;
+    drag(S(400), S(650), S(400), S(150), 20);
+    run(1500);
+    std::printf("page %2d: open %6.1f ms, while scrolling %5.2f ms per frame, %u objects\n", static_cast<int>(pg),
+                open_ms, g_render_ms_total / std::max(1, g_render_count),
+                static_cast<unsigned>(lv_obj_get_child_count_by_type(lv_screen_active(), nullptr)));
+  }
+  return 0;
+}
+
 /** Memory over a long session of typical use: --soak [cycles]. Prints heap in
  *  use after each round; a leak shows as steady growth. */
 int runSoak(int cycles) {
@@ -351,9 +380,14 @@ int runSoak(int cycles) {
 int main(int argc, char** argv) {
   bool bench = false;
   int soak = 0;
+  bool page_timing = false;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--bench") == 0) {
       bench = true;
+      continue;
+    }
+    if (std::strcmp(argv[i], "--pages") == 0) {
+      page_timing = true;
       continue;
     }
     if (std::strcmp(argv[i], "--soak") == 0) {
@@ -388,6 +422,7 @@ int main(int argc, char** argv) {
 
   if (bench) return runBench();
   if (soak) return runSoak(soak);
+  if (page_timing) return runPages();
 
   sim::g_preset_wifi = false;  // start like a fresh device
   // A blank card: no settings.txt or favorites.txt from an earlier run.

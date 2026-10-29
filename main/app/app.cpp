@@ -31,6 +31,11 @@ bool s_dirty = false;
 uint32_t s_generation = 0;
 uint32_t s_dirty_since = 0;
 constexpr uint32_t kSaveDebounceMs = 2500;
+// Saving writes flash, which pauses both cores (the UI too) for a few ms, or
+// up to a few hundred when a flash sector has to be erased. In the settings
+// menu, where one change follows another, save on leaving it instead (and at
+// least once a minute).
+constexpr uint32_t kSaveInMenuMs = 60000;
 
 uint32_t s_last_activity = 0;
 bool s_dimmed = false;
@@ -561,7 +566,7 @@ void tick(uint32_t now_ms) {
   applySettingsFile();
   serviceWifi(now_ms);
   checkAlarms(now_ms);
-  if (s_dirty && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
+  if (s_dirty && now_ms - s_dirty_since >= (s_menu_open.load() ? kSaveInMenuMs : kSaveDebounceMs)) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
       now_ms - s_last_activity >= s_settings.dim_after_min * 60000u) {
@@ -610,7 +615,10 @@ void setSleeping(bool on) {
 
 bool sleeping() { return s_sleeping; }
 
-void setMenuOpen(bool open) { s_menu_open = open; }
+void setMenuOpen(bool open) {
+  s_menu_open = open;
+  if (!open) settingsFlush();  // changes made in the menu
+}
 
 bool userActivity() {
   s_last_activity = plat::millis();

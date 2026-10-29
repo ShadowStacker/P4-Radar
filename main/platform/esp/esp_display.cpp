@@ -10,16 +10,96 @@
 #include "bsp/display.h"
 #include "bsp/touch.h"
 #include "esp_cache.h"
+#include "esp_private/dw_gdma.h"
 #include "hal/axi_icm_ll.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_lv_adapter.h"
 #include "core/rotation.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
+
+// --- Panel creation, tuned ------------------------------------------------------
+//
+// The BSP creates the MIPI-DSI panel through esp_lcd_new_panel_dpi(), which the
+// linker sends here instead (-Wl,--wrap, see main/CMakeLists.txt) so three
+// things can be adjusted without changing the BSP. They all keep the panel fed
+// with pixels: whenever it isn't, it shows a cyan frame ("underrun").
+//
+// 1. Pixel clock 40 MHz instead of the BSP's 80. With this panel's timing
+//    (800 x 760 pixels per frame including blanking) 80 MHz refreshes about
+//    131 times a second, reading 136 MB/s of frame buffer from PSRAM. 40 MHz
+//    is about 66 Hz: half the memory traffic, and twice as long a vertical
+//    blanking gap (0.8 ms) for the interrupt below to restart the DMA in.
+// 2. That interrupt (DMA "frame done", which re-arms the transfer for the next
+//    frame) is allocated on core 1, with the UI, instead of core 0, where
+//    Wi-Fi (SDIO), TLS, the SD card and flash writes keep interrupts busy.
+// 3. And at priority 3 instead of 1, so other interrupts can't delay it.
+namespace {
+
+constexpr uint32_t kDpiClockMhz = 40;
+constexpr int kDmaIntrPriority = 3;
+
+struct DpiCall {
+  esp_lcd_dsi_bus_handle_t bus;
+  const esp_lcd_dpi_panel_config_t* config;
+  esp_lcd_panel_handle_t* ret;
+  esp_err_t err = ESP_FAIL;
+  SemaphoreHandle_t done = nullptr;
+};
+
+}  // namespace
+
+extern "C" esp_err_t __real_esp_lcd_new_panel_dpi(esp_lcd_dsi_bus_handle_t bus,
+                                                   const esp_lcd_dpi_panel_config_t* config,
+                                                   esp_lcd_panel_handle_t* ret_panel);
+
+extern "C" esp_err_t __wrap_esp_lcd_new_panel_dpi(esp_lcd_dsi_bus_handle_t bus,
+                                                   const esp_lcd_dpi_panel_config_t* config,
+                                                   esp_lcd_panel_handle_t* ret_panel) {
+  static const char* TAG = "display";
+  esp_lcd_dpi_panel_config_t tuned = *config;
+  ESP_LOGI(TAG, "pixel clock %u MHz (BSP asked for %u)", static_cast<unsigned>(kDpiClockMhz),
+           static_cast<unsigned>(config->dpi_clock_freq_mhz));
+  tuned.dpi_clock_freq_mhz = kDpiClockMhz;
+
+  // The DW-GDMA driver gives all its channels the interrupt priority of the
+  // first one created. Create (and keep) an idle channel at priority 3 first,
+  // so the panel's channel gets it too.
+  static dw_gdma_channel_handle_t s_priority_holder = nullptr;
+  if (s_priority_holder == nullptr) {
+    dw_gdma_channel_alloc_config_t c = {};
+    c.src.block_transfer_type = DW_GDMA_BLOCK_TRANSFER_CONTIGUOUS;
+    c.src.role = DW_GDMA_ROLE_MEM;
+    c.src.num_outstanding_requests = 1;
+    c.dst = c.src;
+    c.flow_controller = DW_GDMA_FLOW_CTRL_SELF;
+    c.chan_priority = 0;
+    c.intr_priority = kDmaIntrPriority;
+    const esp_err_t err = dw_gdma_new_channel(&c, &s_priority_holder);
+    if (err != ESP_OK) ESP_LOGW(TAG, "can't raise the DMA interrupt priority: %s", esp_err_to_name(err));
+  }
+
+  // Interrupts are allocated on the core of the task that sets them up.
+  if (xPortGetCoreID() == 1) return __real_esp_lcd_new_panel_dpi(bus, &tuned, ret_panel);
+  DpiCall call{bus, &tuned, ret_panel};
+  call.done = xSemaphoreCreateBinary();
+  xTaskCreatePinnedToCore(
+      [](void* arg) {
+        auto* c = static_cast<DpiCall*>(arg);
+        c->err = __real_esp_lcd_new_panel_dpi(c->bus, c->config, c->ret);
+        xSemaphoreGive(c->done);
+        vTaskDelete(nullptr);
+      },
+      "dpi_init", 6144, &call, 10, nullptr, 1);
+  xSemaphoreTake(call.done, portMAX_DELAY);
+  vSemaphoreDelete(call.done);
+  return call.err;
+}
 
 namespace plat {
 

@@ -12,3 +12,5 @@ idf_component_register(
   REQUIRES nvs_flash esp_netif esp_event esp_http_client esp_timer esp_app_format esp_lcd esp_mm fatfs sdmmc esp_driver_sdmmc json mbedtls esp_https_ota app_update)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
+# The display panel is created through our wrapper (see platform/esp/esp_display.cpp).
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_lcd_new_panel_dpi")

@@ -10,6 +10,23 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.16.1] - 2026-10-29
+
+### Fixed
+- **More of the cyan flashes** (at startup, and now and then even in the
+  menus). The panel shows a cyan frame whenever its DMA can't fetch the next
+  pixels in time. Three changes keep it fed:
+  - The panel refreshes at about 66 Hz instead of 131 (pixel clock 40 MHz
+    instead of the board package's 80). That halves the memory traffic and
+    doubles the gap between frames.
+  - The interrupt that restarts the DMA after every frame runs on core 1 with
+    the UI, away from the Wi-Fi, SD card and encryption work on core 0.
+  - It also runs at a higher priority (3 instead of 1).
+- **Display menu freezing.** Every change was saved to flash 2.5 s later, and
+  writing flash pauses both cores, sometimes for a few hundred milliseconds.
+  In the settings menu, changes are now saved when you leave it (and at least
+  once a minute).
+
 ## [v1.16.0] - 2026-10-29
 
 ### Added
