@@ -503,6 +503,8 @@ int main(int argc, char** argv) {
   // A blank card: no settings.txt or favorites.txt from an earlier run.
   std::remove((std::string(plat::sdRoot()) + "/settings.txt").c_str());
   std::remove((std::string(plat::sdRoot()) + "/favorites.txt").c_str());
+  // Screenshots are named by the (fixed) simulated time: start without old ones.
+  if (std::system(("rm -rf '" + std::string(plat::sdRoot()) + "/screenshots'").c_str()) != 0) return 1;
   app::init();
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
