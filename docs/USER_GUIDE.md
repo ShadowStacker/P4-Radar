@@ -557,6 +557,22 @@ next to the main processor) can run a network stack of its own, and then it
 keeps incoming connections on ordinary ports such as 80 for itself. Only
 ports 49152 to 61439 always reach the main processor.
 
+**The radar's own Wi-Fi (hotspot).** If your phone can't reach the radar
+through your router, tap **Start the radar's hotspot** on the same page. The
+radar then also runs a small Wi-Fi network of its own (`PlaneRadar-XXXX`,
+with a password), while staying connected to yours. Two QR codes appear:
+
+1. The first joins your phone to that network: scan it with the camera and
+   tap *Join*. If the phone says the network has no internet, choose to stay
+   connected.
+2. The second opens the page, at `http://192.168.4.1:50080`.
+
+While the phone is on the radar's network it has no internet of its own; switch
+back to your Wi-Fi when you're done. The hotspot turns off by itself 30 minutes
+after the last phone has left, and with a restart.
+
+![](images/75_phone_hotspot.png)
+
 **If the page doesn't open on the phone**, scroll down on the radar's Phone
 settings page:
 
@@ -569,7 +585,7 @@ If the server answers but *Phone visits* stays at *None yet* after you scan
 the code, the phone can't reach the radar. Check that the phone is on the
 same Wi-Fi network (not mobile data, not a guest network: guest networks keep
 devices apart, and some routers have an "AP isolation" or "client isolation"
-option that does the same). If visits are counted but the page still
+option that does the same), or use the radar's hotspot (above). If visits are counted but the page still
 doesn't show, send the serial log; every request is logged as
 `web: GET / from 192.168.1.23`.
 
@@ -578,6 +594,7 @@ doesn't show, send the serial log; every request is logged as
 | QR code | Opens the page on a phone | |
 | Or open | The page's address | |
 | Server / Phone visits | Whether the page is working and reached, see above | |
+| Start the radar's hotspot | The radar's own Wi-Fi network for the phone, see above | Off |
 | Phone settings page | Turn the page on or off | On |
 
 ### Daily log

@@ -10,7 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
-## [v1.18.2] - 2026-10-29
+## [v1.18.3] - 2026-10-29
+
+### Added
+- **The radar's own hotspot** for the phone page (Settings → Phone settings
+  page → Start the radar's hotspot), for when the phone can't reach the radar
+  through the router. One QR code joins the phone to the radar's Wi-Fi, a
+  second one opens the page. The radar stays on your Wi-Fi meanwhile, and the
+  hotspot turns off by itself after 30 minutes without a phone.
+
+ - 2026-10-29
 
 ### Fixed
 - **The phone settings page didn't open.** It's now on port 50080 (the QR

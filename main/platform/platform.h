@@ -59,6 +59,18 @@ void wifiScanStart();
 /** True once the last scan finished; fills `out` sorted by signal strength. */
 bool wifiScanResults(std::vector<WifiNetwork>* out);
 
+/**
+ * The radar's own Wi-Fi network, next to the normal connection, for phones
+ * that can't reach it through the router. WPA2 with `pass` (8+ characters);
+ * on the normal network's channel. The radar is hotspotIp() on it.
+ */
+bool hotspotStart(const char* ssid, const char* pass);
+void hotspotStop();
+bool hotspotOn();
+/** Phones joined to it right now. */
+int hotspotClients();
+const char* hotspotIp();
+
 // --- HTTP ----------------------------------------------------------------------
 /**
  * Blocking HTTPS GET; returns the HTTP status (or <0 on transport error) and

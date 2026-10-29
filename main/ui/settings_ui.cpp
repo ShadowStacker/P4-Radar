@@ -1468,36 +1468,48 @@ void pageAbout() {
   };
 }
 
-void pagePhone() {
-  auto& st = app::settings();
-  const Palette& p = pal();
-  // QR code on a white card (phones need the light border around it).
+/** A QR code on a white card (phones need the light border around it), with a caption under it. */
+void qrCode(lv_obj_t* parent, const std::string& text, const char* caption) {
+  lv_obj_t* white = lv_obj_create(parent);
+  lv_obj_remove_style_all(white);
+  lv_obj_set_size(white, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_style_bg_color(white, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(white, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(white, sc(14), 0);
+  lv_obj_set_style_pad_all(white, sc(16), 0);
+  lv_obj_t* qr = lv_qrcode_create(white);
+  lv_qrcode_set_size(qr, sc(250));
+  lv_qrcode_set_dark_color(qr, lv_color_black());
+  lv_qrcode_set_light_color(qr, lv_color_white());
+  lv_qrcode_update(qr, text.data(), static_cast<uint32_t>(text.size()));
+  lv_obj_t* hint = label(parent, caption, font(FontSize::M), pal().text);
+  lv_obj_set_width(hint, lv_pct(90));
+  lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+}
+
+/** A centered column for QR codes. */
+lv_obj_t* qrColumn() {
   lv_obj_t* box = lv_obj_create(s.list);
   lv_obj_remove_style_all(box);
   lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(box, sc(10), 0);
+  return box;
+}
+
+void pagePhone() {
+  auto& st = app::settings();
+  const Palette& p = pal();
+  lv_obj_t* box = qrColumn();
   const std::string url = app::web::address();
   if (!st.web_enabled) {
     label(box, "The phone page is off.", font(FontSize::M), p.text_dim);
   } else if (url.empty()) {
     label(box, "Connect to Wi-Fi first.", font(FontSize::M), p.text_dim);
   } else {
-    lv_obj_t* white = lv_obj_create(box);
-    lv_obj_remove_style_all(white);
-    lv_obj_set_size(white, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_color(white, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(white, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(white, sc(14), 0);
-    lv_obj_set_style_pad_all(white, sc(16), 0);
-    lv_obj_t* qr = lv_qrcode_create(white);
-    lv_qrcode_set_size(qr, sc(250));
-    lv_qrcode_set_dark_color(qr, lv_color_black());
-    lv_qrcode_set_light_color(qr, lv_color_white());
-    lv_qrcode_update(qr, url.data(), static_cast<uint32_t>(url.size()));
-    lv_obj_t* hint = label(box, "Scan with your phone's camera", font(FontSize::M), p.text);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    qrCode(box, url, "Scan with your phone's camera");
   }
   if (st.web_enabled) {
     infoRow("Or open", url.empty() ? std::string("-") : url);
@@ -1509,6 +1521,43 @@ void pagePhone() {
     visits = infoRow("Phone visits", "");
     for (lv_obj_t* l : {server, visits}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     app::web::startSelfTest();
+  }
+  if (st.web_enabled) {
+    section("OR USE THE RADAR'S OWN WI-FI");
+    if (!app::web::hotspotOn()) {
+      lv_obj_t* l = label(s.list,
+                          "If the phone can't reach the radar on your Wi-Fi (some routers keep devices apart), "
+                          "the radar can make a small Wi-Fi network of its own for the phone to join.",
+                          font(FontSize::S), p.text_dim);
+      lv_obj_set_width(l, lv_pct(90));
+      lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+      lv_obj_set_style_pad_left(l, sc(16), 0);
+      actionRow(LV_SYMBOL_WIFI, "Start the radar's hotspot", [] {
+        if (!app::web::hotspotStart()) toast(LV_SYMBOL_WARNING "  The Wi-Fi module couldn't start a hotspot", 3000);
+        showPage(Page::Phone);
+      }, p.accent);
+    } else {
+      lv_obj_t* col = qrColumn();
+      qrCode(col, app::web::hotspotJoinCode(), "1. Scan to join the radar's Wi-Fi");
+      infoRow("Network", app::web::hotspotSsid());
+      infoRow("Password", app::web::hotspotPassword());
+      lv_obj_t* col2 = qrColumn();
+      qrCode(col2, app::web::hotspotAddress(), "2. Then scan this to open the page");
+      infoRow("Address", app::web::hotspotAddress());
+      lv_obj_t* l = label(s.list,
+                          "While the phone is on the radar's Wi-Fi it has no internet (it may ask whether to stay "
+                          "connected: say yes). The radar stays online. The hotspot turns off by itself after "
+                          "30 minutes without a phone.",
+                          font(FontSize::S), p.text_dim);
+      lv_obj_set_width(l, lv_pct(90));
+      lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+      lv_obj_set_style_pad_left(l, sc(16), 0);
+      actionRow(LV_SYMBOL_CLOSE, "Stop the hotspot", [] {
+        app::web::hotspotStop();
+        showPage(Page::Phone);
+      }, p.warn);
+    }
+    section("");
   }
   switchRow("Phone settings page", &st.web_enabled, [] { lv_async_call([](void*) { showPage(Page::Phone); }, nullptr); });
   lv_obj_t* note = label(s.list,

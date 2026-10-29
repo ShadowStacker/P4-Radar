@@ -367,7 +367,61 @@ plat::WebResponse handle(plat::WebRequest& r) {
 
 }  // namespace
 
+namespace {
+std::string s_hs_ssid, s_hs_pass;
+uint32_t s_hs_since_ms = 0;  // started, or last phone visit
+constexpr uint32_t kHotspotIdleMs = 30 * 60 * 1000;
+
+void makeHotspotNames() {
+  if (!s_hs_ssid.empty()) return;
+  static const char kHex[] = "0123456789ABCDEF";
+  // No easily confused characters (0/O, 1/l) in case someone types it.
+  static const char kPass[] = "abcdefghijkmnpqrstuvwxyz23456789";
+  s_hs_ssid = "PlaneRadar-";
+  for (int i = 0; i < 4; ++i) s_hs_ssid.push_back(kHex[plat::random32() % 16]);
+  for (int i = 0; i < 8; ++i) s_hs_pass.push_back(kPass[plat::random32() % (sizeof(kPass) - 1)]);
+}
+
+/** In a WIFI: QR code, \ ; , : and " are escaped. */
+std::string qrEscape(const std::string& s) {
+  std::string out;
+  for (char c : s) {
+    if (c == '\\' || c == ';' || c == ',' || c == ':' || c == '"') out.push_back('\\');
+    out.push_back(c);
+  }
+  return out;
+}
+}  // namespace
+
+bool hotspotStart() {
+  makeHotspotNames();
+  if (!plat::hotspotOn() && !plat::hotspotStart(s_hs_ssid.c_str(), s_hs_pass.c_str())) return false;
+  s_hs_since_ms = plat::millis();
+  return true;
+}
+
+void hotspotStop() { plat::hotspotStop(); }
+bool hotspotOn() { return plat::hotspotOn(); }
+std::string hotspotSsid() { makeHotspotNames(); return s_hs_ssid; }
+std::string hotspotPassword() { makeHotspotNames(); return s_hs_pass; }
+std::string hotspotJoinCode() {
+  makeHotspotNames();
+  return "WIFI:T:WPA;S:" + qrEscape(s_hs_ssid) + ";P:" + qrEscape(s_hs_pass) + ";;";
+}
+std::string hotspotAddress() {
+  return std::string("http://") + plat::hotspotIp() + ":" + std::to_string(plat::kWebPort);
+}
+
 void service() {
+  if (plat::hotspotOn()) {
+    const plat::WebStats ws = plat::webStats();
+    if (ws.requests > 0 && static_cast<int32_t>(ws.last_ms - s_hs_since_ms) > 0) s_hs_since_ms = ws.last_ms;
+    if (plat::hotspotClients() > 0) s_hs_since_ms = plat::millis();
+    if (plat::millis() - s_hs_since_ms > kHotspotIdleMs) {
+      plat::hotspotStop();
+      std::printf("web: hotspot off (unused for 30 min)\n");
+    }
+  }
   core::Settings& st = settings();
   if (st.web_enabled && !s_running) {
     s_running = plat::webServerStart(handle);
@@ -385,6 +439,7 @@ void service() {
 }
 
 bool running() { return s_running; }
+
 
 void startSelfTest() {
   if (!s_running || s_self_testing.exchange(true)) return;

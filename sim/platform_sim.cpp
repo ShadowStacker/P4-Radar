@@ -123,6 +123,15 @@ WifiStatus wifiStatus() {
 }
 
 void wifiConnect(const char*, const char*) {}
+
+namespace {
+bool s_hotspot = false;
+}
+bool hotspotStart(const char*, const char*) { return s_hotspot = true; }
+void hotspotStop() { s_hotspot = false; }
+bool hotspotOn() { return s_hotspot; }
+int hotspotClients() { return s_hotspot ? 1 : 0; }
+const char* hotspotIp() { return "192.168.4.1"; }
 void wifiScanStart() { s_scan_pending = true; }
 
 bool wifiScanResults(std::vector<WifiNetwork>* out) {

@@ -153,6 +153,50 @@ bool wifiStart() {
 
 }  // namespace esp
 
+namespace {
+esp_netif_t* s_ap_netif = nullptr;
+bool s_ap_on = false;
+}  // namespace
+
+bool hotspotStart(const char* ssid, const char* pass) {
+  if (!s_radio_ok) return false;
+  if (s_ap_netif == nullptr) s_ap_netif = esp_netif_create_default_wifi_ap();  // 192.168.4.1, with a DHCP server
+  wifi_config_t ap = {};
+  std::snprintf(reinterpret_cast<char*>(ap.ap.ssid), sizeof(ap.ap.ssid), "%s", ssid);
+  ap.ap.ssid_len = static_cast<uint8_t>(std::strlen(reinterpret_cast<char*>(ap.ap.ssid)));
+  std::snprintf(reinterpret_cast<char*>(ap.ap.password), sizeof(ap.ap.password), "%s", pass);
+  ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
+  ap.ap.max_connection = 4;
+  ap.ap.channel = 0;  // the radio follows the normal network's channel
+  esp_err_t err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+  if (err == ESP_OK) err = esp_wifi_set_config(WIFI_IF_AP, &ap);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "hotspot: %s", esp_err_to_name(err));
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    return false;
+  }
+  s_ap_on = true;
+  ESP_LOGI(TAG, "hotspot %s on", ssid);
+  return true;
+}
+
+void hotspotStop() {
+  if (!s_ap_on) return;
+  esp_wifi_set_mode(WIFI_MODE_STA);
+  s_ap_on = false;
+  ESP_LOGI(TAG, "hotspot off");
+}
+
+bool hotspotOn() { return s_ap_on; }
+
+int hotspotClients() {
+  if (!s_ap_on) return 0;
+  wifi_sta_list_t list = {};
+  return esp_wifi_ap_get_sta_list(&list) == ESP_OK ? list.num : 0;
+}
+
+const char* hotspotIp() { return "192.168.4.1"; }
+
 WifiStatus wifiStatus() {
   std::lock_guard<std::mutex> lock(s_mu);
   if (s_status.state == WifiState::Connected && millis() - s_rssi_checked_ms > 5000) {

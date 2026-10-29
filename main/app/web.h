@@ -18,6 +18,21 @@ bool running();
 std::string address();
 
 /**
+ * The radar's own Wi-Fi network, for phones that can't reach it through the
+ * router. Turns itself off after 30 minutes without a phone visit (and with
+ * a restart). UI task.
+ */
+bool hotspotStart();
+void hotspotStop();
+bool hotspotOn();
+std::string hotspotSsid();
+std::string hotspotPassword();
+/** For a QR code that joins the network: "WIFI:T:WPA;S:<ssid>;P:<password>;;". */
+std::string hotspotJoinCode();
+/** "http://192.168.4.1:50080" */
+std::string hotspotAddress();
+
+/**
  * Checks that the server answers by asking it from the radar itself
  * (in the background). selfTest(): 0 = not known yet, 1 = answers,
  * -1 = doesn't answer.

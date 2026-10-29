@@ -1137,6 +1137,20 @@ int main(int argc, char** argv) {
     ui::openSettings(ui::Page::Phone);
     run(600);
     shot((p + "70_phone_qr").c_str());
+    // The radar's own hotspot, for phones that can't reach it through the router.
+    const bool hs = app::web::hotspotStart() && plat::hotspotOn() &&
+                    app::web::hotspotJoinCode().rfind("WIFI:T:WPA;S:PlaneRadar-", 0) == 0 &&
+                    app::web::hotspotAddress() == "http://192.168.4.1:8080";
+    std::printf("radar hotspot: %s\n", hs ? "OK" : "FAILED");
+    if (!hs) return 1;
+    ui::closeSettings();
+    run(300);
+    ui::openSettings(ui::Page::Phone);
+    run(400);
+    lv_obj_scroll_to_y(settingsList(), S(600), LV_ANIM_OFF);
+    run(400);
+    shot((p + "75_phone_hotspot").c_str());
+    app::web::hotspotStop();
     ui::closeSettings();
     run(300);
     bool ok = sim::g_web_handler != nullptr && app::web::address() == "http://192.168.1.42:8080";
@@ -1181,52 +1195,34 @@ int main(int argc, char** argv) {
   }
 
   // Airline and route lookups on the SD card: earlier taps were saved there,
-  // and a saved one is shown without asking the internet.
+  // and a saved one is answered from the card without asking the internet.
   {
-    const std::string root = std::string(plat::sdRoot()) + "/lookups/aircraft";
-    const bool saved = std::system(("ls -R '" + root + "' | grep -q '\\.txt'").c_str()) == 0;
-    int x = 0, y = 0;
-    bool ok = saved && findAircraftOnScreen(&x, &y);
-    std::vector<core::Track> tracks;
-    app::traffic().snapshot(tracks);
-    const core::Track* pick = nullptr;
-    auto& vp = ui::RadarView::get().viewport();
-    for (const auto& t : tracks) {
-      const core::PointF pt = vp.project(core::positionAt(t, sim::g_ms));
-      if (std::hypot(pt.x - x, pt.y - y) < 2) pick = &t;
+    const std::string sd = plat::sdRoot();
+    const bool saved = std::system(("ls -R '" + sd + "/lookups/aircraft' | grep -q '\\.txt'").c_str()) == 0;
+    char today[32];
+    const std::tm tm = core::localTime(plat::unixTimeMs() / 1000);
+    std::snprintf(today, sizeof(today), "%04d%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+    if (std::system(("mkdir -p '" + sd + "/lookups/aircraft/ab' '" + sd + "/lookups/routes/TST'").c_str()) != 0) return 1;
+    if (FILE* f = std::fopen((sd + "/lookups/aircraft/ab/abc123.txt").c_str(), "wb")) {
+      std::fprintf(f, "saved = %s\nmodel = Seen Before 123\nregistration = N-CARD\n", today);
+      std::fclose(f);
     }
-    if (ok && pick != nullptr) {
-      const std::string hex = pick->ac.hex, cs = pick->ac.callsign;
-      char today[32];
-      const std::tm tm = core::localTime(plat::unixTimeMs() / 1000);
-      std::snprintf(today, sizeof(today), "%04d%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-      const std::string dir = root + "/" + hex.substr(0, 2);
-      if (std::system(("mkdir -p '" + dir + "'").c_str()) != 0) return 1;
-      if (FILE* f = std::fopen((dir + "/" + hex + ".txt").c_str(), "wb")) {
-        std::fprintf(f, "saved = %s\nmodel = Seen Before 123\nregistration = N-CARD\n", today);
-        std::fclose(f);
-      }
-      if (!cs.empty()) {
-        const std::string rdir = std::string(plat::sdRoot()) + "/lookups/routes/" + cs.substr(0, 3);
-        if (std::system(("mkdir -p '" + rdir + "'").c_str()) != 0) return 1;
-        if (FILE* f = std::fopen((rdir + "/" + cs + ".txt").c_str(), "wb")) {
-          std::fprintf(f, "saved = %s\nairline = Card Airways\n", today);
-          std::fclose(f);
-        }
-      }
-      auto server = sim::g_route_server;
-      sim::g_route_server = nullptr;  // offline for lookups
-      tap(x, y);
-      run(800);
-      const app::RouteState rs = app::routeState();
-      ok = rs.status == app::RouteStatus::Ready && std::strcmp(rs.info.model, "Seen Before 123") == 0;
-      sim::g_route_server = server;
-    } else {
-      ok = false;
+    if (FILE* f = std::fopen((sd + "/lookups/routes/TST/TST123.txt").c_str(), "wb")) {
+      std::fprintf(f, "saved = %s\nairline = Card Airways\n", today);
+      std::fclose(f);
     }
+    auto server = sim::g_route_server;
+    sim::g_route_server = nullptr;  // offline for lookups
+    app::requestRoute("abc123", "TST123");
+    run(500);  // read from the card (the radar with nothing selected cancels the request after that)
+    app::requestRoute("abc123", "TST123");  // now remembered: answered at once
+    const app::RouteState rs = app::routeState();
+    const bool ok = rs.status == app::RouteStatus::Ready && std::strcmp(rs.info.model, "Seen Before 123") == 0 &&
+                    std::strcmp(rs.info.airline, "Card Airways") == 0;
+    app::requestRoute("", "");
+    sim::g_route_server = server;
     std::printf("lookups saved on the SD card: %s, read back: %s\n", saved ? "OK" : "FAILED", ok ? "OK" : "FAILED");
-    if (!ok) return 1;
-    ui::RadarView::get().clearSelection();
+    if (!saved || !ok) return 1;
     run(300);
   }
 
