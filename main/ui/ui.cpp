@@ -130,6 +130,7 @@ void updateUpdateBox() {
     if (s_update_box) {
       lv_obj_delete(s_update_box);
       s_update_box = s_update_bar = s_update_text = nullptr;
+      if (s_settings_screen == nullptr) RadarView::get().setPaused(false);  // the update failed: carry on
       if (u.state == app::UpdateState::Failed && u.install_failed) {
         toast((std::string(LV_SYMBOL_WARNING "  Update failed: ") + u.error).c_str(), 6000);
       }
@@ -139,11 +140,14 @@ void updateUpdateBox() {
   }
   const Palette& p = pal();
   if (s_update_box == nullptr) {
+    // The radar stops drawing while the update runs (it's hidden anyway), so
+    // the CPU and memory go to the download and the flash writes.
+    RadarView::get().setPaused(true);
     s_update_box = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_update_box);
     lv_obj_set_size(s_update_box, screenW(), screenH());
     lv_obj_set_style_bg_color(s_update_box, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_update_box, 230, 0);
+    lv_obj_set_style_bg_opa(s_update_box, LV_OPA_COVER, 0);
     lv_obj_add_flag(s_update_box, LV_OBJ_FLAG_CLICKABLE);  // nothing else can be used meanwhile
     lv_obj_set_flex_flow(s_update_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(s_update_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

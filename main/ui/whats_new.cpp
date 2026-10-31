@@ -90,7 +90,9 @@ void maybeShowWhatsNew() {
   const std::string current = plat::firmwareVersion();
   if (current == st.last_seen_version) return;
   // Not during first-time setup, nor over the settings or another dialog.
-  if (st.wifi_ssid[0] == '\0' || settingsOpen() || app::alarmRinging() >= 0 || app::sleeping()) return;
+  if (st.wifi_ssid[0] == '\0' || settingsOpen() || app::alarmRinging() >= 0 || app::sleeping() || app::updating()) {
+    return;
+  }
   if (plat::millis() < 6000) return;  // let the radar come up first
   const std::string previous = st.last_seen_version;
   std::snprintf(st.last_seen_version, sizeof(st.last_seen_version), "%s", current.c_str());

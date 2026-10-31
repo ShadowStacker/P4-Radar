@@ -676,6 +676,13 @@ void networkLoop() {
   bool first = true;
 
   for (;;) {
+    if (updating()) {
+      // The update has the network (and the CPU) to itself: an install from
+      // GitHub runs right here, in serviceUpdate(); one from a phone in the
+      // web server's task, while this loop waits.
+      if (plat::wifiStatus().state != plat::WifiState::Connected || !serviceUpdate()) plat::sleepMs(200);
+      continue;
+    }
     const uint32_t now = plat::millis();
     const uint32_t interval = s_settings.poll_interval_s * 1000u;
     const bool due = first || now - last_fetch >= interval ||

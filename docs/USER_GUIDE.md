@@ -706,6 +706,9 @@ From v1.13.0 on, the radar can update itself.
   v1.16.0 these were on the About page.)
 
 Either way, you confirm before anything is downloaded.
+While it installs, the radar pauses everything else (drawing the radar,
+traffic updates, map tiles, SD card work) so the update goes as fast as it
+can; if the update fails, everything carries on.
 It downloads about 6 MB from GitHub, shows the progress, and restarts into
 the new version. This takes a few minutes; keep the power on.
 

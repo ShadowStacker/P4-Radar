@@ -1433,6 +1433,12 @@ int main(int argc, char** argv) {
     const bool installed = app::updateStatus().state == app::UpdateState::Installed;
     std::printf("update install: %s\n", installed ? "OK" : "FAILED");
     if (!installed) return 1;
+    // While it installs (and until the restart) the radar doesn't draw.
+    const uint32_t frames = ui::RadarView::get().totals().frames;
+    run(1000);
+    const bool paused = ui::RadarView::get().totals().frames == frames && app::updating();
+    std::printf("radar paused during the update: %s\n", paused ? "OK" : "FAILED");
+    if (!paused) return 1;
     shot((p + "56_update_installed").c_str());
     run(3000);  // restarts (the simulator just logs it)
   }

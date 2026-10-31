@@ -10,6 +10,14 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.21.1] - 2026-11-01
+
+### Changed
+- **Updates get the radar to themselves.** While a new version downloads
+  and installs (from GitHub or a phone), the radar stops drawing, fetching
+  traffic, loading map tiles and writing to the SD card; it all carries on
+  if the update fails.
+
 ## [v1.21.0] - 2026-11-01
 
 ### Added

@@ -278,6 +278,12 @@ UpdateStatus updateStatus();
 /** Network task: runs a pending check or install. True if it did something. */
 bool serviceUpdate();
 /**
+ * A firmware update is being installed (from GitHub or a phone) or waits for
+ * the restart. Everything that isn't needed for it pauses meanwhile: the
+ * radar's drawing, traffic updates, map tiles, lookups and SD card work.
+ */
+bool updating();
+/**
  * A firmware file is being installed from the phone page: shows the same
  * progress screen. begin() is false while another install runs.
  */

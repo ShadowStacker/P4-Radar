@@ -107,6 +107,11 @@ void installUpdate() {
   s_job = Job::Install;
 }
 
+bool updating() {
+  std::lock_guard<std::mutex> lock(s_mu);
+  return s_status.state == UpdateState::Installing || s_status.state == UpdateState::Installed;
+}
+
 UpdateStatus updateStatus() {
   std::lock_guard<std::mutex> lock(s_mu);
   return s_status;
