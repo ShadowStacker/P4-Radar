@@ -10,6 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.21.3] - 2026-11-01
+
+### Fixed
+- **Fewer freezes in the menus.** Settings were saved to flash once a minute
+  while the menus were open, which stops the whole chip for a moment; now
+  they're saved when you leave the menus.
+
+### Changed
+- **Faster screen handoff when mounted upside down** (the usual 0 deg
+  setting). Turning the picture is now done in place, in the chip's fast
+  internal memory, instead of through a buffer in the slower external memory
+  the screen also reads from.
+
 ## [v1.21.2] - 2026-11-01
 
 ### Fixed

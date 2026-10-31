@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 namespace core {
 
@@ -76,6 +78,48 @@ void rotatePixels(const T* src, int sw, int sh, int src_stride, T* dst, int quar
         }
       }
     }
+  }
+}
+
+/**
+ * A half turn of a packed RGB565 stripe (rows with no padding), in place:
+ * turned 180 deg, the pixels are simply in reverse order. One pass, two
+ * pixels per step, no second buffer (much less memory traffic than
+ * rotatePixels() into a scratch buffer and copying back).
+ */
+inline void rotateHalfTurnInPlace(uint16_t* px, size_t n) {
+  size_t i = 0, j = n;
+  // Two pixels at a time when the stripe is 4-byte aligned: swap the
+  // words and their halves (memcpy compiles to plain word loads and stores).
+  if ((reinterpret_cast<uintptr_t>(px) & 3) == 0 && (n & 1) == 0) {
+    auto* w = reinterpret_cast<unsigned char*>(px);
+    size_t a = 0, b = n / 2;
+    auto swapHalves = [](uint32_t v) { return (v >> 16) | (v << 16); };
+    while (a + 1 < b) {
+      --b;
+      uint32_t x, y;
+      std::memcpy(&x, w + a * 4, 4);
+      std::memcpy(&y, w + b * 4, 4);
+      x = swapHalves(x);
+      y = swapHalves(y);
+      std::memcpy(w + a * 4, &y, 4);
+      std::memcpy(w + b * 4, &x, 4);
+      ++a;
+    }
+    if (a + 1 == b) {  // the middle word
+      uint32_t x;
+      std::memcpy(&x, w + a * 4, 4);
+      x = swapHalves(x);
+      std::memcpy(w + a * 4, &x, 4);
+    }
+    return;
+  }
+  while (i + 1 < j) {
+    --j;
+    const uint16_t t = px[i];
+    px[i] = px[j];
+    px[j] = t;
+    ++i;
   }
 }
 

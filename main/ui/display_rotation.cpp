@@ -59,8 +59,13 @@ void flushRotated(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
   // Rotate the stripe, then put it back into LVGL's buffer, which the driver
   // expects to read from (LVGL reshapes the buffer before the next stripe).
   const int stride_px = static_cast<int>(buf->header.stride / 2);
-  core::rotatePixels(reinterpret_cast<const uint16_t*>(px_map), w, h, stride_px, s_tmp, s_quarter);
-  std::memcpy(px_map, s_tmp, n * sizeof(uint16_t));
+  if (s_quarter == 2 && stride_px == w) {
+    // Upside down (the usual mounting): reverse the pixels where they are.
+    core::rotateHalfTurnInPlace(reinterpret_cast<uint16_t*>(px_map), n);
+  } else {
+    core::rotatePixels(reinterpret_cast<const uint16_t*>(px_map), w, h, stride_px, s_tmp, s_quarter);
+    std::memcpy(px_map, s_tmp, n * sizeof(uint16_t));
+  }
   s_stats.rotate_us += plat::micros() - t0;
   const bool odd = (s_quarter & 1) != 0;
   buf->header.w = static_cast<uint32_t>(odd ? h : w);

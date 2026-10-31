@@ -1,6 +1,7 @@
 // Host unit tests for the platform-independent core (geo, viewport gestures,
 // ADS-B parsing, traffic store, traces, sound synthesis). Built by sim/CMakeLists.txt.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -1552,6 +1553,25 @@ void testReleaseNotes() {
   CHECK(rn::plain("a \xE2\x80\x93 b\xE2\x80\xA6 90\xC2\xB0 \xF0\x9F\x98\x80!") == "a - b... 90\xC2\xB0 !");
 }
 
+void testHalfTurn() {
+  for (int w : {1, 2, 3, 7, 64, 720}) {
+    for (int h : {1, 2, 5, 13}) {
+      std::vector<uint16_t> px(static_cast<size_t>(w) * h + 1);
+      for (size_t i = 0; i < px.size(); ++i) px[i] = static_cast<uint16_t>(i * 2654435761u >> 7);
+      std::vector<uint16_t> want(static_cast<size_t>(w) * h);
+      core::rotatePixels(px.data(), w, h, w, want.data(), 2);
+      std::vector<uint16_t> aligned(px.begin(), px.end() - 1);
+      core::rotateHalfTurnInPlace(aligned.data(), aligned.size());
+      CHECK(aligned == want);
+      // Not 4-byte aligned: the pixel-by-pixel path.
+      std::vector<uint16_t> odd(px.size());
+      std::copy(px.begin(), px.end() - 1, odd.begin() + 1);
+      core::rotateHalfTurnInPlace(odd.data() + 1, want.size());
+      CHECK(std::equal(want.begin(), want.end(), odd.begin() + 1));
+    }
+  }
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -1585,6 +1605,7 @@ int main() {
   testSettingsJson();
   testDirtyTiles();
   testReleaseNotes();
+  testHalfTurn();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

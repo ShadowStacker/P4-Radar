@@ -48,9 +48,9 @@ uint32_t s_dirty_since = 0;
 constexpr uint32_t kSaveDebounceMs = 2500;
 // Saving writes flash, which pauses both cores (the UI too) for a few ms, or
 // up to a few hundred when a flash sector has to be erased. In the settings
-// menu, where one change follows another, save on leaving it instead (and at
-// least once a minute).
-constexpr uint32_t kSaveInMenuMs = 60000;
+// menu, where one change follows another, nothing is saved until it's left
+// (a periodic save there was a freeze in the middle of scrolling). Changes
+// that can't wait, like a new Wi-Fi network, flush themselves.
 
 uint32_t s_last_activity = 0;
 bool s_dimmed = false;
@@ -935,7 +935,7 @@ void tick(uint32_t now_ms) {
     }
   }
   checkAlarms(now_ms);
-  if (s_dirty && now_ms - s_dirty_since >= (s_menu_open.load() ? kSaveInMenuMs : kSaveDebounceMs)) settingsFlush();
+  if (s_dirty && !s_menu_open.load() && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
       now_ms - s_last_activity >= s_settings.dim_after_min * 60000u) {
