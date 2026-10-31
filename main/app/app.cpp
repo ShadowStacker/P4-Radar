@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -81,8 +82,9 @@ std::atomic<bool> s_refresh_requested{false};
 std::deque<std::string> s_notices;  // guarded by s_mu
 core::SourceFailover s_failover;    // network task only
 
-std::mutex s_favorites_mu;
+std::mutex s_favorites_mu;  // also guards s_silenced
 std::vector<core::Favorite> s_favorites;
+std::vector<core::Favorite> s_silenced;  // no sounds for these (but emergencies)
 
 constexpr uint32_t kMinFetchSpacingMs = 1500;  // public APIs allow ~1 req/s
 
@@ -449,6 +451,8 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const std::vector<core::Favorite> favs = favorites();
   core::FavoriteWatch watch;
   watch.favorites = &favs;
+  const std::vector<core::Favorite> quiet = silenced();
+  watch.silenced = &quiet;
   watch.center = zone.center;
   watch.near_radius_km = s_settings.favorite_near_radius_km;
   if (core::watchActive(s_settings)) {
@@ -736,6 +740,7 @@ void networkLoop() {
 void init() {
   plat::settingsLoad(&s_settings);
   plat::favoritesLoad(&s_favorites);
+  plat::silencedLoad(&s_silenced);
   s_query_center = {s_settings.home_lat, s_settings.home_lon};
   s_query_radius_km = s_settings.home_radius_km;
   s_last_activity = plat::millis();
@@ -1107,9 +1112,69 @@ bool isFavorite(const char* hex) {
   return core::containsHex(s_favorites, hex);
 }
 
+std::vector<core::Favorite> silenced() {
+  std::lock_guard<std::mutex> lock(s_favorites_mu);
+  return s_silenced;
+}
+
+bool isSilenced(const char* hex) {
+  std::lock_guard<std::mutex> lock(s_favorites_mu);
+  return core::containsHex(s_silenced, hex);
+}
+
+bool toggleSilenced(const core::Aircraft& a) {
+  bool now_silenced;
+  bool was_favorite = false;
+  std::vector<core::Favorite> copy, favs;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    auto it = std::find_if(s_silenced.begin(), s_silenced.end(),
+                           [&](const core::Favorite& f) { return std::strcmp(f.hex, a.hex) == 0; });
+    if (it != s_silenced.end()) {
+      s_silenced.erase(it);
+      now_silenced = false;
+    } else {
+      if (s_silenced.size() >= core::kMaxFavorites) return false;
+      core::Favorite f;
+      std::snprintf(f.hex, sizeof(f.hex), "%s", a.hex);
+      std::snprintf(f.label, sizeof(f.label), "%s", a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+      std::snprintf(f.type, sizeof(f.type), "%s", a.type);
+      s_silenced.push_back(f);
+      now_silenced = true;
+      // Silenced and favorite exclude each other.
+      const size_t n = s_favorites.size();
+      s_favorites.erase(std::remove_if(s_favorites.begin(), s_favorites.end(),
+                                       [&](const core::Favorite& x) { return std::strcmp(x.hex, a.hex) == 0; }),
+                        s_favorites.end());
+      was_favorite = s_favorites.size() != n;
+      favs = s_favorites;
+    }
+    copy = s_silenced;
+  }
+  plat::silencedSave(copy);
+  if (was_favorite) {
+    plat::favoritesSave(favs);
+    queueFavoritesFile();
+  }
+  return now_silenced;
+}
+
+void removeSilenced(const char* hex) {
+  std::vector<core::Favorite> copy;
+  {
+    std::lock_guard<std::mutex> lock(s_favorites_mu);
+    s_silenced.erase(std::remove_if(s_silenced.begin(), s_silenced.end(),
+                                    [&](const core::Favorite& f) { return std::strcmp(f.hex, hex) == 0; }),
+                     s_silenced.end());
+    copy = s_silenced;
+  }
+  plat::silencedSave(copy);
+}
+
 bool toggleFavorite(const core::Aircraft& a) {
   bool now_favorite;
   std::vector<core::Favorite> copy;
+  std::optional<std::vector<core::Favorite>> quiet;  // the silenced list, if it changed
   {
     std::lock_guard<std::mutex> lock(s_favorites_mu);
     auto it = std::find_if(s_favorites.begin(), s_favorites.end(),
@@ -1125,10 +1190,16 @@ bool toggleFavorite(const core::Aircraft& a) {
       std::snprintf(f.type, sizeof(f.type), "%s", a.type);
       s_favorites.push_back(f);
       now_favorite = true;
+      const size_t n = s_silenced.size();  // a favorite isn't silenced
+      s_silenced.erase(std::remove_if(s_silenced.begin(), s_silenced.end(),
+                                      [&](const core::Favorite& x) { return std::strcmp(x.hex, a.hex) == 0; }),
+                       s_silenced.end());
+      if (s_silenced.size() != n) quiet = s_silenced;
     }
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
+  if (quiet) plat::silencedSave(*quiet);
   queueFavoritesFile();
   return now_favorite;
 }

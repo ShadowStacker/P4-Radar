@@ -1079,6 +1079,53 @@ int main(int argc, char** argv) {
     if (!ok) return 1;
   }
 
+  // Silencing an aircraft from its info card.
+  {
+    int x = 0, y = 0;
+    bool ok = findAircraftOnScreen(&x, &y);
+    if (ok) {
+      tap(x, y);
+      run(800);
+      const core::Track* t = ui::RadarView::get().selected();
+      ok = t != nullptr;
+      std::string hex = ok ? t->ac.hex : "";
+      // The mute button: third from the right in the card's header row (star, mute, follow, close).
+      lv_obj_t* hit = nullptr;
+      std::function<void(lv_obj_t*)> find = [&](lv_obj_t* o) {
+        for (uint32_t i = 0; i < lv_obj_get_child_count(o); ++i) {
+          lv_obj_t* c = lv_obj_get_child(o, static_cast<int32_t>(i));
+          if (lv_obj_check_type(c, &lv_label_class) && std::strcmp(lv_label_get_text(c), LV_SYMBOL_MUTE) == 0 &&
+              lv_obj_get_parent(c) != nullptr && lv_obj_is_visible(c)) {
+            hit = lv_obj_get_parent(c);
+          }
+          find(c);
+        }
+      };
+      find(lv_screen_active());
+      if (ok && hit != nullptr) {
+        lv_area_t a;
+        lv_obj_get_coords(hit, &a);
+        tap((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+        run(600);
+        ok = app::isSilenced(hex.c_str());
+        shot((p + "76_card_silenced").c_str());
+        ui::openSettings(ui::Page::Silenced);
+        run(500);
+        shot((p + "77_settings_silenced").c_str());
+        ui::closeSettings();
+        run(300);
+        app::removeSilenced(hex.c_str());
+        ok = ok && !app::isSilenced(hex.c_str());
+      } else {
+        ok = false;
+      }
+    }
+    std::printf("silence from the info card: %s\n", ok ? "OK" : "FAILED");
+    if (!ok) return 1;
+    ui::RadarView::get().clearSelection();
+    run(300);
+  }
+
   // Watchlist: military aircraft near home are announced.
   {
     auto& st = app::settings();

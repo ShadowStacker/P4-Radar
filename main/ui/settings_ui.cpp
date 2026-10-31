@@ -1082,6 +1082,10 @@ void pageSound() {
   switchRow("Favorite detected", &st.sound_favorite_seen);
   switchRow("Favorite nearby", &st.sound_favorite_near);
   switchRow("Watchlist aircraft", &st.sound_watch);
+
+  section("SILENCED AIRCRAFT");
+  navRow(LV_SYMBOL_MUTE, "Silenced aircraft", fmtStr("%u", static_cast<unsigned>(app::silenced().size())),
+         Page::Silenced);
   sliderRow("Nearby radius", 1, 100, static_cast<int>(app::kmToUnits(st.favorite_near_radius_km) + 0.5),
             [](int v) { app::settings().favorite_near_radius_km = static_cast<float>(app::unitsToKm(v)); },
             [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
@@ -1168,6 +1172,44 @@ void pageFavorites() {
                 RadarView::get().markStaticDirty();
                 showPage(Page::Favorites);
               });
+    });
+  }
+}
+
+void pageSilenced() {
+  const Palette& p = pal();
+  const std::vector<core::Favorite> list = app::silenced();
+  lv_obj_t* intro = label(s.list,
+                          "No new-aircraft chime, proximity alert or watchlist alert for these aircraft. "
+                          "Emergency squawks still sound. To add one, tap it on the radar, then the "
+                          LV_SYMBOL_MUTE " button on its info card.",
+                          font(FontSize::S), p.text_dim);
+  lv_obj_set_width(intro, lv_pct(90));
+  lv_label_set_long_mode(intro, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(intro, sc(16), 0);
+  if (list.empty()) {
+    lv_obj_t* l = label(s.list, "No silenced aircraft.", font(FontSize::M), p.text_dim);
+    lv_obj_set_style_pad_top(l, sc(20), 0);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+    return;
+  }
+  label(s.list, fmtStr("%u of %u", static_cast<unsigned>(list.size()), static_cast<unsigned>(core::kMaxFavorites)).c_str(),
+        font(FontSize::S), p.text_dim);
+  for (const core::Favorite& f : list) {
+    lv_obj_t* r = baseRow(s.list);
+    label(r, LV_SYMBOL_MUTE, font(FontSize::L), p.text_dim);
+    lv_obj_t* col = lv_obj_create(r);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    label(col, f.label, font(FontSize::M), p.text);
+    label(col, fmtStr("%s  %s", f.type[0] ? f.type : "?", f.hex).c_str(), font(FontSize::S), p.text_dim);
+    const std::string hex = f.hex;
+    lv_obj_t* del = iconButton(r, LV_SYMBOL_VOLUME_MAX, sc(56), nullptr);
+    onClick(del, [hex] {
+      app::removeSilenced(hex.c_str());
+      showPage(Page::Silenced);
     });
   }
 }
@@ -1667,6 +1709,7 @@ const char* pageTitle(Page p) {
     case Page::SdCard: return "SD card";
     case Page::Phone: return "Phone settings page";
     case Page::Watchlist: return "Watchlist alerts";
+    case Page::Silenced: return "Silenced aircraft";
     default: return "Settings";
   }
 }
@@ -1698,6 +1741,7 @@ void showPage(Page page) {
     case Page::SdCard: pageSdCard(); break;
     case Page::Phone: pagePhone(); break;
     case Page::Watchlist: pageWatchlist(); break;
+    case Page::Silenced: pageSilenced(); break;
     default: pageMain(); break;
   }
   if (s.tick) s.tick();
@@ -1728,6 +1772,7 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
     if (s.page == Page::Main) closeSettings();
     else if (s.page == Page::CustomTheme) showPage(Page::Display);
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
+    else if (s.page == Page::Silenced) showPage(Page::Sound);
     else showPage(Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));

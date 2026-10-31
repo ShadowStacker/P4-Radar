@@ -110,6 +110,11 @@ std::vector<core::Favorite> s_favorites;
 }
 void favoritesLoad(std::vector<core::Favorite>* out) { *out = s_favorites; }
 void favoritesSave(const std::vector<core::Favorite>& favs) { s_favorites = favs; }
+namespace {
+std::vector<core::Favorite> s_silenced;
+}
+void silencedLoad(std::vector<core::Favorite>* out) { *out = s_silenced; }
+void silencedSave(const std::vector<core::Favorite>& list) { s_silenced = list; }
 
 WifiStatus wifiStatus() {
   WifiStatus ws;

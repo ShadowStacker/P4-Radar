@@ -1405,6 +1405,25 @@ void testWatch() {
         ev.watch_hits[0].km < 20);
   ev = store.update({a}, 11000, {}, fw);
   CHECK(ev.watch_hits.empty());
+
+  // Silenced aircraft: no new-aircraft, proximity or watchlist events; emergencies still count.
+  core::TrafficStore quiet_store;
+  std::vector<core::Favorite> quiet(1);
+  std::snprintf(quiet[0].hex, sizeof(quiet[0].hex), "%s", a.hex);
+  fw.silenced = &quiet;
+  const core::AlertZone zone{fw.center, 30.0, 20000};
+  quiet_store.update({mk("000001", 44.0, -121.0)}, 1000, zone, fw);  // first fetch
+  ev = quiet_store.update({mk("000001", 44.0, -121.0), a}, 6000, zone, fw);
+  CHECK(ev.new_aircraft == 0 && ev.new_close_approaches == 0 && ev.watch_hits.empty());
+  core::Aircraft sos = a;
+  sos.emergency = true;
+  ev = quiet_store.update({sos}, 11000, zone, fw);
+  CHECK(ev.new_emergencies == 1);
+  fw.silenced = nullptr;
+  core::Aircraft other = a;
+  std::snprintf(other.hex, sizeof(other.hex), "ae9999");
+  ev = quiet_store.update({other}, 16000, zone, fw);
+  CHECK(ev.new_aircraft == 1 && ev.new_close_approaches == 1 && ev.watch_hits.size() == 1);
 }
 
 void testSettingsJson() {

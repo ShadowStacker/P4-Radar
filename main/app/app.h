@@ -124,6 +124,18 @@ bool addFavorite(const core::Favorite& f);
 void lookupFavorite(const std::string& registration_or_hex);
 /** Runs a pending lookup (network task); true if it made a request. */
 bool serviceFavoriteLookup();
+// --- Silenced aircraft (thread-safe): the opposite of favorites -------------------
+/**
+ * No sounds or watchlist notices for these: no new-aircraft chime, proximity
+ * alert or watchlist alert. Emergency squawks still sound. An aircraft is
+ * either a favorite or silenced, never both.
+ */
+std::vector<core::Favorite> silenced();
+bool isSilenced(const char* hex);
+/** Silences or un-silences the aircraft (and takes it off the favorites). True if it's now silenced. */
+bool toggleSilenced(const core::Aircraft& a);
+void removeSilenced(const char* hex);
+
 /** Changes a favorite's label. */
 void renameFavorite(const char* hex, const char* label);
 /** Tail numbers from favorites.txt that haven't been looked up yet. */

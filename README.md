@@ -77,6 +77,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   It also shows the daily log and screenshots, and installs firmware files.
 - **Watchlist alerts**: a notice and a sound when military aircraft, helicopters, fast jets, chosen
   types (A388, C17, ...) or callsigns (RCH*, N123AB) come near home.
+- **Silenced aircraft**: the opposite of favorites. A mute button on the info card stops the sounds
+  for that aircraft (a local flight school's trainers, say); emergencies still sound.
 - **Screenshots**: a camera button saves the radar as a PNG on the SD card.
 - **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
   the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.

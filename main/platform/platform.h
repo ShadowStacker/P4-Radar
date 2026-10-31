@@ -33,6 +33,9 @@ void settingsErase();
 /** Saved aircraft, stored separately from settings. */
 void favoritesLoad(std::vector<core::Favorite>* out);
 void favoritesSave(const std::vector<core::Favorite>& favs);
+/** Silenced aircraft (no sounds for them), stored like the favorites. */
+void silencedLoad(std::vector<core::Favorite>* out);
+void silencedSave(const std::vector<core::Favorite>& list);
 
 // --- Wi-Fi -------------------------------------------------------------------
 enum class WifiState : uint8_t { Idle, Connecting, Connected, Failed };

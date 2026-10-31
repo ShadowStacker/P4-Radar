@@ -119,15 +119,18 @@ void settingsSave(const core::Settings& s) {
   nvs_close(h);
 }
 
-void favoritesLoad(std::vector<core::Favorite>* out) {
+namespace {
+
+/** An aircraft list (favorites, silenced) as one NVS blob under `key`. */
+void listLoad(const char* key, std::vector<core::Favorite>* out) {
   out->clear();
   nvs_handle_t h;
   if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) return;
   size_t len = 0;
-  if (nvs_get_blob(h, "favs", nullptr, &len) == ESP_OK && len % sizeof(core::Favorite) == 0) {
+  if (nvs_get_blob(h, key, nullptr, &len) == ESP_OK && len % sizeof(core::Favorite) == 0) {
     out->resize(std::min(len / sizeof(core::Favorite), core::kMaxFavorites));
     len = out->size() * sizeof(core::Favorite);
-    if (nvs_get_blob(h, "favs", out->data(), &len) != ESP_OK) out->clear();
+    if (nvs_get_blob(h, key, out->data(), &len) != ESP_OK) out->clear();
     for (core::Favorite& f : *out) {  // never trust stored strings to be terminated
       f.hex[sizeof(f.hex) - 1] = f.label[sizeof(f.label) - 1] = f.type[sizeof(f.type) - 1] = '\0';
     }
@@ -135,17 +138,24 @@ void favoritesLoad(std::vector<core::Favorite>* out) {
   nvs_close(h);
 }
 
-void favoritesSave(const std::vector<core::Favorite>& favs) {
+void listSave(const char* key, const std::vector<core::Favorite>& favs) {
   nvs_handle_t h;
   if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) return;
   if (favs.empty()) {
-    nvs_erase_key(h, "favs");
+    nvs_erase_key(h, key);
   } else {
-    nvs_set_blob(h, "favs", favs.data(), favs.size() * sizeof(core::Favorite));
+    nvs_set_blob(h, key, favs.data(), favs.size() * sizeof(core::Favorite));
   }
-  if (nvs_commit(h) != ESP_OK) ESP_LOGE(TAG, "nvs_commit failed (favorites)");
+  if (nvs_commit(h) != ESP_OK) ESP_LOGE(TAG, "nvs_commit failed (%s)", key);
   nvs_close(h);
 }
+
+}  // namespace
+
+void favoritesLoad(std::vector<core::Favorite>* out) { listLoad("favs", out); }
+void favoritesSave(const std::vector<core::Favorite>& favs) { listSave("favs", favs); }
+void silencedLoad(std::vector<core::Favorite>* out) { listLoad("muted", out); }
+void silencedSave(const std::vector<core::Favorite>& list) { listSave("muted", list); }
 
 void settingsErase() {
   for (const char* ns : {kNamespace, "boot"}) {  // settings, favorites and the start counters

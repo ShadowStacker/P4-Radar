@@ -64,6 +64,7 @@ struct Hud {
   lv_obj_t* follow_btn = nullptr;
   lv_obj_t* fav_btn = nullptr;
   lv_obj_t* fav_img = nullptr;
+  lv_obj_t* mute_ac_btn = nullptr;  // silence this aircraft
 
   lv_obj_t* pick_bar = nullptr;
   lv_obj_t* pick_hint = nullptr;
@@ -346,6 +347,9 @@ void updateCard() {
   lv_obj_set_style_image_recolor(h.fav_img, fav ? pal().favorite : pal().text_dim, 0);
   lv_obj_set_style_border_color(h.fav_btn, fav ? pal().favorite : pal().panel_border, 0);
 
+  if (app::isSilenced(a.hex)) lv_obj_add_state(h.mute_ac_btn, LV_STATE_CHECKED);
+  else lv_obj_remove_state(h.mute_ac_btn, LV_STATE_CHECKED);
+
   if (rv.following()) lv_obj_add_state(h.follow_btn, LV_STATE_CHECKED);
   else lv_obj_remove_state(h.follow_btn, LV_STATE_CHECKED);
 }
@@ -469,7 +473,7 @@ void zoomButton(lv_obj_t* b, int dir) {
 void buildCard(lv_obj_t* parent) {
   const Palette& p = pal();
   h.card = panel(parent);
-  lv_obj_set_size(h.card, sc(520), LV_SIZE_CONTENT);
+  lv_obj_set_size(h.card, sc(560), LV_SIZE_CONTENT);
   lv_obj_align(h.card, LV_ALIGN_BOTTOM_MID, 0, -sc(126));
   lv_obj_set_style_pad_all(h.card, sc(16), 0);
   lv_obj_set_style_pad_hor(h.card, sc(22), 0);
@@ -484,7 +488,7 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(head, sc(12), 0);
+  lv_obj_set_style_pad_column(head, sc(10), 0);
 
   h.card_title = label(head, "", font(FontSize::XL), p.text);
   h.card_type = label(head, "", font(FontSize::M), lv_color_black());
@@ -500,7 +504,7 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_set_height(spacer, 1);
 
   // Favorite toggle: a round button holding the star image (no star glyph in the fonts).
-  h.fav_btn = iconButton(head, "", sc(56), [] {
+  h.fav_btn = iconButton(head, "", sc(52), [] {
     const core::Track* t = RadarView::get().selected();
     if (t == nullptr) return;
     if (!app::isFavorite(t->ac.hex) && app::favorites().size() >= core::kMaxFavorites) {
@@ -515,12 +519,34 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_center(h.fav_img);
   lv_obj_set_style_image_recolor_opa(h.fav_img, LV_OPA_COVER, 0);
 
-  h.follow_btn = iconButton(head, LV_SYMBOL_GPS, sc(56), [] {
+  // Silence: no sounds for this aircraft (the opposite of a favorite).
+  h.mute_ac_btn = iconButton(head, LV_SYMBOL_MUTE, sc(52), [] {
+    const core::Track* t = RadarView::get().selected();
+    if (t == nullptr) return;
+    if (!app::isSilenced(t->ac.hex) && app::silenced().size() >= core::kMaxFavorites) {
+      toast(LV_SYMBOL_WARNING "  Silenced list full (32) - remove one first");
+      return;
+    }
+    const bool was_favorite = app::isFavorite(t->ac.hex);
+    const char* name = t->ac.callsign[0] ? t->ac.callsign : (t->ac.reg[0] ? t->ac.reg : t->ac.hex);
+    if (app::toggleSilenced(t->ac)) {
+      toast((std::string(LV_SYMBOL_MUTE "  ") + name + " silenced" +
+             (was_favorite ? " (and removed from favorites)" : "") + " - emergencies still sound")
+                .c_str(),
+            3500);
+      RadarView::get().markStaticDirty();
+    } else {
+      toast((std::string(LV_SYMBOL_VOLUME_MAX "  ") + name + " can make sounds again").c_str());
+    }
+    updateCard();
+  });
+
+  h.follow_btn = iconButton(head, LV_SYMBOL_GPS, sc(52), [] {
     RadarView& rv = RadarView::get();
     rv.setFollow(!rv.following());
     updateCard();
   });
-  iconButton(head, LV_SYMBOL_CLOSE, sc(56), [] {
+  iconButton(head, LV_SYMBOL_CLOSE, sc(52), [] {
     RadarView::get().clearSelection();
     updateCard();
   });

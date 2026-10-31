@@ -164,8 +164,11 @@ async function viewFavorites(){
   <div class="flex"><input id="favq" placeholder="N123AB" autocapitalize="characters" style="flex:1"><button class="btn" onclick="favAdd()">Add</button></div></div>
   <div class="card"><b>${j.list.length} of ${j.max} saved</b>`+
   (j.list.length?j.list.map(f=>`<div class="row"><div class="lbl"><input value="${esc(f.label)}" maxlength="11" style="width:130px" onchange="favRename('${f.hex}',this.value)"><span>${esc(f.type||'?')} · ${f.hex}${f.in_range?' · in range':''}</span></div><button class="bad" data-n="${esc(f.label)}" onclick="favDel('${f.hex}',this.dataset.n)">Remove</button></div>`).join(''):'<p class="muted">None yet.</p>')+
-  (j.unresolved.length?`<p class="muted">Waiting to be looked up: ${j.unresolved.map(esc).join(', ')}</p>`:'')+'</div>';
+  (j.unresolved.length?`<p class="muted">Waiting to be looked up: ${j.unresolved.map(esc).join(', ')}</p>`:'')+'</div>'+
+  `<div class="card"><b>Silenced aircraft</b><p class="muted">No chime, proximity or watchlist sound for these (emergencies still sound). Add one with the mute button on its info card on the radar.</p>`+
+  (j.silenced.length?j.silenced.map(f=>`<div class="row"><div class="lbl"><b>${esc(f.label)}</b><span>${esc(f.type||'?')} \u00b7 ${f.hex}</span></div><button class="sec" onclick="unmute('${f.hex}')">Unmute</button></div>`).join(''):'<p class="muted">None.</p>')+'</div>';
 }
+async function unmute(hex){await api('/api/silenced/remove',{hex});viewFavorites()}
 async function favAdd(){const q=$('#favq').value.trim();if(!q)return;const j=await api('/api/favorites/add',{q});toast(j.ok?'Looking up '+q+'...':j.error);setTimeout(viewFavorites,4000)}
 async function favDel(hex,name){if(!confirm('Remove '+name+'?'))return;await api('/api/favorites/remove',{hex});viewFavorites()}
 async function favRename(hex,label){const j=await api('/api/favorites/rename',{hex,label});toast(j.ok?'Saved':j.error)}

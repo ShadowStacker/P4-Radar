@@ -50,6 +50,7 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
   const bool first = (version_ == 0);
 
   for (const Aircraft& a : fresh) {
+    const bool quiet = watch.silenced != nullptr && containsHex(*watch.silenced, a.hex);
     Track* t = nullptr;
     for (Track& existing : tracks_) {
       if (std::strcmp(existing.ac.hex, a.hex) == 0) {
@@ -62,7 +63,7 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       tracks_.emplace_back();
       t = &tracks_.back();
       t->first_seen_ms = now_ms;
-      if (!first) ++ev.new_aircraft;
+      if (!first && !quiet) ++ev.new_aircraft;
       if (a.emergency) ++ev.new_emergencies;
       // Favorites are worth announcing even on the very first fetch.
       if (watch.favorites != nullptr && containsHex(*watch.favorites, a.hex)) {
@@ -79,7 +80,7 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
     pushTrail(*t, a);
 
     const bool close = inZone(a, zone);
-    if (close && !t->close_alerted) ++ev.new_close_approaches;
+    if (close && !t->close_alerted && !quiet) ++ev.new_close_approaches;
     t->close_alerted = close;
 
     if (watch.favorites != nullptr && watch.near_radius_km > 0 && containsHex(*watch.favorites, a.hex)) {
@@ -88,7 +89,7 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       t->favorite_near_alerted = near;
     }
 
-    if (watch.watch && !t->watch_alerted) {
+    if (watch.watch && !t->watch_alerted && !quiet) {
       const double km = distanceKm(watch.center, {a.lat, a.lon});
       if (km <= watch.watch_radius_km) {
         const std::string why = watch.watch(a);

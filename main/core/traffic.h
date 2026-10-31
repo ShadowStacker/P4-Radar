@@ -74,6 +74,8 @@ struct AlertZone {
 /** Favorites to watch for, and the radius (around home) for "nearby". */
 struct FavoriteWatch {
   const std::vector<Favorite>* favorites = nullptr;
+  /** Silenced aircraft: no new-aircraft, proximity or watchlist events (emergencies still count). */
+  const std::vector<Favorite>* silenced = nullptr;
   LatLon center;
   double near_radius_km = 0;
   /** Watchlist: why an aircraft is on it ("" = it isn't). Announced once, inside watch_radius_km. */

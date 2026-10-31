@@ -92,8 +92,13 @@ plat::WebResponse getFavorites() {
   }
   std::string unresolved;
   for (const std::string& u : unresolvedFavorites()) unresolved += (unresolved.empty() ? "" : ",") + jsonString(u);
+  std::string quiet;
+  for (const core::Favorite& f : silenced()) {
+    quiet += std::string(quiet.empty() ? "" : ",") + "{\"hex\":" + jsonString(f.hex) + ",\"label\":" +
+             jsonString(f.label) + ",\"type\":" + jsonString(f.type) + "}";
+  }
   return json("{\"max\":" + std::to_string(core::kMaxFavorites) + ",\"list\":[" + list + "],\"unresolved\":[" +
-              unresolved + "]}");
+              unresolved + "],\"silenced\":[" + quiet + "]}");
 }
 
 /** Tail numbers and hex codes: letters, digits and dashes. */
@@ -350,6 +355,10 @@ plat::WebResponse handle(plat::WebRequest& r) {
   if (p == "/api/settings") return post ? postSettings(r) : getSettings();
   if (p == "/api/favorites") return getFavorites();
   if (post && p.compare(0, 15, "/api/favorites/") == 0) return favoriteAction(p.substr(15), r);
+  if (post && p == "/api/silenced/remove") {
+    removeSilenced(core::web::parseForm(r.body)["hex"].c_str());
+    return ok();
+  }
   if (p == "/api/wifi") return getWifi();
   if (p == "/api/wifi/scan") return wifiScan(post);
   if (post && p.compare(0, 10, "/api/wifi/") == 0) return wifiAction(p.substr(10), r);

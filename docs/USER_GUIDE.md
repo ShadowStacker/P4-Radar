@@ -120,6 +120,11 @@ reporting a problem (offline, feed errors).
 
 Card buttons:
 - ★ **Star**: save or unsave as a [favorite](#favorites). Gold = saved.
+- 🔇 **Mute**: silence this aircraft: no new-aircraft chime, proximity
+  alert or watchlist alert for it from now on (lit = silenced). Emergency
+  squawks still sound. Silencing a favorite takes it off the favorites, and
+  starring a silenced aircraft un-silences it. Manage the list under
+  **Sound → Silenced aircraft** (or the phone page's Favorites tab).
 - ➤ **Follow**: keep this aircraft on screen. The map re-centers whenever it
   drifts away from the middle. Panning or pinching stops following.
 - ✕ **Close**: close the card.
@@ -372,6 +377,7 @@ switches itself off.
 | Favorite detected | Fanfare when a saved aircraft comes into range | On |
 | Favorite nearby | Two-tone chime when a saved aircraft comes within the nearby radius | On |
 | Nearby radius | Distance from home for "Favorite nearby", 1–100 (your units) | 15 km |
+| Silenced aircraft | Aircraft you muted from their info card, up to 32, with a button to unmute each | none |
 | Test | Play each sound | |
 
 See [Alerts explained](#alerts-explained) for exactly when each one fires.

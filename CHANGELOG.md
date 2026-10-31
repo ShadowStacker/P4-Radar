@@ -10,7 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
-## [v1.18.3] - 2026-10-29
+## [v1.19.0] - 2026-10-31
+
+### Added
+- **Silenced aircraft**, the opposite of favorites: a mute button on the
+  aircraft info card. A silenced aircraft no longer plays the new-aircraft
+  chime, the proximity alert or the watchlist alert; emergency squawks still
+  sound. Up to 32, listed under Sound → Silenced aircraft (and on the phone
+  page's Favorites tab) with a button to unmute each. Silencing a favorite
+  removes it from the favorites, and starring a silenced aircraft unmutes it.
+
+ - 2026-10-29
 
 ### Added
 - **The radar's own hotspot** for the phone page (Settings → Phone settings
