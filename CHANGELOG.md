@@ -10,6 +10,14 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.21.2] - 2026-11-01
+
+### Fixed
+- **Cyan flashes are back to gone.** Drawing on both processor cores (from
+  v1.20.0) overloaded the memory the screen reads its picture from, and the
+  screen showed cyan when it fell behind (every few seconds, when new traffic
+  arrived). Drawing is on one core again; the faster partial redraws stay.
+
 ## [v1.21.1] - 2026-11-01
 
 ### Changed
