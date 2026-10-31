@@ -9,7 +9,14 @@
 #define LV_USE_STDLIB_STRING LV_STDLIB_CLIB
 #define LV_USE_STDLIB_SPRINTF LV_STDLIB_CLIB
 
+#ifdef SIM_THREADS
+// Like the device: two draw threads (checks that nothing the drawing code
+// hands to LVGL goes away before a draw thread gets to it).
+#define LV_USE_OS LV_OS_PTHREAD
+#define LV_DRAW_SW_DRAW_UNIT_CNT 2
+#else
 #define LV_USE_OS LV_OS_NONE
+#endif
 #define LV_DEF_REFR_PERIOD 16
 #define LV_DPI_DEF 200
 

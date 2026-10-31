@@ -11,7 +11,7 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # resets before it confirms itself) goes back to the previous one.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="1.19.0"
+CONFIG_APP_PROJECT_VER="1.20.0"
 
 # ---- CPU / memory -------------------------------------------------------------
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
@@ -97,6 +97,12 @@ CONFIG_LV_FONT_MONTSERRAT_32=y
 CONFIG_LV_FONT_MONTSERRAT_40=y
 CONFIG_LV_FONT_MONTSERRAT_44=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_22=y
+# Draw on both cores: LVGL hands each frame's drawing tasks to two draw
+# threads (one usually lands on core 0, which mostly waits for the network).
+CONFIG_LV_OS_FREERTOS=y
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
+CONFIG_LV_DRAW_THREAD_PRIO=4
+CONFIG_LV_DRAW_THREAD_STACK_SIZE=8192
 # QR code for the phone settings page; screen snapshots for screenshots.
 CONFIG_LV_USE_QRCODE=y
 CONFIG_LV_USE_SNAPSHOT=y

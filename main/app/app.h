@@ -106,6 +106,7 @@ struct FeedStatus {
   int last_total = 0;   // aircraft in the feed's response
   char error[48] = "";
   core::DataSource source = core::DataSource::AdsbFi;  // the one in use (another than the chosen one after failures)
+  uint32_t parse_us = 0;  // decoding the last response
 };
 FeedStatus feedStatus();
 

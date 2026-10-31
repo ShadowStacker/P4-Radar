@@ -10,7 +10,24 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
-## [v1.19.0] - 2026-10-31
+## [v1.20.0] - 2026-10-31
+
+### Changed
+- **Faster drawing.** The radar now redraws only what changed each frame
+  (the sweep's wedge, and each aircraft and label where it was and where it
+  is) instead of the whole screen: typically a quarter to a half of the
+  screen, depending on traffic and the sweep. Every frame is checked in the
+  simulator to match a full redraw pixel for pixel.
+- **Both processor cores draw.** LVGL hands each frame's drawing to two draw
+  threads, so the core that mostly waits for the network helps with drawing.
+
+### Added
+- **More on-screen stats** (About → On-screen stats): how much of the screen
+  each frame redraws, drawing vs. handing the picture to the screen (and the
+  rotation), the radar's own drawing and background rebuilds, and the time to
+  decode a traffic update. See the user guide for what each line means.
+
+ - 2026-10-31
 
 ### Added
 - **Silenced aircraft**, the opposite of favorites: a mute button on the

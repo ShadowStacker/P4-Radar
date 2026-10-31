@@ -14,4 +14,12 @@ namespace ui {
  */
 void installDisplayRotation(lv_display_t* disp, int quarter_turns);
 
+/** Time spent handing rendered stripes to the panel (rotation included), since start. */
+struct FlushStats {
+  uint64_t rotate_us = 0;  // turning the pixels
+  uint64_t flush_us = 0;   // all of it: rotation plus the driver's copy to the frame buffer
+  uint32_t stripes = 0;
+};
+FlushStats flushStats();
+
 }  // namespace ui

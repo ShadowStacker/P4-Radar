@@ -407,7 +407,9 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   opt.include_ground = true;
   opt.min_alt_ft = -100000;
   opt.max_alt_ft = 1000000;
+  const uint64_t parse_t0 = plat::micros();
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
+  const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
   if (ok) {
@@ -426,6 +428,7 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     s_feed.last_http = code;
     s_feed.last_ok = ok;
     s_feed.source = source;
+    if (ok) s_feed.parse_us = parse_us;
     if (ok) {
       s_feed.ever_ok = true;
       s_feed.last_ok_ms = plat::millis();

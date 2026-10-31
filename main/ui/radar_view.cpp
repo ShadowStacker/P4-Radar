@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "app/app.h"
@@ -213,6 +214,7 @@ void RadarView::setPaused(bool paused) {
     lv_timer_pause(timer_);
   } else {
     static_dirty_ = true;
+    overlay_full_ = true;
     last_frame_ms_ = plat::millis();
     lv_timer_resume(timer_);
   }
@@ -365,6 +367,7 @@ void RadarView::frame() {
       back_band_ = 1;
     }
     stats_.static_renders++;
+    totals_.static_renders++;
   } else if (back_band_ > 0) {
     renderStatic(back_trails_, back_canvas_, back_band_);
     if (++back_band_ == kStaticBands) {
@@ -376,18 +379,24 @@ void RadarView::frame() {
       back_band_ = -1;
     }
   }
-  if (need_static || back_band_ >= 0) stats_.static_us += plat::micros() - s0;
+  if (need_static || back_band_ >= 0) {
+    const uint64_t us = plat::micros() - s0;
+    stats_.static_us += us;
+    totals_.static_us += us;
+  }
 
   prepareBlips(now);
   placeLabels();
   if (!busy) updateQueryArea(true);
-  lv_obj_invalidate(overlay_);
+  if (view_changed || busy) overlay_full_ = true;  // (the static layer is redrawn whole then too)
+  invalidateOverlay();
 
   const bool smooth_clock = st.clock_mode && st.clock_seconds && st.clock_smooth_seconds;
   const uint32_t period = (st.sweep_enabled || busy || interacting_ || smooth_clock) ? kFastFrameMs : kSlowFrameMs;
   lv_timer_set_period(timer_, period);
 
   stats_.frames++;
+  totals_.frames++;
   stats_.blips += static_cast<uint32_t>(blips_.size());
   for (const Blip& b : blips_) stats_.labels += b.label ? 1 : 0;
   stats_.frame_us += plat::micros() - t0;
@@ -916,11 +925,101 @@ void RadarView::placeLabels() {
   }
 }
 
+void RadarView::overlayAreas(OverlayShapes* out) const {
+  auto box = [out](const lv_area_t& a) { out->boxes.push_back({a.x1, a.y1, a.x2, a.y2}); };
+  auto seg = [out](float x1, float y1, float x2, float y2, float pad) { out->segs.push_back({x1, y1, x2, y2, pad}); };
+  const auto& st = app::settings();
+  if (st.clock_mode) {
+    const float cx = screenW() / 2.0f, cy = screenH() / 2.0f, R = vp_.radiusPx();
+    if (!plat::timeValid()) {
+      box(boxAround(cx, cy + sc(70), sc(200)));
+    } else {
+      const int64_t ms = plat::unixTimeMs();
+      const std::tm t = core::localTime(ms / 1000);
+      const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), st.clock_smooth_seconds);
+      auto hand = [&](float deg, float len, float tail, float w) {
+        const float rad = static_cast<float>(core::degToRad(deg));
+        const float sx = std::sin(rad), sy = -std::cos(rad);
+        seg(cx - sx * tail, cy - sy * tail, cx + sx * len, cy + sy * len, w / 2 + 3);
+      };
+      // Same lengths as drawClockHands().
+      hand(a.hour, R * 0.48f, R * 0.06f, sc(10));
+      hand(a.minute, R * 0.72f, R * 0.06f, sc(6));
+      if (st.clock_seconds) hand(a.second, R * 0.80f, R * 0.15f, sc(4));
+      box(boxAround(cx, cy, sc(12)));
+      if (st.clock_show_date) {
+        const float dx = cx + R * 0.60f;
+        box({static_cast<int32_t>(dx - sc(80)), static_cast<int32_t>(cy - sc(24)), static_cast<int32_t>(dx + sc(80)),
+             static_cast<int32_t>(cy + sc(24))});
+      }
+    }
+  }
+  for (const Blip& b : blips_) {
+    if (b.kind == 0xFF) {
+      box(boxAround(b.x, b.y, sc(8)));
+      continue;
+    }
+    const int32_t sz = sprites::size(static_cast<sprites::Kind>(b.kind), b.small);
+    // The sprite, and the rings drawOverlay() puts around some (the
+    // emergency pulse reaches 0.8 x size + 8 px, plus its line width).
+    float half = sz / 2.0f + 2;
+    if (b.emergency) half = sz * 0.8f + sc(8) + sc(3) + 2;
+    else if (b.selected || b.favorite) half = sz * 0.78f + sc(3) + 2;
+    box(boxAround(b.x, b.y, half));
+    if (b.favorite) {  // star badge, top right
+      const int32_t ss = sprites::starBadgeSize();
+      const int32_t x0 = static_cast<int32_t>(b.x + sz * 0.42f), y0 = static_cast<int32_t>(b.y - sz * 0.42f) - ss;
+      box({x0 - 1, y0 - 1, x0 + ss + 1, y0 + ss + 1});
+    }
+    if (b.has_head) seg(b.hx, b.hy, b.x, b.y, 4);
+    if (b.has_vector) seg(b.x, b.y, b.vx, b.vy, 4);
+    if (b.label) box({b.label_area.x1 - sc(4), b.label_area.y1 - 1, b.label_area.x2 + sc(3), b.label_area.y2 + 1});
+  }
+  if (pick_mode_) box(boxAround(vp_.cx(), vp_.cy(), sc(44)));
+}
+
+void RadarView::invalidateOverlay() {
+  const auto& st = app::settings();
+  const bool sweep = st.sweep_enabled;
+  OverlayShapes cur;
+  overlayAreas(&cur);
+  if (overlay_full_ || sweep != prev_sweep_on_) {
+    lv_obj_invalidate(overlay_);
+  } else {
+    // A grid of 20 x 20 tiles (36-40 px): fine enough to skip most of the
+    // screen; rects() keeps the list of areas short.
+    core::DirtyTiles tiles(static_cast<int>(screenW()), static_cast<int>(screenH()), 32);
+    for (const OverlayShapes* s : {&overlay_prev_, &cur}) {  // where things were (to erase), and are
+      for (const core::Box& b : s->boxes) tiles.add(b);
+      for (const OverlayShapes::Seg& l : s->segs) tiles.addSegment(l.x1, l.y1, l.x2, l.y2, l.pad);
+    }
+    if (sweep) {
+      // Every slice of the trail changes brightness as the beam moves, so the
+      // whole wedge from the old trail's end to the new beam is redrawn.
+      const float tail = st.sweep_trail_deg;
+      float moved = sweep_deg_ - prev_sweep_deg_;
+      if (moved < 0) moved += 360.0f;
+      tiles.addSector(sweep_center_.x, sweep_center_.y, prev_sweep_deg_ - tail - 1.0f, tail + moved + 2.0f,
+                      static_cast<float>(sc(8)));
+    }
+    for (const core::Box& r : tiles.rects(26)) {  // LVGL keeps 32 areas; leave room for the buttons
+      const lv_area_t a = {r.x1, r.y1, r.x2, r.y2};
+      lv_obj_invalidate_area(overlay_, &a);
+    }
+  }
+  overlay_full_ = false;
+  overlay_prev_ = std::move(cur);
+  prev_sweep_deg_ = sweep_deg_;
+  prev_sweep_on_ = sweep;
+}
+
 void RadarView::onDrawOverlay(lv_event_t* e) {
   auto* self = static_cast<RadarView*>(lv_event_get_user_data(e));
   const uint64_t t0 = plat::micros();
   self->drawOverlay(lv_event_get_layer(e));
-  self->stats_.overlay_us += plat::micros() - t0;
+  const uint64_t us = plat::micros() - t0;
+  self->stats_.overlay_us += us;
+  self->totals_.overlay_us += us;
 }
 
 void RadarView::drawSweep(lv_layer_t* layer) {

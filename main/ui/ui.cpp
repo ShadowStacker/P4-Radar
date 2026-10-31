@@ -10,12 +10,19 @@
 #include "app/maps.h"
 #include "core/clock.h"
 #include "platform/platform.h"
+#include "ui/display_rotation.h"
 #include "ui/hud.h"
 #include "ui/radar_view.h"
 #include "ui/settings_ui.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
 #include "ui/widgets.h"
+// lv_display_t internals (the dirty areas), for the on-screen stats.
+#if __has_include("lvgl_private.h")
+#include "lvgl_private.h"
+#else
+#include "src/lvgl_private.h"
+#endif
 
 namespace ui {
 
@@ -44,6 +51,7 @@ uint32_t s_frames = 0;           // frames drawn since the last stats update
 uint64_t s_draw_us = 0, s_draw_max_us = 0;
 uint64_t s_refr_start_us = 0;
 bool s_rendered = false;
+uint64_t s_redrawn_px = 0;      // pixels redrawn since the last stats update
 uint32_t s_stats_gap_ms = 0;     // longest pause of the UI timer since the last update
 
 // Firmware update in progress: a full-screen box with a progress bar.
@@ -259,9 +267,14 @@ void announceWifi() {
   s_last = ws.state;
 }
 
-void onRefrStart(lv_event_t*) {
+void onRefrStart(lv_event_t* e) {
   s_refr_start_us = plat::micros();
   s_rendered = false;
+  // How much of the screen this frame redraws (LVGL has merged the dirty areas by now).
+  auto* disp = static_cast<lv_display_t*>(lv_event_get_target(e));
+  for (uint32_t i = 0; i < disp->inv_p && i < LV_INV_BUF_SIZE; ++i) {
+    if (!disp->inv_area_joined[i]) s_redrawn_px += static_cast<uint64_t>(lv_area_get_size(&disp->inv_areas[i]));
+  }
 }
 void onRenderReady(lv_event_t*) {
   s_rendered = true;
@@ -303,6 +316,7 @@ void updateStats() {
     s_last_ms = now;
     s_frames = 0;
     s_draw_us = s_draw_max_us = 0;
+    s_redrawn_px = 0;
     s_stats_gap_ms = 0;
     plat::sampleHealth(1);  // CPU baseline
     return;
@@ -313,16 +327,38 @@ void updateStats() {
   const plat::WifiStatus ws = plat::wifiStatus();
   const app::FeedStatus fs = app::feedStatus();
   const uint32_t up = now / 1000;
-  char text[256];
+  // Where the frame time goes, per frame over the last second: LVGL drawing,
+  // handing the picture to the panel (rotation + copy), and the radar's own
+  // drawing (its overlay, and rebuilding the background layer).
+  static FlushStats s_flush0;
+  static RadarView::Stats s_radar0;
+  const FlushStats fl = flushStats();
+  const RadarView::Stats& rt = RadarView::get().totals();
+  const double frames = s_frames ? static_cast<double>(s_frames) : 1.0;
+  const double flush_ms = (fl.flush_us - s_flush0.flush_us) / 1000.0 / frames;
+  const double rotate_ms = (fl.rotate_us - s_flush0.rotate_us) / 1000.0 / frames;
+  const double frame_ms = s_frames ? s_draw_us / 1000.0 / frames : 0.0;
+  const uint32_t radar_frames = rt.frames - s_radar0.frames;
+  const double overlay_ms = radar_frames ? (rt.overlay_us - s_radar0.overlay_us) / 1000.0 / radar_frames : 0.0;
+  const uint32_t statics = rt.static_renders - s_radar0.static_renders;
+  const double static_ms = (rt.static_us - s_radar0.static_us) / 1000.0;
+  const double screen_px = static_cast<double>(screenW()) * screenH();
+  const int redrawn = s_frames ? static_cast<int>(100.0 * s_redrawn_px / (screen_px * frames) + 0.5) : 0;
+  s_flush0 = fl;
+  s_radar0 = rt;
+  char text[384];
   std::snprintf(text, sizeof(text),
-                "%.0f fps, draw %.1f ms (max %.0f)\n"
+                "%.0f fps, frame %.1f ms (max %.0f), %d%% redrawn\n"
+                "draw %.1f + panel %.1f ms (rotate %.1f)\n"
+                "radar %.1f ms, background %.0f ms (%u)\n"
                 "CPU %d%% net, %d%% UI\n"
                 "RAM %u K (low %u K), PSRAM %.1f M\n"
-                "%d aircraft, %s\n"
+                "%d aircraft (decode %.0f ms), %s\n"
                 "up %u:%02u:%02u, UI pause %u ms",
-                s_frames / secs, s_frames ? s_draw_us / 1000.0 / s_frames : 0.0, s_draw_max_us / 1000.0, h.cpu[0],
-                h.cpu[1], static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
-                h.psram_free / 1048576.0, fs.last_count,
+                s_frames / secs, frame_ms, s_draw_max_us / 1000.0, redrawn, std::max(0.0, frame_ms - flush_ms), flush_ms,
+                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), h.cpu[0], h.cpu[1],
+                static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
+                h.psram_free / 1048576.0, fs.last_count, fs.parse_us / 1000.0,
                 ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",
                 static_cast<unsigned>(up / 3600), static_cast<unsigned>(up / 60 % 60), static_cast<unsigned>(up % 60),
                 static_cast<unsigned>(s_stats_gap_ms));
@@ -331,6 +367,7 @@ void updateStats() {
   s_last_ms = now;
   s_frames = 0;
   s_draw_us = s_draw_max_us = 0;
+  s_redrawn_px = 0;
   s_stats_gap_ms = 0;
 }
 

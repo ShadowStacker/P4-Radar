@@ -1030,6 +1030,20 @@ int main(int argc, char** argv) {
     lv_display_trigger_activity(nullptr);
     run(2500);
     shot((p + "65_stats_overlay").c_str());
+    {
+      std::function<void(lv_obj_t*)> dump = [&](lv_obj_t* o) {
+        if (lv_obj_check_type(o, &lv_label_class) && std::strstr(lv_label_get_text(o), "fps")) {
+          std::printf("stats:\n%s\n", lv_label_get_text(o));
+        }
+        for (uint32_t i = 0; i < lv_obj_get_child_count(o); ++i) dump(lv_obj_get_child(o, static_cast<int32_t>(i)));
+      };
+      dump(lv_layer_sys());
+      // Without the sweep: only the aircraft are redrawn.
+      app::settings().sweep_enabled = false;
+      run(2500);
+      dump(lv_layer_sys());
+      app::settings().sweep_enabled = true;
+    }
     app::settings().show_stats = false;
     run(300);
   }
@@ -1055,6 +1069,67 @@ int main(int argc, char** argv) {
     std::printf("saved wifi networks: %s\n", ok ? "OK" : "FAILED");
     if (!ok) return 1;
     run(500);
+  }
+
+  // Partial redraws: after frames that only redrew what changed, the screen
+  // must match a full redraw of the same moment, pixel for pixel.
+  {
+    auto& st = app::settings();
+    auto check = [&](const char* what) {
+      const std::vector<uint16_t> partial = g_fb;
+      lv_obj_invalidate(lv_screen_active());
+      lv_refr_now(g_disp);
+      size_t diff = 0;
+      int fx = -1, fy = -1;
+      for (size_t i = 0; i < g_fb.size(); ++i) {
+        if (g_fb[i] != partial[i]) {
+          if (diff++ == 0) {
+            fx = static_cast<int>(i % g_size);
+            fy = static_cast<int>(i / g_size);
+          }
+        }
+      }
+      std::printf("partial redraw (%s): %s", what, diff == 0 ? "OK\n" : "FAILED");
+      if (diff) std::printf(" - %zu pixels differ, first at %d,%d\n", diff, fx, fy);
+      return diff == 0;
+    };
+    ui::RadarView::get().clearSelection();
+    lv_display_trigger_activity(nullptr);
+    bool ok = true;
+    st.sweep_enabled = true;
+    run(3000);
+    ok &= check("sweep");
+    st.sweep_trail_deg = 0;
+    ui::RadarView::get().markStaticDirty();
+    run(2000);
+    ok &= check("clean bar");
+    st.sweep_trail_deg = 70;
+    st.sweep_enabled = false;
+    run(6000);  // traffic moves on, a fetch arrives
+    ok &= check("no sweep");
+    st.clock_mode = true;
+    st.clock_smooth_seconds = true;
+    ui::RadarView::get().markStaticDirty();
+    run(2500);
+    ok &= check("clock");
+    st.clock_mode = false;
+    st.clock_smooth_seconds = false;
+    st.sweep_enabled = true;
+    st.sweep_reveal = true;
+    ui::RadarView::get().markStaticDirty();
+    run(3000);
+    ok &= check("echoes fade");
+    st.sweep_reveal = false;
+    int x = 0, y = 0;
+    if (findAircraftOnScreen(&x, &y)) {
+      tap(x, y);
+      run(2000);
+      ok &= check("selected aircraft");
+      ui::RadarView::get().clearSelection();
+    }
+    ui::RadarView::get().markStaticDirty();
+    run(500);
+    if (!ok) return 1;
   }
 
   // Screenshot button: the picture lands on the card as a PNG.

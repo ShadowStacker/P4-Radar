@@ -27,7 +27,18 @@ lv_display_flush_cb_t s_inner = nullptr;
 uint16_t* s_tmp = nullptr;
 size_t s_tmp_px = 0;
 
+FlushStats s_stats;
+
+/** No rotation: only the timing. */
+void flushTimed(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+  const uint64_t t0 = plat::micros();
+  s_inner(disp, area, px_map);
+  s_stats.flush_us += plat::micros() - t0;
+  s_stats.stripes++;
+}
+
 void flushRotated(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+  const uint64_t t0 = plat::micros();
   const int W = static_cast<int>(disp->hor_res);
   const int H = static_cast<int>(disp->ver_res);
   const int w = lv_area_get_width(area);
@@ -50,6 +61,7 @@ void flushRotated(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
   const int stride_px = static_cast<int>(buf->header.stride / 2);
   core::rotatePixels(reinterpret_cast<const uint16_t*>(px_map), w, h, stride_px, s_tmp, s_quarter);
   std::memcpy(px_map, s_tmp, n * sizeof(uint16_t));
+  s_stats.rotate_us += plat::micros() - t0;
   const bool odd = (s_quarter & 1) != 0;
   buf->header.w = static_cast<uint32_t>(odd ? h : w);
   buf->header.h = static_cast<uint32_t>(odd ? w : h);
@@ -69,16 +81,24 @@ void flushRotated(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     }
   }
   s_inner(disp, &panel_area, px_map);
+  s_stats.flush_us += plat::micros() - t0;
+  s_stats.stripes++;
 }
 
 }  // namespace
 
 void installDisplayRotation(lv_display_t* disp, int quarter_turns) {
-  if (disp == nullptr || (quarter_turns & 3) == 0 || s_inner != nullptr) return;
-  if (disp->hor_res != disp->ver_res) return;  // the UI layout assumes a square panel
-  s_quarter = quarter_turns & 3;
+  if (disp == nullptr || s_inner != nullptr || disp->flush_cb == nullptr) return;
   s_inner = disp->flush_cb;
+  // The UI layout assumes a square panel for rotation; 0 is only timed.
+  if ((quarter_turns & 3) == 0 || disp->hor_res != disp->ver_res) {
+    lv_display_set_flush_cb(disp, flushTimed);
+    return;
+  }
+  s_quarter = quarter_turns & 3;
   lv_display_set_flush_cb(disp, flushRotated);
 }
+
+FlushStats flushStats() { return s_stats; }
 
 }  // namespace ui

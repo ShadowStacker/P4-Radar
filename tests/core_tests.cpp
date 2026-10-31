@@ -15,6 +15,7 @@
 #include "cJSON.h"
 #include "core/daylog.h"
 #include "core/deflate.h"
+#include "core/dirty_tiles.h"
 #include "core/fwcheck.h"
 #include "core/lookup_cache.h"
 #include "core/sun.h"
@@ -1448,6 +1449,74 @@ void testSettingsJson() {
   cJSON_Delete(root);
 }
 
+void testDirtyTiles() {
+  core::DirtyTiles d(720, 720, 12);  // 60 px tiles
+  CHECK(d.empty() && d.rects(24).empty());
+  d.add({10, 10, 20, 20});
+  d.add({70, 15, 90, 25});  // the next tile on the same row: one run
+  std::vector<core::Box> r = d.rects(24);
+  CHECK(r.size() == 1 && r[0].x1 == 0 && r[0].y1 == 0 && r[0].x2 == 119 && r[0].y2 == 59);
+  d.add({0, 60, 119, 100});  // same columns in the row below: merged
+  r = d.rects(24);
+  CHECK(r.size() == 1 && r[0].y2 == 119);
+  d.add({-50, 700, 2000, 900});  // clipped to the screen: the whole bottom row
+  r = d.rects(24);
+  CHECK(r.size() == 2 && r[1].x1 == 0 && r[1].x2 == 719 && r[1].y1 == 660 && r[1].y2 == 719);
+
+  // Many scattered boxes: too many rectangles, so each row becomes one span.
+  core::DirtyTiles s(720, 720, 12);
+  for (int row = 0; row < 12; ++row) {
+    const int off = row % 3;  // rows differ, so they don't merge
+    for (int c = 0; c < 12; c += 3) s.add({(c + off) * 60 + 5, row * 60 + 5, (c + off) * 60 + 10, row * 60 + 10});
+  }
+  CHECK(s.rects(1000).size() == 48);
+  r = s.rects(24);
+  CHECK(r.size() == 24);
+  bool all_covered = true;
+  for (int row = 0; row < 12; ++row) {
+    const int off = row % 3;
+    for (int c = 0; c < 12; c += 3) {
+      bool hit = false;
+      for (const core::Box& b : r) hit |= b.x1 <= (c + off) * 60 + 5 && b.x2 >= (c + off) * 60 + 10 && b.y1 <= row * 60 + 5 && b.y2 >= row * 60 + 10;
+      all_covered &= hit;
+    }
+  }
+  CHECK(all_covered);
+  CHECK(s.rects(1).size() == 1);
+
+  // A sweep wedge from the center: north-east quarter (0 to 90 deg).
+  core::DirtyTiles w(720, 720, 12);
+  w.addSector(360, 360, 0, 90, 0);
+  CHECK(w.markedTiles() > 30 && w.markedTiles() < 50);  // about a quarter of 144
+  auto covers = [](const std::vector<core::Box>& rs, int x, int y) {
+    for (const core::Box& b : rs) {
+      if (x >= b.x1 && x <= b.x2 && y >= b.y1 && y <= b.y2) return true;
+    }
+    return false;
+  };
+  const std::vector<core::Box> wr = w.rects(1000);
+  CHECK(covers(wr, 690, 30) && covers(wr, 400, 20) && covers(wr, 700, 340) && !covers(wr, 30, 690) &&
+        !covers(wr, 30, 30) && !covers(wr, 690, 690));
+  // Wrapping past north: 330 to 30 deg covers the top middle, not the bottom.
+  core::DirtyTiles n(720, 720, 12);
+  n.addSector(360, 360, 330, 60, 0);
+  bool top = false, bottom = false;
+  for (const core::Box& b : n.rects(1000)) {
+    if (b.y1 == 0 && b.x1 <= 360 && b.x2 >= 360) top = true;
+    if (b.y2 == 719 && b.x1 <= 360 && b.x2 >= 360) bottom = true;
+  }
+  CHECK(top && !bottom);
+  // A diagonal line marks the tiles along it, not its whole bounding box.
+  core::DirtyTiles diag(720, 720, 12);
+  diag.addSegment(0, 0, 719, 719, 3);
+  CHECK(diag.markedTiles() >= 12 && diag.markedTiles() <= 36);
+  const std::vector<core::Box> dr = diag.rects(1000);
+  CHECK(covers(dr, 360, 360) && !covers(dr, 700, 20) && !covers(dr, 20, 700));
+  core::DirtyTiles all(720, 720, 12);
+  all.addSector(360, 360, 10, 400, 0);
+  CHECK(all.markedTiles() == 144);
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -1479,6 +1548,7 @@ int main() {
   testWeb();
   testWatch();
   testSettingsJson();
+  testDirtyTiles();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

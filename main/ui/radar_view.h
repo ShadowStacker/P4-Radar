@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "core/dirty_tiles.h"
 #include "core/trace.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
@@ -48,7 +49,10 @@ class RadarView {
   bool pickMode() const { return pick_mode_; }
 
   /** Forces the static layer to re-render (after settings/theme changes). */
-  void markStaticDirty() { static_dirty_ = true; }
+  void markStaticDirty() {
+    static_dirty_ = true;
+    overlay_full_ = true;
+  }
 
   size_t visibleCount() const { return blips_.size(); }
   /** Map shown under the radar (None when off). */
@@ -65,6 +69,8 @@ class RadarView {
     uint32_t labels = 0;      // labels drawn (summed over frames)
   };
   Stats& stats() { return stats_; }
+  /** The same, never reset (for the on-screen stats, which take differences). */
+  const Stats& totals() const { return totals_; }
 
   std::function<void()> on_selection_changed;
   std::function<void(core::LatLon)> on_long_press;
@@ -112,6 +118,17 @@ class RadarView {
   void drawOverlay(lv_layer_t* layer);
   void drawSweep(lv_layer_t* layer);
   void drawClockHands(lv_layer_t* layer);
+  /** Where the overlay draws on this frame (aircraft, labels, clock hands; not the sweep). */
+  struct OverlayShapes {
+    struct Seg {
+      float x1, y1, x2, y2, pad;
+    };
+    std::vector<core::Box> boxes;
+    std::vector<Seg> segs;  // lines (marked along their length, not by their bounding box)
+  };
+  void overlayAreas(OverlayShapes* out) const;
+  /** Marks for redrawing what changed since the last frame, instead of the whole screen. */
+  void invalidateOverlay();
   void updateQueryArea(bool force_refresh);
   int findSelected() const;
 
@@ -155,6 +172,13 @@ class RadarView {
   MapLayer map_;
   bool light_map_ = false;  // a light map in its own colors is showing (labels get a backing)
   Stats stats_;
+  Stats totals_;
+
+  // Partial redraws: what the overlay drew on the previous frame.
+  OverlayShapes overlay_prev_;
+  float prev_sweep_deg_ = 0;
+  bool prev_sweep_on_ = false;
+  bool overlay_full_ = true;  // redraw it all next frame (first frame, settings changed, ...)
 
   // Downloaded flight history of the selected aircraft
   std::string trace_req_hex_;

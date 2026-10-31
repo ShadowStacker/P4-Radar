@@ -639,9 +639,21 @@ starts.
 | Running for | Time since the radar started |
 | Last restart | Why it last started: power on, restarted by the radar, reset button, or a problem (crash, watchdog, power dip) |
 | Starts | How many times it has started, and how many of those were unexpected (crashes, watchdogs, power dips) |
-| On-screen stats | Small live numbers in the lower left: frame rate and draw time, CPU load of each core (network / UI), free memory, aircraft count, Wi-Fi signal, uptime and the longest pause of the screen. Off by default. |
+| On-screen stats | Small live numbers in the lower left, see below. Off by default. |
 | Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
+
+**On-screen stats**, line by line (times are per frame, averaged over the last second):
+
+| Line | Meaning |
+|---|---|
+| `30 fps, frame 9.2 ms (max 14), 35% redrawn` | Frames drawn per second; time per frame, and the slowest one; how much of the screen each frame redraws (only what changed is redrawn) |
+| `draw 6.1 + panel 3.1 ms (rotate 1.4)` | The frame split into drawing the picture and handing it to the screen (turning it for the screen's orientation, then copying it) |
+| `radar 2.3 ms, background 12 ms (1)` | The radar's own drawing (sweep, aircraft, labels), and rebuilding its background layer (map, rings, trails) in the last second, with how many times |
+| `CPU 23% net, 41% UI` | How busy each processor core is |
+| `RAM ... PSRAM ...` | Free memory (and the lowest it has been) |
+| `16 aircraft (decode 9 ms), -54 dBm` | Aircraft shown, time to decode the last traffic update, Wi-Fi signal |
+| `up 2:13:05, UI pause 12 ms` | Time since start, and the longest the screen went without updating |
 
 ---
 
