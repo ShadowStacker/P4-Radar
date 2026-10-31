@@ -27,6 +27,7 @@
 #include "core/inflate.h"
 #include "core/jpeg.h"
 #include "core/png.h"
+#include "core/release_notes.h"
 #include "core/rotation.h"
 #include "core/route.h"
 #include "core/settings_text.h"
@@ -1517,6 +1518,40 @@ void testDirtyTiles() {
   CHECK(all.markedTiles() == 144);
 }
 
+void testReleaseNotes() {
+  namespace rn = core::release_notes;
+  const std::string md =
+      "# Changelog\n\nIntro text.\n\n"
+      "## [v1.21.0] - 2026-11-01\n\n### Added\n"
+      "- **What's new screen** after an update (About \xE2\x86\x92 What's new). It shows the\n"
+      "  notes once. More text here.\n"
+      "- Plain bullet with `code` and a [link](https://x.y) (and a. dot) that ends. Second.\n\n"
+      "## [v1.20.0] - 2026-10-31\n\n### Changed\n- **Faster drawing.** Only what changed is redrawn. Details.\n\n"
+      "## [v1.19.0] - 2026-10-31\n\n- **Silenced aircraft**, the opposite of favorites: a mute button.\n"
+      "- **Snappier:**\n  - Map tiles wait while you touch.\n  - Less memory.\n";
+  const std::vector<rn::Section> all = rn::parse(md);
+  CHECK(all.size() == 3 && all[0].version == "v1.21.0" && all[0].date == "2026-11-01" && all[0].items.size() == 2);
+  if (all.size() == 3 && all[0].items.size() == 2) {
+    CHECK(all[0].items[0] == "What's new screen: after an update (About > What's new).");
+    CHECK(all[0].items[1] == "Plain bullet with code and a link (and a. dot) that ends.");
+    CHECK(all[1].items.size() == 1 && all[1].items[0] == "Faster drawing. Only what changed is redrawn.");
+    CHECK(all[2].items[0] == "Silenced aircraft:, the opposite of favorites: a mute button." ||
+          all[2].items[0] == "Silenced aircraft: the opposite of favorites: a mute button.");
+  }
+  auto versions = [](const std::vector<rn::Section>& v) {
+    std::string s;
+    for (const auto& x : v) s += x.version + " ";
+    return s;
+  };
+  CHECK(versions(rn::newSince(all, "1.21.0", "1.19.0", 5)) == "v1.21.0 v1.20.0 ");
+  CHECK(versions(rn::newSince(all, "1.21.0", "", 5)) == "v1.21.0 ");
+  CHECK(versions(rn::newSince(all, "1.20.0", "1.18.0", 5)) == "v1.20.0 v1.19.0 ");
+  CHECK(versions(rn::newSince(all, "1.21.0", "1.18.0", 2)) == "v1.21.0 v1.20.0 ");
+  CHECK(all.size() == 3 && all[2].items.size() == 4 && all[2].items[1] == "Snappier:" &&
+        all[2].items[2] == "Map tiles wait while you touch.");
+  CHECK(rn::plain("a \xE2\x80\x93 b\xE2\x80\xA6 90\xC2\xB0 \xF0\x9F\x98\x80!") == "a - b... 90\xC2\xB0 !");
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -1549,6 +1584,7 @@ int main() {
   testWatch();
   testSettingsJson();
   testDirtyTiles();
+  testReleaseNotes();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

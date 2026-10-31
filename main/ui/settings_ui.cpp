@@ -26,6 +26,7 @@
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
+#include "ui/whats_new.h"
 #include "ui/widgets.h"
 
 namespace ui::settings_ui {
@@ -1449,6 +1450,7 @@ void pageUpdates() {
 void pageAbout() {
   lv_obj_t* fw = infoRow("Firmware", plat::firmwareVersion());
   (void)fw;
+  actionRow(LV_SYMBOL_BELL, "What's new", [] { showWhatsNew(); }, pal().accent);
   infoRow("Display", fmtStr("%d x %d", static_cast<int>(screenW()), static_cast<int>(screenH())));
   lv_obj_t* wifi = infoRow("Wi-Fi", "");
   lv_obj_t* feed = infoRow("Feed", "");

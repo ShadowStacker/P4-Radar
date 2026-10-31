@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.21.0] - 2026-11-01
+
+### Added
+- **What's new after an update.** The radar shows a short list of what
+  changed, once, after it starts a new version (with the notes of every
+  version since the one it ran before). **About → What's new** shows it again.
+
+### Fixed
+- **On-screen stats could make the screen stutter or freeze.** The CPU and
+  memory figures are now gathered by a small background task instead of the
+  task that draws the screen.
+
 ## [v1.20.0] - 2026-10-31
 
 ### Changed
@@ -27,7 +39,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
   rotation), the radar's own drawing and background rebuilds, and the time to
   decode a traffic update. See the user guide for what each line means.
 
- - 2026-10-31
+## [v1.19.0] - 2026-10-31
 
 ### Added
 - **Silenced aircraft**, the opposite of favorites: a mute button on the
@@ -37,7 +49,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
   page's Favorites tab) with a button to unmute each. Silencing a favorite
   removes it from the favorites, and starring a silenced aircraft unmutes it.
 
- - 2026-10-29
+## [v1.18.3] - 2026-10-29
 
 ### Added
 - **The radar's own hotspot** for the phone page (Settings → Phone settings
@@ -46,7 +58,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
   second one opens the page. The radar stays on your Wi-Fi meanwhile, and the
   hotspot turns off by itself after 30 minutes without a phone.
 
- - 2026-10-29
+## [v1.18.2] - 2026-10-29
 
 ### Fixed
 - **The phone settings page didn't open.** It's now on port 50080 (the QR
@@ -61,7 +73,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 - `plane-radar.local`: with the Wi-Fi chip keeping network announcements for
   itself it can't work reliably. Use the address shown on the radar.
 
- - 2026-10-29
+## [v1.18.1] - 2026-10-29
 
 ### Fixed
 - Wi-Fi power saving is off: asleep between beacons, the radio could be slow
@@ -73,7 +85,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
   radar, and from where), to tell a network problem from a radar problem.
   Every request is also in the serial log (`web: GET / from ...`).
 
- - 2026-10-29
+## [v1.18.0] - 2026-10-29
 
 ### Added
 - **Phone settings page**: Settings → Phone settings page shows a QR code;

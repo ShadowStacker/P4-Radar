@@ -1,6 +1,8 @@
 #include "ui/ui.h"
 
 #include <algorithm>
+#include <atomic>
+#include <mutex>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -16,6 +18,7 @@
 #include "ui/settings_ui.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
+#include "ui/whats_new.h"
 #include "ui/widgets.h"
 // lv_display_t internals (the dirty areas), for the on-screen stats.
 #if __has_include("lvgl_private.h")
@@ -287,6 +290,27 @@ void onRefrReady(lv_event_t*) {
   s_draw_max_us = std::max(s_draw_max_us, us);
 }
 
+// CPU and memory figures for the on-screen stats come from a small background
+// task: walking every task's run time (and the heap) takes the scheduler's
+// locks, which is no job for the UI task between frames.
+std::mutex s_health_mu;
+plat::Health s_health;
+std::atomic<bool> s_health_task{false};
+
+void startHealthSampler() {
+  if (s_health_task.exchange(true)) return;
+  plat::startTask("stats", [] {
+    plat::sampleHealth(1);  // CPU baseline
+    while (app::settings().show_stats) {
+      plat::sleepMs(1000);
+      const plat::Health sample = plat::sampleHealth(1);
+      std::lock_guard<std::mutex> lock(s_health_mu);
+      s_health = sample;
+    }
+    s_health_task = false;
+  }, 6 * 1024, 1);
+}
+
 /** Small live numbers in the lower left, once a second: for spotting slowdowns as they happen. */
 void updateStats() {
   static uint32_t s_last_ms = 0, s_prev_tick_ms = 0;
@@ -318,12 +342,16 @@ void updateStats() {
     s_draw_us = s_draw_max_us = 0;
     s_redrawn_px = 0;
     s_stats_gap_ms = 0;
-    plat::sampleHealth(1);  // CPU baseline
+    startHealthSampler();
     return;
   }
   if (now - s_last_ms < 1000) return;
   const float secs = (now - s_last_ms) / 1000.0f;
-  const plat::Health h = plat::sampleHealth(1);
+  plat::Health h;
+  {
+    std::lock_guard<std::mutex> lock(s_health_mu);
+    h = s_health;
+  }
   const plat::WifiStatus ws = plat::wifiStatus();
   const app::FeedStatus fs = app::feedStatus();
   const uint32_t up = now / 1000;
@@ -363,7 +391,6 @@ void updateStats() {
                 static_cast<unsigned>(up / 3600), static_cast<unsigned>(up / 60 % 60), static_cast<unsigned>(up % 60),
                 static_cast<unsigned>(s_stats_gap_ms));
   lv_label_set_text(s_stats, text);
-  lv_obj_move_foreground(s_stats);
   s_last_ms = now;
   s_frames = 0;
   s_draw_us = s_draw_max_us = 0;
@@ -378,6 +405,7 @@ void onAppTimer(lv_timer_t*) {
   updateSleepLayer();
   updateAlarmDialog();
   updateUpdateBox();
+  maybeShowWhatsNew();
   // Any touch on any screen keeps the backlight up.
   if (lv_display_get_inactive_time(s_disp) < 400) app::userActivity();
   app::tick(plat::millis());

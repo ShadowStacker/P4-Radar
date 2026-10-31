@@ -640,6 +640,7 @@ starts.
 | Last restart | Why it last started: power on, restarted by the radar, reset button, or a problem (crash, watchdog, power dip) |
 | Starts | How many times it has started, and how many of those were unexpected (crashes, watchdogs, power dips) |
 | On-screen stats | Small live numbers in the lower left, see below. Off by default. |
+| What's new | The notes for this version and the two before it. They're also shown once, by themselves, after an update. |
 | Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
 

@@ -6,8 +6,12 @@ file(GLOB_RECURSE APP_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/data/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/platform/esp/*.cpp")
 
+# The "What's new" notes come from the changelog.
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake_changelog.cmake")
+plane_radar_changelog("${CMAKE_CURRENT_SOURCE_DIR}/../CHANGELOG.md" "${CMAKE_CURRENT_BINARY_DIR}/changelog_data.cpp")
+
 idf_component_register(
-  SRCS "main.cpp" ${APP_SOURCES}
+  SRCS "main.cpp" ${APP_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/changelog_data.cpp"
   INCLUDE_DIRS "."
   REQUIRES nvs_flash esp_netif esp_event esp_http_client esp_timer esp_app_format esp_lcd esp_mm fatfs sdmmc esp_driver_sdmmc json mbedtls esp_https_ota app_update esp_http_server)
 

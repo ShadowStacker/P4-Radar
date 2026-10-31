@@ -42,7 +42,8 @@ struct Settings {
   //  13: up to log_radius_km (v1.17.0)
   //  14: up to night_sleep (v1.17.1)
   //  15: up to lookup_cache (v1.18.0)
-  static constexpr uint16_t kVersion = 15;
+  //  16: up to last_seen_version (v1.21.0)
+  static constexpr uint16_t kVersion = 16;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -206,6 +207,9 @@ struct Settings {
   float watch_radius_km = 40.2336f;       // 25 mi
   bool sound_watch = true;
   bool lookup_cache = true;               // keep airline/route lookups on the SD card
+
+  // v1.21.0
+  char last_seen_version[16] = "";        // "What's new" was shown for this firmware version
 };
 
 }  // namespace core

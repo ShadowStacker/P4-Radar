@@ -35,6 +35,7 @@
 #include "ui/sprites.h"
 #include "ui/theme.h"
 #include "ui/ui.h"
+#include "ui/whats_new.h"
 
 namespace {
 
@@ -289,6 +290,8 @@ int runWeb() {
   sim::g_preset_wifi = true;
   setenv("SIM_WEB", "1", 1);
   app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());  // no "What's new" popping up during the scenes
   auto& st = app::settings();
   st.home_set = true;
   sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 42);
@@ -309,6 +312,8 @@ int runWeb() {
 int runBench() {
   sim::g_preset_wifi = true;
   app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());  // no "What's new" popping up during the scenes
   auto& st = app::settings();
   sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 450, 420);
   g_traffic = &traffic;
@@ -365,6 +370,8 @@ int runBench() {
 int runPages() {
   sim::g_preset_wifi = true;
   app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());  // no "What's new" popping up during the scenes
   auto& st = app::settings();
   sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 120, 300);
   g_traffic = &traffic;
@@ -395,6 +402,8 @@ int runPages() {
 int runSoak(int cycles) {
   sim::g_preset_wifi = true;
   app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());  // no "What's new" popping up during the scenes
   auto& st = app::settings();
   sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 200, 300);
   g_traffic = &traffic;
@@ -506,6 +515,8 @@ int main(int argc, char** argv) {
   // Screenshots are named by the (fixed) simulated time: start without old ones.
   if (std::system(("rm -rf '" + std::string(plat::sdRoot()) + "/screenshots'").c_str()) != 0) return 1;
   app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());  // no "What's new" popping up during the scenes
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
   sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
@@ -1130,6 +1141,27 @@ int main(int argc, char** argv) {
     ui::RadarView::get().markStaticDirty();
     run(500);
     if (!ok) return 1;
+  }
+
+  // "What's new" once after an update (here: from v1.10.0), and again from About.
+  {
+    ui::RadarView::get().clearSelection();
+    std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "1.10.0");
+    run(1500);
+    const bool shown = hasLabel(lv_layer_top(), "What's new in v1.12.1") && hasLabel(lv_layer_top(), "v1.11.0");
+    shot((p + "78_whats_new").c_str());
+    const bool remembered = std::strcmp(app::settings().last_seen_version, plat::firmwareVersion()) == 0;
+    lv_obj_clean(lv_layer_top());
+    run(1500);
+    const bool once = !hasLabel(lv_layer_top(), "What's new in");
+    ui::showWhatsNew();
+    run(300);
+    const bool again = hasLabel(lv_layer_top(), "What's new in v1.12.1");
+    lv_obj_clean(lv_layer_top());
+    run(300);
+    std::printf("what's new: shown %s, once %s, from About %s\n", shown && remembered ? "OK" : "FAILED",
+                once ? "OK" : "FAILED", again ? "OK" : "FAILED");
+    if (!shown || !remembered || !once || !again) return 1;
   }
 
   // Screenshot button: the picture lands on the card as a PNG.

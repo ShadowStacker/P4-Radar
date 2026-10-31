@@ -53,7 +53,11 @@ file(GLOB APP_SOURCES
   ${ROOT}/main/ui/*.cpp
   ${ROOT}/main/data/*.cpp)
 
-add_executable(plane_radar_sim ${APP_SOURCES} sim_main.cpp platform_sim.cpp fake_traffic.cpp)
+include(${ROOT}/cmake_changelog.cmake)
+plane_radar_changelog(${ROOT}/CHANGELOG.md ${CMAKE_CURRENT_BINARY_DIR}/changelog_data.cpp)
+
+add_executable(plane_radar_sim ${APP_SOURCES} sim_main.cpp platform_sim.cpp fake_traffic.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/changelog_data.cpp)
 target_include_directories(plane_radar_sim PRIVATE ${ROOT}/main ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(plane_radar_sim PRIVATE lvgl cjson ZLIB::ZLIB pthread m)
 target_compile_options(plane_radar_sim PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
