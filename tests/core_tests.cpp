@@ -15,6 +15,8 @@
 #include "core/adsb.h"
 #include "core/backup.h"
 #include "core/logbook.h"
+#include "core/wav.h"
+#include "core/replay.h"
 #include "core/memwatch.h"
 #include "core/syslog.h"
 #include "adsb_reference.h"
@@ -698,6 +700,113 @@ void testPlaces() {
   CHECK(std::strcmp(back.places[0].name, "Cabin") == 0 && back.places[1].radius_km == 25.0f && back.places[3].name[0] == '\0');
   CHECK(core::settings_text::parse("place1 = off\n", &back, nullptr) == 1 && back.places[0].name[0] == '\0');
   CHECK(core::settings_text::toJson(st).find("\"type\":\"place\"") != std::string::npos);
+}
+
+std::string makeWav(int format, int channels, int rate, int bits, const std::vector<double>& mono_samples) {
+  std::string data;
+  for (double v : mono_samples) {
+    for (int c = 0; c < channels; ++c) {
+      if (format == 3) {
+        float f = static_cast<float>(v);
+        data.append(reinterpret_cast<const char*>(&f), 4);
+      } else if (bits == 8) {
+        data.push_back(static_cast<char>(static_cast<int>(std::lround(v * 127)) + 128));
+      } else {
+        const int64_t x = std::llround(v * ((1LL << (bits - 1)) - 1));
+        for (int b = 0; b < bits / 8; ++b) data.push_back(static_cast<char>((x >> (8 * b)) & 0xFF));
+      }
+    }
+  }
+  auto le = [](uint32_t v, int n) {
+    std::string s;
+    for (int i = 0; i < n; ++i) s.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+    return s;
+  };
+  std::string fmt = le(format, 2) + le(channels, 2) + le(rate, 4) + le(rate * channels * bits / 8, 4) +
+                    le(channels * bits / 8, 2) + le(bits, 2);
+  std::string out = "RIFF" + le(4 + 8 + 16 + 8 + 8 + data.size(), 4) + "WAVE";
+  out += "LIST" + le(4, 4) + "INFO";  // a chunk to skip
+  out += "fmt " + le(16, 4) + fmt + "data" + le(data.size(), 4) + data;
+  return out;
+}
+
+void testWav() {
+  namespace wav = core::wav;
+  std::vector<double> ramp;
+  for (int i = 0; i < 1000; ++i) ramp.push_back(std::sin(i * 0.05) * 0.5);
+  std::vector<int16_t> out;
+  std::string err;
+  for (int bits : {8, 16, 24, 32}) {
+    for (int ch : {1, 2}) {
+      const std::string w = makeWav(1, ch, 22050, bits, ramp);
+      CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 10, &out, &err));
+      CHECK(out.size() == 1000);
+      if (out.size() == 1000) CHECK(std::abs(out[100] - std::lround(std::sin(5.0) * 0.5 * 32767)) < (bits == 8 ? 300 : 3));
+    }
+  }
+  std::string w = makeWav(3, 2, 44100, 32, ramp);
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 10, &out, &err) && out.size() == 500);
+  CHECK(std::abs(out[50] - std::lround(std::sin(5.0) * 0.5 * 32767)) < 3);  // every other one
+  // Cut to the longest allowed.
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 0.01, &out, &err) && out.size() == 220);
+  // Broken files.
+  CHECK(!wav::decode(reinterpret_cast<const uint8_t*>("RIFF"), 4, 22050, 10, &out, &err));
+  std::string adpcm = makeWav(2, 1, 22050, 16, ramp);
+  CHECK(!wav::decode(reinterpret_cast<const uint8_t*>(adpcm.data()), adpcm.size(), 22050, 10, &out, &err) &&
+        err.find("unsupported") != std::string::npos);
+  std::string cut = makeWav(1, 1, 22050, 16, ramp).substr(0, 600);
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(cut.data()), cut.size(), 22050, 10, &out, &err) && !out.empty() &&
+        out.size() < 300);
+  for (size_t n = 0; n < 80; ++n) wav::decode(reinterpret_cast<const uint8_t*>(w.data()), n, 22050, 10, &out, &err);
+  CHECK(std::string(wav::fileName(core::Sound::FirstTime)) == "first_time.wav");
+  for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) CHECK(wav::fileName(static_cast<core::Sound>(i)) != nullptr);
+}
+
+void testReplay() {
+  namespace rp = core::replay;
+  std::vector<core::Aircraft> in;
+  for (int i = 0; i < 120; ++i) {
+    core::Aircraft a;
+    std::snprintf(a.hex, sizeof(a.hex), i == 3 ? "~%05x" : "%06x", 0xa00000 + i);
+    std::snprintf(a.callsign, sizeof(a.callsign), "KLM%04d", i);
+    std::snprintf(a.type, sizeof(a.type), "B738");
+    a.lat = 44.25 + i * 0.001234;
+    a.lon = -121.15 - i * 0.002;
+    a.alt_ft = 1000 + i * 250;
+    a.alt_valid = i != 5;
+    a.on_ground = i == 7;
+    a.emergency = i == 9;
+    a.military = i == 11;
+    a.track_deg = i * 3.01f;
+    a.heading_deg = 359.99f;
+    a.gs_kt = 412.3f;
+    a.vrate_fpm = -1984;
+    in.push_back(a);
+  }
+  const std::string frame = rp::encodeFrame(1761955200, in);
+  CHECK(frame.size() < in.size() * 38);  // compressed
+  rp::FrameHeader h;
+  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(frame.data()), &h) && h.time_s == 1761955200 &&
+        h.packed + rp::kHeaderBytes == frame.size());
+  std::vector<core::Aircraft> out;
+  CHECK(rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(frame.data()) + rp::kHeaderBytes, &out));
+  CHECK(out.size() == in.size());
+  bool same = out.size() == in.size();
+  for (size_t i = 0; same && i < in.size(); ++i) {
+    const core::Aircraft &a = in[i], &b = out[i];
+    same = std::strcmp(a.hex, b.hex) == 0 && std::strcmp(a.callsign, b.callsign) == 0 && std::strcmp(a.type, b.type) == 0 &&
+           std::fabs(a.lat - b.lat) < 1e-6 && std::fabs(a.lon - b.lon) < 1e-6 && a.alt_ft == b.alt_ft &&
+           a.alt_valid == b.alt_valid && a.on_ground == b.on_ground && a.emergency == b.emergency &&
+           a.military == b.military && std::fabs(a.track_deg - b.track_deg) < 0.01f && std::fabs(b.heading_deg - 359.99f) < 0.01f &&
+           std::fabs(b.gs_kt - 412.3f) < 0.06f && b.vrate_fpm == -1984;
+  }
+  CHECK(same);
+  CHECK(!rp::readHeader(reinterpret_cast<const uint8_t*>("garbage garbage!"), &h));
+  CHECK(rp::fileName(20261101) == "replay/2026-11-01.rpl" && rp::dateOfFile("2026-11-01.rpl") == 20261101 &&
+        rp::dateOfFile("2026-11-01.txt") == 0 && rp::dateOfFile("notes.rpl") == 0);
+  const std::string empty = rp::encodeFrame(5, {});
+  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(empty.data()), &h) &&
+        rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(empty.data()) + rp::kHeaderBytes, &out) && out.empty());
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -2030,6 +2139,8 @@ int main() {
   testMemWatch();
   testLogbook();
   testPlaces();
+  testWav();
+  testReplay();
   testTraffic();
   testFavorites();
   testFilters();

@@ -317,6 +317,12 @@ void playSound(core::Sound s) {
 
 void setVolume(int percent) { s_volume = percent; }
 
+int soundSampleRate() { return 22050; }
+void setSoundClip(core::Sound s, std::vector<int16_t> pcm) {
+  std::printf("[sound] %s: %s\n", soundName(s),
+              pcm.empty() ? "built-in" : ("custom, " + std::to_string(pcm.size()) + " samples").c_str());
+}
+
 void startTask(const char*, std::function<void()> fn, size_t, int) { std::thread(std::move(fn)).detach(); }
 
 void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }

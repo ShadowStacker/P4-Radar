@@ -10,6 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.25.0] - 2026-11-01
+
+### Added
+- **Flight replay.** The traffic around home is recorded on the SD card every
+  15 seconds (a week is kept). **Settings → Replay a day** plays a day back on
+  the radar, with a time slider, play/pause and speeds up to 300×.
+- **Your own sounds.** WAV files in a `sounds` folder on the SD card replace
+  the built-in sounds (`first_time.wav`, `alarm.wav`, ...); the Sound page
+  lists what it found.
+
 ## [v1.24.0] - 2026-11-01
 
 ### Added

@@ -123,6 +123,10 @@ int touchPoints(TouchPoint* out, int max);
 // --- Audio -------------------------------------------------------------------
 /** Queues a sound; never blocks. Ignored when audio is unavailable. */
 void playSound(core::Sound s);
+/** The rate sounds are played at (Hz). */
+int soundSampleRate();
+/** Replaces a sound (mono 16-bit at soundSampleRate()); an empty clip brings back the built-in one. */
+void setSoundClip(core::Sound s, std::vector<int16_t> pcm);
 void setVolume(int percent);
 
 // --- Tasks / system ------------------------------------------------------------

@@ -90,6 +90,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Logbook**: every aircraft ever seen near home, with visits, in `logbook.csv`; a "first time here" alert for
   aircraft it has never seen.
 - **Find an aircraft** by callsign, tail number or hex code, anywhere in the world, and **saved places** to jump to.
+- **Flight replay**: a week of traffic around home is recorded on the SD card and plays back on the radar.
+- **Your own sounds**: WAV files on the SD card replace any of the built-in sounds.
 - **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
   there is one (also Settings → Updates), with automatic rollback if a new version fails to start, and
   power-cycling three times quickly goes back to the previous version.

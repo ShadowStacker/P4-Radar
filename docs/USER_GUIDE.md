@@ -392,6 +392,32 @@ switches itself off.
 
 See [Alerts explained](#alerts-explained) for exactly when each one fires.
 
+#### Your own sounds
+
+Any sound can be replaced with a WAV file of your own: put it in a `sounds`
+folder on the SD card, named after the sound, and tap **Load them again** at
+the bottom of the Sound page (they're also read at startup).
+
+| File | Plays for |
+|---|---|
+| `click.wav` | Touches (cut to 1 s) |
+| `ping.wav` | Each sweep (cut to 1 s) |
+| `new_aircraft.wav` | New aircraft |
+| `close.wav` | Proximity alert |
+| `emergency.wav` | Emergency squawks |
+| `startup.wav` | Start |
+| `home.wav` | The Home button |
+| `favorite_seen.wav` / `favorite_near.wav` | Favorite detected / nearby |
+| `alarm.wav` | Alarm clock (up to 20 s) |
+| `watchlist.wav` | Watchlist alerts |
+| `first_time.wav` | First time here |
+
+Any ordinary WAV works: 8, 16, 24 or 32-bit, or 32-bit float, mono or stereo,
+any sample rate (it's converted to mono at 22 kHz). Sounds are cut to 8
+seconds unless noted. The page lists each file it found and whether it worked
+(*not a WAV file*, *unsupported format* for compressed ones like ADPCM or MP3).
+Delete a file and load again to get the built-in sound back.
+
 ### Traffic & data
 
 | Option | What it does | Default |
@@ -498,6 +524,21 @@ start. The file is in charge: deleting a line there removes that favorite.
 If you change settings on the screen while no card is inserted and then insert
 one, the radar's settings win and are written to the card. *Factory reset*
 deletes `settings.txt` but keeps `favorites.txt`.
+
+### Flight replay
+
+With an SD card, the radar records the traffic around home: every 15 seconds,
+the aircraft within 150 km of home (while it's showing that area) go into
+`replay/YYYY-MM-DD.rpl`, about 2 to 5 MB a day. A week is kept; older days are
+deleted.
+
+**Settings → Replay a day** lists the recorded days. Pick one and the radar
+plays it back instead of live traffic, with a bar at the bottom: the time,
+play/pause, a slider to move through the day, the speed (tap it: 1×, 10×, 60×
+or 300×) and **X** to go back to live traffic. You can pan, zoom and tap
+aircraft as usual. While a replay plays, live traffic, alerts and sounds, the
+daily log and the logbook pause. **Record the traffic around home** on the same
+page turns recording off (`replay_record` in `settings.txt`).
 
 ### Find an aircraft
 

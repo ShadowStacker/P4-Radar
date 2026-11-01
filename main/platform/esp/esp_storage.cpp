@@ -44,7 +44,8 @@ size_t validPrefix(uint16_t version) {
     case 14: return offsetof(core::Settings, night_by_sun);
     case 15: return offsetof(core::Settings, last_seen_version);
     case 16: return offsetof(core::Settings, places);
-    case 17: return sizeof(core::Settings);
+    case 17: return offsetof(core::Settings, replay_record);
+    case 18: return sizeof(core::Settings);
     default: return 0;
   }
 }

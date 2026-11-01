@@ -52,8 +52,9 @@ struct Settings {
   //  14: up to night_sleep (v1.17.1)
   //  15: up to lookup_cache (v1.18.0)
   //  16: up to last_seen_version (v1.21.0)
-  //  17: up to first_time_alert (v1.24.0)
-  static constexpr uint16_t kVersion = 17;
+  //  17: up to sound_first_time (v1.24.0)
+  //  18: up to replay_record (v1.25.0)
+  static constexpr uint16_t kVersion = 18;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -225,6 +226,9 @@ struct Settings {
   Place places[kMaxPlaces];               // saved places to jump to
   bool first_time_alert = true;           // announce aircraft the logbook has never seen near home
   bool sound_first_time = true;
+
+  // v1.25.0
+  bool replay_record = true;              // keep the traffic around home on the SD card for replays
 };
 
 }  // namespace core

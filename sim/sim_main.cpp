@@ -131,6 +131,7 @@ void writePng(const std::string& path) {
 }
 
 void feedTraffic() {
+  if (app::replayActive()) return;  // the replay fills the traffic instead
   if (sim::g_ms < g_next_fetch) return;
   g_next_fetch = sim::g_ms + app::settings().poll_interval_s * 1000u;
   core::LatLon c;
@@ -150,6 +151,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     feedTraffic();
     // In the network task's order: card work first, then downloads.
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
+    app::serviceReplay();
     if (!app::serviceUpdate() && !app::serviceFind() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
@@ -377,6 +379,79 @@ bool placesFindLogbookScenes(sim::FakeTraffic& traffic, const std::string& p) {
     shot((p + "83_daily_log_hours").c_str());
     ui::closeSettings();
     run(300);
+
+    // Your own sounds from the card: a good WAV, a broken one.
+    {
+      const std::string dir = std::string(plat::sdRoot()) + "/sounds";
+      if (std::system(("mkdir -p '" + dir + "'").c_str()) != 0) return false;
+      std::string pcm;
+      for (int i = 0; i < 11025; ++i) {
+        const int16_t v = static_cast<int16_t>(8000 * std::sin(i * 0.1));
+        pcm.append(reinterpret_cast<const char*>(&v), 2);
+      }
+      auto le = [](uint32_t v, int n) {
+        std::string s;
+        for (int i = 0; i < n; ++i) s.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+        return s;
+      };
+      const std::string wav = "RIFF" + le(36 + pcm.size(), 4) + "WAVEfmt " + le(16, 4) + le(1, 2) + le(1, 2) +
+                              le(11025, 4) + le(22050, 4) + le(2, 2) + le(16, 2) + "data" + le(pcm.size(), 4) + pcm;
+      if (FILE* f = std::fopen((dir + "/first_time.wav").c_str(), "wb")) {
+        std::fwrite(wav.data(), 1, wav.size(), f);
+        std::fclose(f);
+      }
+      if (FILE* f = std::fopen((dir + "/click.wav").c_str(), "wb")) {
+        std::fputs("not a wav", f);
+        std::fclose(f);
+      }
+      app::reloadSounds();
+      run(500);
+      const std::vector<std::string> got = app::customSounds();
+      bool good = false, bad = false;
+      for (const std::string& l : got) {
+        good |= l == "first_time.wav: OK, 1.0 s";
+        bad |= l.compare(0, 11, "click.wav: ") == 0 && l.find("not a WAV") != std::string::npos;
+      }
+      std::printf("custom sounds: loaded %s, broken one reported %s\n", good ? "OK" : "FAILED", bad ? "OK" : "FAILED");
+      if (!good || !bad) return false;
+      std::remove((dir + "/click.wav").c_str());
+      ui::openSettings(ui::Page::Sound);
+      run(400);
+      shot((p + "84_custom_sounds").c_str());
+      ui::closeSettings();
+      run(300);
+    }
+
+    // Flight replay: today's recording played back, then live again.
+    {
+      const std::vector<int> days = app::replayDays();
+      const bool recorded = !days.empty();
+      if (recorded) app::replayStart(days.front());
+      run(1500);
+      app::ReplayState rs = app::replayState();
+      std::vector<core::Track> shown;
+      app::traffic().snapshot(shown);
+      const bool loaded = rs.active && rs.ready && rs.last_s > rs.first_s && !shown.empty();
+      app::replaySeek(rs.first_s);
+      app::replaySpeed(60);
+      app::replayPlay(true);
+      run(3000);
+      rs = app::replayState();
+      const bool played = rs.pos_s >= rs.first_s + 120 && rs.pos_s <= rs.first_s + 240;
+      shot((p + "85_replay").c_str());
+      const bool bar = hasLabel(lv_layer_top(), "Replay ") && hasLabel(lv_layer_top(), "60x");
+      ui::openSettings(ui::Page::Replay);
+      run(400);
+      shot((p + "86_replay_days").c_str());
+      ui::closeSettings();
+      app::replayStop();
+      run(3000);
+      const bool live = !app::replayActive() && !hasLabel(lv_layer_top(), "Replay ");
+      std::printf("replay (%u days): loaded %s, plays %s, bar %s, back to live %s\n", static_cast<unsigned>(days.size()),
+                  recorded && loaded ? "OK" : "FAILED", played ? "OK" : "FAILED", bar ? "OK" : "FAILED",
+                  live ? "OK" : "FAILED");
+      if (!recorded || !loaded || !played || !bar || !live) return false;
+    }
     return true;
 }
 
@@ -1579,17 +1654,25 @@ int main(int argc, char** argv) {
     // The daily log's hours and totals, its CSV, the logbook and its CSV, find.
     r = web("GET", "/api/daylog", "", cookie);
     bool extra_ok = r.body.find("\"hourly\":[") != std::string::npos;
+    std::string why;
+    if (!extra_ok) why += " daylog";
     r = web("GET", "/api/daylog.csv", "", cookie);
-    extra_ok = extra_ok && r.status == 200 && r.body.compare(0, 14, "date,aircraft,") == 0 && r.body.find("\n2") != std::string::npos;
+    if (!(r.status == 200 && r.body.compare(0, 14, "date,aircraft,") == 0 && r.body.find("\n2") != std::string::npos)) why += " daylog.csv";
+    extra_ok = why.empty();
     r = web("GET", "/api/logbook", "", cookie);
-    extra_ok = extra_ok && r.body.find("\"loaded\":true") != std::string::npos && r.body.find("\"frequent\":[{") != std::string::npos;
+    if (!(r.body.find("\"loaded\":true") != std::string::npos && r.body.find("\"frequent\":[{") != std::string::npos)) why += " logbook";
     r = web("GET", "/api/logbook.csv", "", cookie);
-    extra_ok = extra_ok && r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos;
+    if (!(r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos)) why += " logbook.csv";
     r = web("POST", "/api/find", "q=SIM42", cookie);
-    extra_ok = extra_ok && r.body.find("\"status\":\"searching\"") != std::string::npos;
-    run(4000);
-    r = web("GET", "/api/find", "", cookie);
-    extra_ok = extra_ok && r.body.find("\"status\":\"found\"") != std::string::npos && r.body.find("c0ffee") != std::string::npos;
+    if (r.body.find("\"status\":\"searching\"") == std::string::npos) why += " find-start(" + r.body + ")";
+    for (int i = 0; i < 40; ++i) {  // the lookup runs between traffic updates
+      run(250);
+      r = web("GET", "/api/find", "", cookie);
+      if (r.body.find("\"status\":\"searching\"") == std::string::npos) break;
+    }
+    if (!(r.body.find("\"status\":\"found\"") != std::string::npos && r.body.find("c0ffee") != std::string::npos)) why += " find(" + r.body + ")";
+    extra_ok = why.empty();
+    if (!extra_ok) std::printf("phone page checks failed:%s\n", why.c_str());
     ui::RadarView::get().clearSelection();
     ui::RadarView::get().goHome(false);
     run(2000);

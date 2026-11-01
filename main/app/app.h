@@ -283,6 +283,36 @@ LogbookSummary logbookSummary(size_t top = 5);
 /** Full path of logbook.csv ("" without a card). */
 std::string logbookPath();
 
+// --- Flight replay (thread-safe) --------------------------------------------------------
+/** Days recorded on the card (yyyymmdd), newest first. Reads the card. */
+std::vector<int> replayDays();
+/** Plays a recorded day on the radar instead of live traffic (paused at its start). */
+void replayStart(int date);
+/** Back to live traffic. */
+void replayStop();
+bool replayActive();
+struct ReplayState {
+  bool active = false;
+  bool loading = false;   // reading the day's file
+  bool ready = false;     // frames to show
+  int date = 0;
+  int64_t pos_s = 0, first_s = 0, last_s = 0;  // unix times
+  bool playing = false;
+  int speed = 10;         // x real time
+};
+ReplayState replayState();
+void replaySeek(int64_t unix_s);
+void replayPlay(bool on);
+void replaySpeed(int times);
+/** Network task: the next frame of a replay. True if it read one. */
+bool serviceReplay();
+
+// --- Custom sounds (sounds/*.wav on the SD card) -----------------------------------------
+/** Reads the sound files again (soon, on the network task). */
+void reloadSounds();
+/** What the last reading found, a line per file ("first_time.wav: OK, 1.2 s"). */
+std::vector<std::string> customSounds();
+
 // --- System log ------------------------------------------------------------------------
 /** The last lines printed before the previous run crashed ("" if it didn't). */
 std::string crashLog();

@@ -177,6 +177,7 @@ const Field kFields[] = {
     BOOL(sound_watch, "Play a sound"),
     BOOL(first_time_alert, "Announce aircraft never seen near home before (needs the SD card's logbook)"),
     BOOL(sound_first_time, "Play a sound for them"),
+    BOOL(replay_record, "Record the traffic around home on the SD card for replays (a week is kept)"),
 
     SECTION("Filters"),
     BOOL(show_ground, nullptr),
