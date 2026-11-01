@@ -1,6 +1,7 @@
 // Host unit tests for the platform-independent core (geo, viewport gestures,
 // ADS-B parsing, traffic store, traces, sound synthesis). Built by sim/CMakeLists.txt.
 
+#include <chrono>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -12,6 +13,7 @@
 #include <zlib.h>
 
 #include "core/adsb.h"
+#include "adsb_reference.h"
 #include "core/clock.h"
 #include "cJSON.h"
 #include "core/daylog.h"
@@ -266,6 +268,192 @@ void testAdsbParse() {
         "https://api.airplanes.live/v2/point/52.10000/4.20000/250");
   CHECK(core::adsb::buildUrl(core::DataSource::AdsbLol, -33.9, 151.2, 50) ==
         "https://api.adsb.lol/v2/lat/-33.90000/lon/151.20000/dist/27");
+}
+
+bool sameAircraft(const std::vector<core::Aircraft>& a, const std::vector<core::Aircraft>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    const core::Aircraft& x = a[i];
+    const core::Aircraft& y = b[i];
+    if (std::strcmp(x.hex, y.hex) || std::strcmp(x.callsign, y.callsign) || std::strcmp(x.reg, y.reg) ||
+        std::strcmp(x.type, y.type) || std::strcmp(x.squawk, y.squawk) || std::strcmp(x.category, y.category) ||
+        x.lat != y.lat || x.lon != y.lon || x.track_deg != y.track_deg || x.heading_deg != y.heading_deg ||
+        x.gs_kt != y.gs_kt || x.alt_ft != y.alt_ft || x.vrate_fpm != y.vrate_fpm || x.seen_pos_s != y.seen_pos_s ||
+        x.alt_valid != y.alt_valid || x.on_ground != y.on_ground || x.emergency != y.emergency ||
+        x.military != y.military) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** The streaming parser against the old cJSON one, on generated feed responses and broken ones. */
+void testAdsbStreaming() {
+  uint32_t seed = 12345;
+  auto rnd = [&seed](uint32_t n) {
+    seed = seed * 1664525u + 1013904223u;
+    return (seed >> 8) % n;
+  };
+  auto numStr = [&]() -> std::string {
+    static const char* const forms[] = {"%d", "%.1f", "%.6f", "%.3e", "-%d", "%dE2", "-%.2f"};
+    char b[48];
+    const char* f = forms[rnd(7)];
+    if (std::strchr(f, 'd') && !std::strchr(f, 'f') && !std::strchr(f, 'e')) {
+      std::snprintf(b, sizeof(b), f, static_cast<int>(rnd(50000)));
+    } else {
+      std::snprintf(b, sizeof(b), f, rnd(1000000) / 1000.0);
+    }
+    return b;
+  };
+  auto strStr = [&]() -> std::string {
+    static const char* const parts[] = {"KLM", "12", " ", "\\\"", "\\\\", "\\/", "\\n", "\\u00e9", "\\ud83d\\ude00",
+                                        "N", "ground", "7700", "none", "A3", "\\u0041", "PH-BXA", "general", "\\t"};
+    std::string s = "\"";
+    const int n = static_cast<int>(rnd(5));
+    for (int i = 0; i < n; ++i) s += parts[rnd(18)];
+    return s + "\"";
+  };
+  static const char* const keys[] = {"lat", "lon", "alt_baro", "alt_geom", "true_heading", "mag_heading", "track",
+                                     "gs", "tas", "ias", "baro_rate", "geom_rate", "seen_pos", "hex", "flight", "r",
+                                     "t", "squawk", "category", "emergency", "dbFlags", "nav_modes", "mlat", "rssi"};
+  auto valueStr = [&](const char* key) -> std::string {
+    switch (rnd(12)) {
+      case 0: return "null";
+      case 1: return rnd(2) ? "true" : "false";
+      case 2: return "[1, \"x\", {\"a\": [null]}]";
+      case 3: return "{\"k\": \"v\", \"n\": -1.5e3}";
+      case 4: case 5: return strStr();
+      default: break;
+    }
+    if (!std::strcmp(key, "hex") || !std::strcmp(key, "flight") || !std::strcmp(key, "squawk")) return strStr();
+    if (!std::strcmp(key, "alt_baro") && rnd(4) == 0) return "\"ground\"";
+    return numStr();
+  };
+  auto aircraftObj = [&]() -> std::string {
+    std::string s = "{";
+    const int n = static_cast<int>(rnd(18));
+    for (int i = 0; i < n; ++i) {
+      const char* k = keys[rnd(24)];
+      if (i) s += rnd(3) ? "," : " ,\n ";
+      s += "\"" + std::string(k) + "\":" + (rnd(4) ? "" : " ") + valueStr(k);
+    }
+    if (rnd(3)) s += std::string(n ? "," : "") + "\"lat\":" + numStr() + ",\"lon\":" + numStr() + ",\"hex\":\"" +
+                     std::to_string(rnd(999999)) + "\"";
+    return s + "}";
+  };
+  auto document = [&]() -> std::string {
+    std::string s = rnd(10) == 0 ? "\xEF\xBB\xBF" : "";
+    s += " {";
+    if (rnd(3) == 0) s += "\"now\":1700000000000,";
+    if (rnd(8) == 0) s += "\"aircraft\":[" + aircraftObj() + "],";
+    s += rnd(5) == 0 ? "\"aircraft\":[" : "\"ac\":[";
+    const int n = static_cast<int>(rnd(8));
+    for (int i = 0; i < n; ++i) {
+      if (i) s += ",";
+      s += rnd(15) == 0 ? valueStr("x") : aircraftObj();
+    }
+    s += "]";
+    if (rnd(6) == 0) s += ",\"ac\":[" + aircraftObj() + "]";
+    if (rnd(4) == 0) s += ",\"msg\":\"No error\",\"total\":" + numStr();
+    s += "}";
+    if (rnd(6) == 0) s += rnd(2) ? "\n" : " trailing";
+    return s;
+  };
+
+  core::adsb::ParseOptions opts[3];
+  opts[1].include_ground = true;
+  opts[2].military_only = true;
+  opts[2].max_alt_ft = 20000;
+  std::vector<core::Aircraft> got, want;
+  int mismatches = 0, docs_with_aircraft = 0, broken_checked = 0;
+  for (int i = 0; i < 3000; ++i) {
+    std::string doc = document();
+    const core::adsb::ParseOptions& opt = opts[i % 3];
+    const bool w = adsb_reference::parse(doc.data(), doc.size(), opt, &want);
+    const bool g = core::adsb::parse(doc.data(), doc.size(), opt, &got);
+    if (w != g || !sameAircraft(got, want)) {
+      if (++mismatches <= 3) std::printf("  adsb mismatch (%d vs %d): %s\n", g, w, doc.c_str());
+    }
+    if (!want.empty()) ++docs_with_aircraft;
+    // Broken versions: cut short, or one byte changed.
+    for (int k = 0; k < 3; ++k) {
+      std::string bad = doc;
+      if (k == 0) bad.resize(rnd(static_cast<uint32_t>(doc.size())));
+      else bad[rnd(static_cast<uint32_t>(doc.size()))] = "{}[]\",:x0\\ "[rnd(11)];
+      const bool bw = adsb_reference::parse(bad.data(), bad.size(), opt, &want);
+      const bool bg = core::adsb::parse(bad.data(), bad.size(), opt, &got);
+      if (bw != bg || !sameAircraft(got, want)) {
+        if (++mismatches <= 3) std::printf("  adsb mismatch on broken (%d vs %d): %s\n", bg, bw, bad.c_str());
+      }
+      ++broken_checked;
+    }
+  }
+  CHECK(mismatches == 0);
+  CHECK(docs_with_aircraft > 500);
+  CHECK(broken_checked == 9000);
+
+  // Hand-picked cases.
+  const char* const cases[] = {
+      "", "{", "{}", "[]", "null", "{\"ac\":null}", "{\"ac\":{}}", "{\"ac\":[]}", "{\"ac\":[1,2,\"x\",null]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"a\",\"lat\":5}]}",                       // first key wins
+      "{\"ac\":\"none\",\"aircraft\":[{\"lat\":1,\"lon\":2,\"hex\":\"b\"}]}",            // falls back
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"\\ud800\"}]}",                            // lone surrogate
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"\\udc00\"}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"\\x\"}]}",                                // bad escape
+      "{\"ac\":[{\"lat\":-,\"lon\":2,\"hex\":\"c\"}]}",
+      "{\"ac\":[{\"lat\":1.5.5,\"lon\":2,\"hex\":\"c\"}]}",
+      "{\"ac\":[{\"lat\":1e5,\"lon\":+2,\"hex\":\"c\"}]}",
+      "{\"ac\":[{\"lat\":0.000000000000000000000000000000000000000000000000000000000000000000000001,\"lon\":2,\"hex\":\"c\"}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"d\",\"alt_baro\":\"ground\"}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"e\",\"flight\":\"ABCDEFGHIJKLMNOP   \"}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"f\"}]}garbage",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"g\"},]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"g\"}]",
+      "  \t\r\n{\"ac\" : [ { \"lat\" : 1 , \"lon\" : 2 , \"hex\" : \"h\" } ] }  ",
+      "{\"ac\":[{\"lat\":nul,\"lon\":2,\"hex\":\"g\"}]}",
+      "{\"ac\":[{\"lat\":true,\"lon\":2,\"hex\":\"g\"}]}",
+      "{\"ac\":[{\"lat\":1.e5,\"lon\":-.5,\"hex\":\"n\",\"gs\":00012,\"track\":1E-3}]}",
+      "{\"ac\":[{\"lat\":1e+,\"lon\":2,\"hex\":\"n\"}]}",
+      "{\"ac\":[{\"lat\":-0,\"lon\":123456789012345678,\"hex\":\"n\",\"gs\":0.1234567890123456789}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"n\",\"track\":-}]}",
+      "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"n\",\"track\":--1}]}",
+      "{\"ac\":[{\"lat\\u0000x\":1,\"lon\":2,\"hex\":\"n\\u0000m\"}]}",
+  };
+  for (const char* c : cases) {
+    const bool w = adsb_reference::parse(c, std::strlen(c), {}, &want);
+    const bool g = core::adsb::parse(c, std::strlen(c), {}, &got);
+    if (w != g || !sameAircraft(got, want)) std::printf("  adsb case differs (%d vs %d): %s\n", g, w, c);
+    CHECK(w == g && sameAircraft(got, want));
+  }
+
+  // Speed: a busy response (400 aircraft).
+  std::string big = "{\"now\":1700000000000,\"ac\":[";
+  for (int i = 0; i < 400; ++i) {
+    char b[1400];
+    std::snprintf(b, sizeof(b),
+                  "%s{\"hex\":\"%06x\",\"type\":\"adsb_icao\",\"flight\":\"KLM%04d \",\"r\":\"PH-B%02d\",\"t\":\"B738\","
+                  "\"desc\":\"BOEING 737-800\",\"alt_baro\":%d,\"alt_geom\":%d,\"gs\":%.1f,\"ias\":250,\"tas\":300,"
+                  "\"mach\":0.5,\"track\":%.2f,\"track_rate\":0.03,\"roll\":-0.2,\"mag_heading\":%.2f,"
+                  "\"true_heading\":%.2f,\"baro_rate\":-64,\"geom_rate\":-32,\"squawk\":\"%04d\",\"emergency\":\"none\","
+                  "\"category\":\"A3\",\"nav_qnh\":1013.6,\"nav_altitude_mcp\":36000,\"nav_heading\":180.0,"
+                  "\"lat\":%.6f,\"lon\":%.6f,\"nic\":8,\"rc\":186,\"seen_pos\":0.4,\"version\":2,\"nic_baro\":1,"
+                  "\"nac_p\":9,\"nac_v\":1,\"sil\":3,\"sil_type\":\"perhour\",\"gva\":2,\"sda\":2,\"alert\":0,\"spi\":0,"
+                  "\"mlat\":[],\"tisb\":[],\"messages\":12345,\"seen\":0.1,\"rssi\":-21.5,\"dst\":12.3,\"dir\":45.6}",
+                  i ? "," : "", 0x400000 + i, i, i % 100, 1000 + i * 90, 1100 + i * 90, 200 + i * 0.5, i * 0.9,
+                  i * 0.9, i * 0.9, 1000 + i, 52 + i * 0.001, 4 + i * 0.001);
+    big += b;
+  }
+  big += "],\"msg\":\"No error\",\"total\":400}";
+  const auto t0 = std::chrono::steady_clock::now();
+  for (int i = 0; i < 50; ++i) adsb_reference::parse(big.data(), big.size(), {}, &want);
+  const auto t1 = std::chrono::steady_clock::now();
+  for (int i = 0; i < 50; ++i) core::adsb::parse(big.data(), big.size(), {}, &got);
+  const auto t2 = std::chrono::steady_clock::now();
+  CHECK(got.size() == 400 && sameAircraft(got, want));
+  const double old_us = std::chrono::duration<double, std::micro>(t1 - t0).count() / 50;
+  const double new_us = std::chrono::duration<double, std::micro>(t2 - t1).count() / 50;
+  std::printf("  adsb parse, 400 aircraft (%zu KB): cJSON %.0f us, streaming %.0f us\n", big.size() / 1024, old_us,
+              new_us);
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -1577,6 +1765,7 @@ int main() {
   testViewport();
   testZoomButtons();
   testAdsbParse();
+  testAdsbStreaming();
   testTraffic();
   testFavorites();
   testFilters();
