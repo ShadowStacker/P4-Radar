@@ -21,7 +21,7 @@
 
 namespace {
 
-// A wide-area ADS-B response becomes tens of thousands of small cJSON nodes;
+// cJSON (routes, flight history, update checks) builds a node per value;
 // keep them in PSRAM so parsing never starves Wi-Fi or LVGL of internal RAM.
 void* psramMalloc(size_t size) {
   void* p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -31,6 +31,7 @@ void* psramMalloc(size_t size) {
 }  // namespace
 
 extern "C" void app_main(void) {
+  plat::logCaptureStart();  // before anything prints, and before other tasks start
   cJSON_Hooks hooks = {psramMalloc, free};
   cJSON_InitHooks(&hooks);
 

@@ -504,6 +504,7 @@ int runSoak(int cycles) {
 }
 
 int main(int argc, char** argv) {
+  plat::logCaptureStart();
   bool bench = false;
   int soak = 0;
   bool page_timing = false;

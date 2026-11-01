@@ -224,6 +224,18 @@ struct Health {
 /** Takes a sample. `slot` (0 or 1) keeps separate CPU baselines for separate users. */
 Health sampleHealth(int slot);
 
+/**
+ * Copies everything printed (printf and ESP-IDF's log) into core::syslog,
+ * still printing it on the serial port. Call first thing at startup.
+ */
+void logCaptureStart();
+/**
+ * The last lines printed before an unexpected restart (crash, watchdog),
+ * kept in RAM that survives the restart; "" after a normal start. Taking it
+ * clears it.
+ */
+std::string takeCrashLog();
+
 /** Why and how often the board has started (kept in flash). */
 struct BootInfo {
   const char* reset_reason = "";   // why it last restarted, in words

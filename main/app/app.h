@@ -226,10 +226,24 @@ std::vector<std::string> screenshots();
 /** Full path of a screenshot file, or "" if the name isn't one. */
 std::string screenshotPath(const std::string& name);
 
+// --- Backup (UI task) -------------------------------------------------------------------
+/** Settings (with Wi-Fi), favorites and silenced aircraft in one text file. */
+std::string backupText();
+/** Applies a backup file. False if it isn't one; *summary says what was restored or why not. */
+bool restoreBackup(const std::string& text, std::string* summary);
+
+// --- System log ------------------------------------------------------------------------
+/** The last lines printed before the previous run crashed ("" if it didn't). */
+std::string crashLog();
+/** Log files on the card (log/system.log, system.1.log, crash-N.log), main log first. */
+std::vector<std::string> logFiles();
+/** Full path of a log file, or "" if the name isn't one. */
+std::string logFilePath(const std::string& name);
+
 // --- Lookups kept on the SD card ------------------------------------------------------
 /** Deletes the saved airline/route lookups (network task, soon). */
 void clearLookupCache();
-/** Network task: card work besides map tiles (screenshots, saved lookups). True if it did something. */
+/** Network task: card work besides map tiles (screenshots, saved lookups, the system log). True if it did something. */
 bool serviceCardWork();
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
