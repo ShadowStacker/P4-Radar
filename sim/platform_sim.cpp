@@ -32,6 +32,7 @@ bool g_update_available = false;
 std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
 std::function<std::string(const std::string&)> g_route_server;
+std::function<std::string(const std::string& kind, const std::string& value)> g_find_server;
 plat::WebHandler g_web_handler;
 size_t g_firmware_written = 0;
 bool g_firmware_committed = false;
@@ -59,6 +60,7 @@ const char* soundName(core::Sound s) {
     case core::Sound::FavoriteNear: return "favorite_nearby";
     case core::Sound::Alarm: return "alarm";
     case core::Sound::Watch: return "watchlist";
+    case core::Sound::FirstTime: return "first_time";
     default: return "unknown";
   }
 }
@@ -248,6 +250,14 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     }
     body->append(fakeTile(topo || sat, z, x, y, osm, faa));  // (satellite: the topo look will do)
     return 200;
+  }
+  for (const char* kind : {"/v2/callsign/", "/v2/reg/", "/v2/registration/", "/v2/hex/"}) {
+    if (const char* at = std::strstr(url, kind)) {
+      if (!sim::g_find_server) return -1;
+      const std::string k(kind + 4, std::strlen(kind) - 5);
+      *body = sim::g_find_server(k == "registration" ? "reg" : k, at + std::strlen(kind));
+      return 200;
+    }
   }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
     if (!sim::g_route_server) return -1;

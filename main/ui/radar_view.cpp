@@ -117,6 +117,37 @@ void drawCircle(lv_layer_t* layer, float x, float y, float r, lv_color_t c, lv_o
   lv_draw_rect(layer, &d, &a);
 }
 
+/**
+ * A full-circle arc. LVGL's circle mask writes past its buffer for some radii
+ * from about 920 px up (in 9.2 to 9.6), so big rings are drawn as short
+ * straight pieces instead, only where they cross the screen (W x H).
+ */
+void drawRing(lv_layer_t* layer, float x, float y, float r, lv_draw_arc_dsc_t arc, float W, float H) {
+  constexpr float kMaskSafeRadius = 900.0f;
+  if (r < kMaskSafeRadius) {
+    arc.center = {static_cast<int32_t>(x), static_cast<int32_t>(y)};
+    arc.radius = static_cast<uint16_t>(r);
+    lv_draw_arc(layer, &arc);
+    return;
+  }
+  // Pieces short enough to look round: at most a quarter pixel off the circle.
+  const float step = 2.0f * std::acos(1.0f - 0.25f / r);
+  const int n = std::min(20000, static_cast<int>(std::ceil(2.0f * 3.14159265f / step)));
+  const float margin = static_cast<float>(arc.width) + 2.0f;
+  auto on = [&](float px, float py) { return px > -margin && py > -margin && px < W + margin && py < H + margin; };
+  float px = x + r, py = y;
+  bool pin = on(px, py);
+  for (int i = 1; i <= n; ++i) {
+    const float a = 2.0f * 3.14159265f * i / n;
+    const float qx = x + r * std::cos(a), qy = y + r * std::sin(a);
+    const bool qin = on(qx, qy);
+    if (pin || qin) drawLine(layer, px, py, qx, qy, arc.color, arc.width, arc.opa, true);
+    px = qx;
+    py = qy;
+    pin = qin;
+  }
+}
+
 void drawText(lv_layer_t* layer, const char* txt, int32_t x, int32_t y, const lv_font_t* f,
               lv_color_t c, lv_opa_t opa = LV_OPA_COVER, lv_text_align_t align = LV_TEXT_ALIGN_LEFT,
               int32_t w = 0) {
@@ -247,6 +278,11 @@ void RadarView::zoomStep(double factor) { vp_.zoomStep(factor, plat::millis()); 
 
 void RadarView::setZoomRate(double octaves_per_s) { vp_.setZoomRate(octaves_per_s, plat::millis()); }
 
+void RadarView::goTo(core::LatLon where, double radius_km) {
+  follow_ = false;
+  vp_.flyTo(where, radius_km, plat::millis(), 800);
+}
+
 bool RadarView::atHome() const {
   const auto& st = app::settings();
   const double d = core::distanceKm(vp_.center(), {st.home_lat, st.home_lon});
@@ -272,6 +308,12 @@ void RadarView::clearSelection() {
   selected_hex_.clear();
   follow_ = false;
   if (on_selection_changed) on_selection_changed();
+}
+
+void RadarView::selectWhenSeen(const std::string& hex) {
+  pending_select_ = hex;
+  pending_select_ms_ = plat::millis();
+  tracks_version_ = 0;  // look at the traffic again on the next frame
 }
 
 void RadarView::setFollow(bool on) { follow_ = on && findSelected() >= 0; }
@@ -302,6 +344,18 @@ void RadarView::frame() {
   favorites_ = app::favorites();
   if (app::traffic().version() != tracks_version_) {
     tracks_version_ = app::traffic().snapshot(tracks_);
+    if (!pending_select_.empty()) {
+      for (const core::Track& t : tracks_) {
+        if (pending_select_ == t.ac.hex) {
+          selected_hex_ = pending_select_;
+          follow_ = true;
+          pending_select_.clear();
+          if (on_selection_changed) on_selection_changed();
+          break;
+        }
+      }
+      if (!pending_select_.empty() && plat::millis() - pending_select_ms_ > 60000) pending_select_.clear();
+    }
     if (!selected_hex_.empty() && findSelected() < 0) {
       // Selected aircraft dropped out of the feed.
       selected_hex_.clear();
@@ -520,8 +574,7 @@ void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
       const float r = static_cast<float>(k * step_px);
       if (r > home_dist + R) break;
       if (r < home_dist - R || r > 30000.0f) continue;  // ring doesn't cross the screen
-      arc.radius = static_cast<uint16_t>(r);
-      lv_draw_arc(&layer, &arc);
+      drawRing(&layer, home.x, home.y, r, arc, W, H);
 
       char txt[16];
       const double v = k * step_units;

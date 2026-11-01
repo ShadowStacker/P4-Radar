@@ -1,5 +1,6 @@
 #include "core/adsb.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -48,6 +49,44 @@ std::string buildUrl(DataSource src, double lat, double lon, double radius_km) {
       break;
   }
   return buf;
+}
+
+std::string findUrl(DataSource src, FindBy by, const std::string& value) {
+  std::string v;
+  for (char c : value) {
+    const unsigned char u = static_cast<unsigned char>(c);
+    if (std::isalnum(u)) v.push_back(static_cast<char>(by == FindBy::Hex ? std::tolower(u) : std::toupper(u)));
+    else if (c == '-' && by == FindBy::Registration) v.push_back(c);
+  }
+  if (v.empty()) return "";
+  const char* kind = by == FindBy::Callsign ? "callsign" : by == FindBy::Hex ? "hex" : "reg";
+  switch (src) {
+    case DataSource::AirplanesLive: return std::string("https://api.airplanes.live/v2/") + kind + "/" + v;
+    case DataSource::AdsbLol: return std::string("https://api.adsb.lol/v2/") + kind + "/" + v;
+    case DataSource::AdsbFi:
+    default:
+      if (by == FindBy::Registration) kind = "registration";
+      return std::string("https://opendata.adsb.fi/api/v2/") + kind + "/" + v;
+  }
+}
+
+bool sameIdent(const char* a, const std::string& typed) {
+  auto next = [](const char*& p, const char* end) {
+    while (p != end && *p != '\0' && (*p == ' ' || *p == '-')) ++p;
+    return p != end && *p != '\0';
+  };
+  const char* x = a;
+  const char* y = typed.c_str();
+  const char* yend = y + typed.size();
+  bool any = false;
+  for (;;) {
+    const bool hx = next(x, nullptr), hy = next(y, yend);
+    if (!hx || !hy) return hx == hy && any;
+    if (std::toupper(static_cast<unsigned char>(*x)) != std::toupper(static_cast<unsigned char>(*y))) return false;
+    ++x;
+    ++y;
+    any = true;
+  }
 }
 
 namespace {

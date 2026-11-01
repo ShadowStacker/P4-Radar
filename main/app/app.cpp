@@ -9,6 +9,7 @@
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
+#include <iterator>
 #include <memory>
 #include <deque>
 #include <cmath>
@@ -28,6 +29,7 @@
 #include "app/web.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
+#include "core/logbook.h"
 #include "core/lookup_cache.h"
 #include "core/memwatch.h"
 #include "core/png.h"
@@ -190,6 +192,87 @@ void saveDay(const core::daylog::Day& d) {
   writeText(("log/" + core::daylog::fileName(d.date)).c_str(), core::daylog::serialize(d));
 }
 
+// Logbook (logbook.csv on the card). Network task, except the UI's read-only
+// queries, which lock s_book_mu.
+constexpr char kLogbookFile[] = "logbook.csv";
+std::mutex s_book_mu;
+core::logbook::Book s_book;
+bool s_book_loaded = false;      // read from the card (or found missing)
+std::string s_book_pending;      // CSV lines not on the card yet
+uint32_t s_book_saved_ms = 0;
+std::vector<core::logbook::Entry> s_book_firsts;  // this fetch's first-timers (network task)
+
+/** Network task: reads logbook.csv into the index once the card is there. */
+void loadLogbook() {
+  if (s_book_loaded || maps::sdStatus().state != maps::SdState::Mounted) return;
+  s_book_loaded = true;
+  core::logbook::Book book;
+  FILE* f = std::fopen(sdPath(kLogbookFile).c_str(), "rb");
+  size_t lines = 0;
+  if (f != nullptr) {
+    std::string line;
+    char buf[1024];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) {
+      for (size_t i = 0; i < n; ++i) {
+        if (buf[i] == '\n') {
+          book.loadLine(line);
+          line.clear();
+          ++lines;
+        } else {
+          line.push_back(buf[i]);
+        }
+      }
+    }
+    if (!line.empty()) book.loadLine(line);
+    std::fclose(f);
+  }
+  book.loaded();
+  std::printf("logbook: %u aircraft, %u visits since %d (%u lines)\n", static_cast<unsigned>(book.aircraft()),
+              static_cast<unsigned>(book.visits()), book.startDate(), static_cast<unsigned>(lines));
+  std::lock_guard<std::mutex> lock(s_book_mu);
+  std::swap(s_book, book);
+}
+
+/** Network task: appends new visits to logbook.csv now and then. True if it wrote. */
+bool serviceLogbook(bool now = false) {
+  std::string text;
+  {
+    std::lock_guard<std::mutex> lock(s_book_mu);
+    if (!s_book_loaded || s_book_pending.empty()) return false;
+    if (!now && plat::millis() - s_book_saved_ms < 60000 && s_book_pending.size() < 4096) return false;
+    text.swap(s_book_pending);
+    s_book_saved_ms = plat::millis();
+  }
+  if (maps::sdStatus().state != maps::SdState::Mounted) return false;
+  const std::string path = sdPath(kLogbookFile);
+  struct stat st;
+  const bool fresh = stat(path.c_str(), &st) != 0;
+  FILE* f = std::fopen(path.c_str(), "ab");
+  if (f == nullptr) return false;
+  if (fresh) std::fputs(core::logbook::csvHeader(), f);
+  std::fwrite(text.data(), 1, text.size(), f);
+  std::fclose(f);
+  return true;
+}
+
+/** Network task, each fetch: the logbook's visits, and who's here for the first time. */
+void logbookObserve(const std::vector<core::Aircraft>& all, const std::tm& t, int date) {
+  s_book_firsts.clear();
+  loadLogbook();
+  if (!s_book_loaded) return;  // no card (yet): nothing to compare with
+  std::vector<core::Aircraft> near;
+  const core::LatLon home{s_settings.home_lat, s_settings.home_lon};
+  for (const core::Aircraft& a : all) {
+    if (!a.on_ground && core::distanceKm(home, {a.lat, a.lon}) <= s_settings.log_radius_km) near.push_back(a);
+  }
+  std::lock_guard<std::mutex> lock(s_book_mu);
+  const bool learning = s_book.learning(date);
+  std::vector<core::logbook::Entry> firsts =
+      s_book.observe(near, plat::unixTimeMs() / 1000, date, t.tm_hour * 100 + t.tm_min, &s_book_pending);
+  if (!learning) s_book_firsts = std::move(firsts);
+}
+
 /** Network task, each fetch: counts what's near home today. */
 void dayLogObserve(const std::vector<core::Aircraft>& all) {
   if (!plat::timeValid()) return;
@@ -221,6 +304,7 @@ void dayLogObserve(const std::vector<core::Aircraft>& all) {
       std::printf("daylog: continuing %s (%d aircraft)\n", core::daylog::fileName(date).c_str(), s_day.count());
     }
   }
+  logbookObserve(all, t, date);
   std::lock_guard<std::mutex> lock(s_day_mu);
   core::daylog::observe(&s_day, all, {s_settings.home_lat, s_settings.home_lon}, s_settings.log_radius_km, date,
                         t.tm_hour * 60 + t.tm_min, &isFavorite);
@@ -302,6 +386,7 @@ bool serviceRestartFlush() {
     s_day_dirty = false;
   }
   saveDay(copy);
+  serviceLogbook(true);
   s_log_saved_ms = plat::millis() - kLogSaveEveryMs;
   serviceSystemLog();
   s_flushed = true;
@@ -559,6 +644,14 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       else if (w.reason == w.name) what = w.type.empty() ? "" : w.type;
       s_notices.push_back("Watchlist: " + w.name + (what.empty() ? "" : " (" + what + ")") + ", " + dist);
     }
+    if (s_settings.first_time_alert) {
+      for (const core::logbook::Entry& e : s_book_firsts) {
+        char hex[8];
+        std::snprintf(hex, sizeof(hex), "%06x", static_cast<unsigned>(e.hex));
+        if (isSilenced(hex)) continue;
+        s_notices.push_back(std::string("First time here: ") + e.label + (e.type[0] ? std::string(" (") + e.type + ")" : ""));
+      }
+    }
     while (s_notices.size() > 4) s_notices.pop_front();
   }
 
@@ -571,6 +664,8 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     sound(core::Sound::FavoriteNear);
   } else if (!ev.favorites_seen.empty() && s_settings.sound_favorite_seen) {
     sound(core::Sound::FavoriteSeen);
+  } else if (!s_book_firsts.empty() && s_settings.first_time_alert && s_settings.sound_first_time) {
+    sound(core::Sound::FirstTime);
   } else if (ev.new_close_approaches > 0 && s_settings.sound_proximity) {
     sound(core::Sound::Alert);
   } else if (ev.new_aircraft > 0 && ev.new_aircraft <= 3) {
@@ -780,7 +875,7 @@ void networkLoop() {
     }
     if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
-        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
+        (serviceFind() || serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
@@ -891,6 +986,37 @@ std::vector<core::daylog::Day> dayLogHistory(int days) {
       out.push_back(d);
     }
   }
+  return out;
+}
+
+DayLogTotals dayLogTotals(int days) {
+  DayLogTotals out;
+  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
+  all.insert(all.begin(), dayLogToday());
+  std::vector<uint32_t> unique;
+  for (const core::daylog::Day& d : all) {
+    if (d.date == 0) continue;
+    ++out.days;
+    out.sum += d.count();
+    if (d.count() > out.best_count) {
+      out.best_count = d.count();
+      out.best_date = d.date;
+    }
+    std::vector<uint32_t> merged;
+    std::set_union(unique.begin(), unique.end(), d.seen.begin(), d.seen.end(), std::back_inserter(merged));
+    unique.swap(merged);
+    for (int h = 0; h < 24; ++h) out.hourly[h] += d.hourly[h];
+  }
+  out.unique = static_cast<int>(unique.size());
+  return out;
+}
+
+std::string dayLogCsv(int days) {
+  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
+  std::string out = core::daylog::csvHeader();
+  for (auto it = all.rbegin(); it != all.rend(); ++it) out += core::daylog::csvLine(*it);  // oldest first
+  const core::daylog::Day today = dayLogToday();
+  if (today.date != 0) out += core::daylog::csvLine(today);
   return out;
 }
 
@@ -1183,6 +1309,21 @@ std::string screenshotPath(const std::string& name) {
 
 void clearLookupCache() { s_lookup_clear = true; }
 
+LogbookSummary logbookSummary(size_t top) {
+  LogbookSummary out;
+  std::lock_guard<std::mutex> lock(s_book_mu);
+  out.loaded = s_book_loaded;
+  out.aircraft = s_book.aircraft();
+  out.visits = s_book.visits();
+  out.start_date = s_book.startDate();
+  out.learning = s_book.learning(today());
+  out.frequent = s_book.frequent(top);
+  out.newest = s_book.newest(top);
+  return out;
+}
+
+std::string logbookPath() { return cardReady() ? sdPath(kLogbookFile) : ""; }
+
 std::string crashLog() {
   std::lock_guard<std::mutex> lock(s_crash_mu);
   return s_crash_log;
@@ -1217,7 +1358,7 @@ std::string logFilePath(const std::string& name) {
 }
 
 bool serviceCardWork() {
-  return serviceRestartFlush() || serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
+  return serviceRestartFlush() || serviceLogbook() || serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
 }
 
 void timeZoneChanged() {
@@ -1424,6 +1565,101 @@ void lookupFavorite(const std::string& q) {
     if (p.first == q) return;
   }
   s_fav_lookups.emplace_back(q, false);
+}
+
+namespace {
+std::mutex s_find_mu;
+FindState s_find;
+bool s_find_pending = false;  // the network task should look online
+}  // namespace
+
+FindState findState() {
+  std::lock_guard<std::mutex> lock(s_find_mu);
+  return s_find;
+}
+
+void findAircraft(const std::string& query) {
+  std::string q;
+  for (char c : query) {
+    if (!std::isspace(static_cast<unsigned char>(c))) q.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+  }
+  FindState st;
+  st.query = q;
+  {
+    std::lock_guard<std::mutex> lock(s_find_mu);
+    st.version = s_find.version + 1;
+  }
+  if (q.empty()) return;
+  // On the radar already?
+  std::vector<core::Track> tracks;
+  s_traffic.snapshot(tracks);
+  for (const core::Track& t : tracks) {
+    const core::Aircraft& a = t.ac;
+    if (core::adsb::sameIdent(a.callsign, q) || core::adsb::sameIdent(a.reg, q) || core::adsb::sameIdent(a.hex, q)) {
+      st.status = FindStatus::Found;
+      st.hex = a.hex;
+      st.label = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+      st.where = {a.lat, a.lon};
+      std::lock_guard<std::mutex> lock(s_find_mu);
+      s_find = st;
+      s_find_pending = false;
+      return;
+    }
+  }
+  st.status = FindStatus::Searching;
+  std::lock_guard<std::mutex> lock(s_find_mu);
+  s_find = st;
+  s_find_pending = true;
+}
+
+/** Network task: looks for the aircraft asked for with the feed (anywhere in the world). */
+bool serviceFind() {
+  std::string q;
+  {
+    std::lock_guard<std::mutex> lock(s_find_mu);
+    if (!s_find_pending) return false;
+    s_find_pending = false;
+    q = s_find.query;
+  }
+  using core::adsb::FindBy;
+  std::vector<FindBy> order;
+  if (core::settings_text::isIcaoHex(q.c_str())) order.push_back(FindBy::Hex);
+  order.push_back(FindBy::Callsign);
+  order.push_back(FindBy::Registration);
+  core::adsb::ParseOptions opt;
+  opt.include_ground = true;
+  opt.min_alt_ft = -100000;
+  opt.max_alt_ft = 1000000;
+  FindState done;
+  done.query = q;
+  done.status = FindStatus::NotFound;
+  int last_code = 0;
+  for (FindBy by : order) {
+    const std::string url = core::adsb::findUrl(s_failover.active(), by, q);
+    if (url.empty()) continue;
+    std::string body;
+    std::vector<core::Aircraft> found;
+    last_code = plat::httpGet(url.c_str(), &body, 10000);
+    std::printf("find: %s -> %d\n", url.c_str(), last_code);
+    if (last_code == 200 && core::adsb::parse(body.data(), body.size(), opt, &found) && !found.empty()) {
+      const core::Aircraft& a = found.front();
+      done.status = FindStatus::Found;
+      done.hex = a.hex;
+      done.label = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+      done.where = {a.lat, a.lon};
+      break;
+    }
+    if (last_code != 200 && last_code != 404) {
+      done.status = FindStatus::Failed;
+      break;
+    }
+    plat::sleepMs(kMinFetchSpacingMs);  // the feeds ask for a gap between requests
+  }
+  std::lock_guard<std::mutex> lock(s_find_mu);
+  if (s_find.query != q) return true;  // a newer search took over
+  done.version = s_find.version + 1;
+  s_find = done;
+  return true;
 }
 
 bool serviceFavoriteLookup() {

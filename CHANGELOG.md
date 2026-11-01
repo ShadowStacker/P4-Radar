@@ -10,6 +10,30 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.24.0] - 2026-11-01
+
+### Added
+- **Logbook.** Every aircraft seen near home is written down in
+  `logbook.csv` on the SD card, one line per visit. A new Logbook page (from
+  Daily log) and the phone page show the totals, the most frequent visitors
+  and the newest ones, and the phone page downloads the file.
+- **"First time here" alert.** An aircraft the logbook has never seen is
+  announced, with its own sound (after the logbook's first two days).
+- **Find an aircraft** by callsign, tail number or hex code, from Settings or
+  the phone page: on the radar it's selected and followed; elsewhere the
+  radar flies to it.
+- **Daily log by the hour.** Today's aircraft per hour as bars, the busiest
+  hour, and totals for the last 7 and 30 days (different aircraft, the
+  busiest day and hour). The phone page shows them too and downloads the last
+  90 days as a CSV file.
+- **Saved places.** Up to four places besides home on the Location page (save
+  the radar's current view, tap to fly there), also in `settings.txt`.
+
+### Fixed
+- **A possible crash with big range rings.** LVGL's circle drawing writes past
+  its memory for some radii above about 920 pixels (rings when the view is far
+  from home). Such rings are now drawn as short lines.
+
 ## [v1.23.0] - 2026-11-01
 
 ### Added

@@ -84,8 +84,12 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **System and crash log**: everything the radar prints is kept for the phone page and in `log/system.log` on the
   SD card; after a crash, the last lines before it are kept too. A memory watch restarts the radar quietly at
   night if memory ever runs low.
-- **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
-  the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.
+- **Daily log**: how many different aircraft flew near home today, the busiest moment and hour (with an hourly
+  chart), the closest pass, the highest and fastest, military and emergency aircraft, and favorites seen. Each day
+  is saved on the SD card, with 7- and 30-day totals and a CSV download.
+- **Logbook**: every aircraft ever seen near home, with visits, in `logbook.csv`; a "first time here" alert for
+  aircraft it has never seen.
+- **Find an aircraft** by callsign, tail number or hex code, anywhere in the world, and **saved places** to jump to.
 - **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
   there is one (also Settings → Updates), with automatic rollback if a new version fails to start, and
   power-cycling three times quickly goes back to the previous version.

@@ -33,6 +33,8 @@ class RadarView {
 
   /** Animates back to the home location and home zoom. */
   void goHome(bool animate = true);
+  /** Animates to a place (saved place, found aircraft) at a zoom radius. */
+  void goTo(core::LatLon where, double radius_km);
   void zoomBy(double factor);
   /** Zoom buttons: a smooth step per tap (steps add up), continuous while held. */
   void zoomStep(double factor);
@@ -41,6 +43,8 @@ class RadarView {
 
   const core::Track* selected() const;
   void clearSelection();
+  /** Selects and follows this aircraft as soon as it's in the traffic (within a minute). */
+  void selectWhenSeen(const std::string& hex);
   void setFollow(bool on);
   bool following() const { return follow_; }
 
@@ -173,6 +177,8 @@ class RadarView {
 
   // Selection / follow
   std::string selected_hex_;
+  std::string pending_select_;     // selectWhenSeen()
+  uint32_t pending_select_ms_ = 0;
   MapLayer map_;
   bool light_map_ = false;  // a light map in its own colors is showing (labels get a backing)
   Stats stats_;

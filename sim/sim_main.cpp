@@ -22,6 +22,7 @@
 #endif
 
 #include "app/app.h"
+#include "core/logbook.h"
 #include "app/maps.h"
 #include "app/web.h"
 #include "core/png.h"
@@ -149,7 +150,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     feedTraffic();
     // In the network task's order: card work first, then downloads.
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
-    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
+    if (!app::serviceUpdate() && !app::serviceFind() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
@@ -246,6 +247,14 @@ bool findAircraftOnScreen(int* x, int* y) {
 }
 
 /** True if a label under `obj` contains `needle` (the toasts on the top layer). */
+lv_obj_t* findLabel(lv_obj_t* obj, const char* text) {
+  if (lv_obj_check_type(obj, &lv_label_class) && std::strcmp(lv_label_get_text(obj), text) == 0) return obj;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+    if (lv_obj_t* f = findLabel(lv_obj_get_child(obj, static_cast<int32_t>(i)), text)) return f;
+  }
+  return nullptr;
+}
+
 bool hasLabel(lv_obj_t* obj, const char* needle) {
   if (lv_obj_check_type(obj, &lv_label_class) && std::strstr(lv_label_get_text(obj), needle) != nullptr) return true;
   for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
@@ -290,6 +299,87 @@ std::string readFile(const std::string& path) {
 }  // namespace
 
 /** Serves the phone page on http://localhost:8080 in real time: --web. */
+/** Saved places, find an aircraft, the logbook and its first-time alert, the daily log's hours. */
+bool placesFindLogbookScenes(sim::FakeTraffic& traffic, const std::string& p) {
+    auto& st = app::settings();
+    ui::RadarView& rv = ui::RadarView::get();
+    rv.goHome(false);
+    run(500);
+    std::vector<std::string> problems;
+    app::applySettingsText("place1 = Cabin, 44.05, -121.31, 15\n", &problems);
+    ui::openSettings(ui::Page::Location);
+    run(600);
+    const bool listed = hasLabel(lv_screen_active(), "Cabin") && hasLabel(lv_screen_active(), "Save the radar's view as a place");
+    shot((p + "80_location_places").c_str());
+    lv_obj_t* row = findLabel(lv_screen_active(), "Cabin");
+    if (row) lv_obj_send_event(lv_obj_get_parent(row), LV_EVENT_CLICKED, nullptr);
+    run(2000);
+    const bool went = !ui::settingsOpen() && core::distanceKm(rv.viewport().center(), {44.05, -121.31}) < 1.0 &&
+                      std::fabs(rv.viewport().radiusKm() - 15.0) < 0.5;
+    std::printf("saved places: listed %s, go there %s\n", listed ? "OK" : "FAILED", went ? "OK" : "FAILED");
+    if (!listed || !went) return false;
+
+    // Find: one on the radar (selected and followed), then one far away (flown to).
+    rv.goHome(false);
+    run(3000);
+    std::vector<core::Track> tracks;
+    app::traffic().snapshot(tracks);
+    std::string target_cs, target_hex;
+    for (const core::Track& t : tracks) {
+      if (t.ac.callsign[0]) {
+        target_cs = t.ac.callsign;
+        target_hex = t.ac.hex;
+        break;
+      }
+    }
+    app::findAircraft(target_cs);
+    run(2500);
+    const core::Track* sel = rv.selected();
+    const bool local = !target_cs.empty() && sel != nullptr && target_hex == sel->ac.hex && rv.following();
+    shot((p + "81_find_local").c_str());
+    rv.clearSelection();
+    rv.goHome(false);
+    run(500);
+    app::findAircraft("sim 42");
+    run(6000);
+    const bool far = core::distanceKm(rv.viewport().center(), {st.home_lat + 1.5, st.home_lon + 1.0}) < 5.0;
+    app::findAircraft("NOPE99");
+    run(6000);
+    const bool none = app::findState().status == app::FindStatus::NotFound;
+    std::printf("find: on the radar (%s) %s, far away %s, not flying %s\n", target_cs.c_str(), local ? "OK" : "FAILED",
+                far ? "OK" : "FAILED", none ? "OK" : "FAILED");
+    if (!local || !far || !none) return false;
+    rv.goHome(false);
+    run(3000);
+
+    // Logbook: a new visitor is announced; the page lists the book.
+    st.first_time_alert = true;
+    traffic.addVisitor("abcdef", "NEW1ST", "B744");
+    bool announced = false;
+    for (int i = 0; i < 40 && !announced; ++i) {
+      run(250);
+      announced = hasLabel(lv_layer_top(), "First time here: NEW1ST") || hasLabel(lv_layer_sys(), "First time here: NEW1ST");
+    }
+    const app::LogbookSummary book = app::logbookSummary(5);
+    const bool booked = book.loaded && !book.learning && book.aircraft > 10;
+    std::printf("logbook (%u aircraft): %s, first-time alert %s\n", static_cast<unsigned>(book.aircraft),
+                booked ? "OK" : "FAILED", announced ? "OK" : "FAILED");
+    if (!booked || !announced) return false;
+    st.first_time_alert = false;
+    run(3000);
+    ui::openSettings(ui::Page::Logbook);
+    run(600);
+    shot((p + "82_logbook").c_str());
+    ui::closeSettings();
+    run(500);
+    ui::openSettings(ui::Page::DayLog);
+    run(800);
+    shot((p + "83_daily_log_hours").c_str());
+    ui::closeSettings();
+    run(300);
+    return true;
+}
+
 /** After frames that only redrew what changed, the screen must match a full redraw. */
 bool partialRedrawChecks() {
     auto& st = app::settings();
@@ -660,13 +750,36 @@ int main(int argc, char** argv) {
   std::remove((std::string(plat::sdRoot()) + "/favorites.txt").c_str());
   // Screenshots are named by the (fixed) simulated time: start without old ones.
   if (std::system(("rm -rf '" + std::string(plat::sdRoot()) + "/screenshots'").c_str()) != 0) return 1;
+  {
+    // A logbook that began ten days ago (so "first time here" isn't still learning).
+    const std::string root = plat::sdRoot();
+    if (std::system(("mkdir -p '" + root + "'").c_str()) != 0) return 1;
+    const int64_t then = plat::unixTimeMs() / 1000 - 10 * 86400;
+    const std::tm t = core::localTime(then);
+    if (FILE* f = std::fopen((root + "/logbook.csv").c_str(), "wb")) {
+      std::fprintf(f, "%s%04d-%02d-%02d,12:00,a00001,OLD1,N1,C172,first,%lld\n", core::logbook::csvHeader(),
+                   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, static_cast<long long>(then));
+      std::fclose(f);
+    }
+  }
   app::init();
   std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
                 plat::firmwareVersion());  // no "What's new" popping up during the scenes
+  app::settings().first_time_alert = false;  // (turned on in its own scene: every fake aircraft is new)
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
   sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
   sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
+  sim::g_find_server = [](const std::string& kind, const std::string& value) -> std::string {
+    // One aircraft far from home, by callsign: SIM42 (anything else isn't flying).
+    if (kind != "callsign" || value != "SIM42") return R"({"ac":[],"msg":"No error"})";
+    const auto& st = app::settings();
+    char buf[256];
+    std::snprintf(buf, sizeof(buf),
+                  R"({"ac":[{"hex":"c0ffee","flight":"SIM42   ","t":"B77W","alt_baro":35000,"gs":480,"track":90,"lat":%.5f,"lon":%.5f}]})",
+                  st.home_lat + 1.5, st.home_lon + 1.0);
+    return buf;
+  };
 
   ui::init(g_disp);
   run(600);
@@ -683,6 +796,7 @@ int main(int argc, char** argv) {
   run(150000);  // 2.5 minutes of traffic so trails build up
   shot((p + "03_radar_home").c_str());
   if (std::getenv("SIM_ONLY_PARTIAL")) return partialRedrawChecks() ? 0 : 1;  // just these checks (debugging)
+  if (std::getenv("SIM_ONLY_PLACES")) return placesFindLogbookScenes(traffic, p) ? 0 : 1;
 
   if (g_size == 800) {
     // Sweep animation frames for a GIF.
@@ -1235,6 +1349,7 @@ int main(int argc, char** argv) {
 
   // Partial redraws: after frames that only redrew what changed, the screen
   // must match a full redraw of the same moment, pixel for pixel.
+  if (!placesFindLogbookScenes(traffic, p)) return 1;
   if (!partialRedrawChecks()) return 1;
 
   // "What's new" once after an update (here: from v1.10.0), and again from About.
@@ -1461,8 +1576,27 @@ int main(int argc, char** argv) {
     ok = ok && r.status == 200 && r.type == "image/png" && r.body.compare(1, 3, "PNG") == 0;
     ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
     const bool shots_ok = ok;
-    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s\n", login_ok ? "OK" : "FAILED",
-                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED");
+    // The daily log's hours and totals, its CSV, the logbook and its CSV, find.
+    r = web("GET", "/api/daylog", "", cookie);
+    bool extra_ok = r.body.find("\"hourly\":[") != std::string::npos;
+    r = web("GET", "/api/daylog.csv", "", cookie);
+    extra_ok = extra_ok && r.status == 200 && r.body.compare(0, 14, "date,aircraft,") == 0 && r.body.find("\n2") != std::string::npos;
+    r = web("GET", "/api/logbook", "", cookie);
+    extra_ok = extra_ok && r.body.find("\"loaded\":true") != std::string::npos && r.body.find("\"frequent\":[{") != std::string::npos;
+    r = web("GET", "/api/logbook.csv", "", cookie);
+    extra_ok = extra_ok && r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos;
+    r = web("POST", "/api/find", "q=SIM42", cookie);
+    extra_ok = extra_ok && r.body.find("\"status\":\"searching\"") != std::string::npos;
+    run(4000);
+    r = web("GET", "/api/find", "", cookie);
+    extra_ok = extra_ok && r.body.find("\"status\":\"found\"") != std::string::npos && r.body.find("c0ffee") != std::string::npos;
+    ui::RadarView::get().clearSelection();
+    ui::RadarView::get().goHome(false);
+    run(2000);
+    ok = ok && extra_ok;
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, logs and find %s\n", login_ok ? "OK" : "FAILED",
+                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
+                extra_ok ? "OK" : "FAILED");
     if (!ok) return 1;
     app::settings().volume = 60;
   }

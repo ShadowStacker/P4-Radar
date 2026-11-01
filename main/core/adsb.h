@@ -17,6 +17,19 @@ std::string buildUrl(DataSource src, double lat, double lon, double radius_km);
 
 const char* sourceName(DataSource src);
 
+/** What a find-an-aircraft query is. */
+enum class FindBy : uint8_t { Callsign, Registration, Hex };
+/**
+ * URL that asks a data source for one aircraft anywhere, by callsign,
+ * registration or ICAO hex (the answer is in the usual {"ac":[...]} form).
+ * `value` is upper-cased and stripped of anything but letters, digits and
+ * '-' (hex is lower-cased). "" if nothing is left.
+ */
+std::string findUrl(DataSource src, FindBy by, const std::string& value);
+
+/** Callsign, registration and hex compared the way people type them: case, spaces and '-' don't matter. */
+bool sameIdent(const char* a, const std::string& typed);
+
 struct ParseOptions {
   bool include_ground = false;
   bool military_only = false;

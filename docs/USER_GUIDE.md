@@ -273,9 +273,14 @@ others).
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
 | Use an airport | Jump home to an airport by ICAO (`KRDM`), IATA (`RDM`) or FAA code (`S39`, `BDN`) | |
 | Home zoom (radius) | How far the view reaches when you press Home, from the center to the edge of the screen | 25 km |
+| Saved places | Up to four more places. Tap one to fly there (at its zoom); **Remove** takes it off the list | |
+| Save the radar's view as a place | Pan and zoom the radar to the spot first, then name it here | |
 
 Home is the center of the range rings and the sweep, and the reference for
-proximity and favorite alerts.
+proximity and favorite alerts. Saved places are just views to jump to: home
+stays where it is. In `settings.txt` (and on the phone page) they're lines like
+`place1 = Cabin, 44.05000, -121.31000, 15` (name, latitude, longitude, zoom
+radius in km); an empty value frees the slot.
 
 ### Display
 
@@ -494,6 +499,16 @@ If you change settings on the screen while no card is inserted and then insert
 one, the radar's settings win and are written to the card. *Factory reset*
 deletes `settings.txt` but keeps `favorites.txt`.
 
+### Find an aircraft
+
+**Settings → Find an aircraft** (or the Favorites tab of the phone page):
+type a callsign (`UAL123`), tail number (`N123AB`, `PH-BXA`) or hex code. If
+it's on the radar, it's selected and followed. If not, the radar asks the
+data source where it is anywhere in the world, flies there and picks it up as
+soon as the traffic for that area arrives. Spaces, dashes and upper or lower
+case don't matter. *isn't flying now* means the data source doesn't see it
+(on the ground, or not sending a position).
+
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.
@@ -642,10 +657,35 @@ aircraft, how many were **military** or squawked an **emergency**, and which
 within** (default 25 mi) of home count, and only while the radar is showing
 the area around home (it only receives traffic for the area on screen).
 
+**Today by hour** shows how many different aircraft came by in each hour of
+the day, as bars; the busiest hour is the bright one.
+
 With an SD card, each day is saved as `log/YYYY-MM-DD.txt` (readable on a
 computer), the count carries on after a restart, and **Earlier days** lists
-the last week. The count needs the time from the internet to know when a day
-starts.
+the last week. **Last 7 days** and **Last 30 days** add the days up: different
+aircraft over the whole period (each counted once), the average a day, the
+busiest day and hour, and for the week the hours as bars. The phone page's
+Daily log tab shows the same, and **Download daily counts** saves the last 90
+days as a spreadsheet file (one line a day, with the 24 hourly counts). The
+count needs the time from the internet to know when a day starts.
+
+#### Logbook
+
+With an SD card, the radar also keeps a **logbook** of every aircraft ever
+seen near home (within the same distance as the daily log), in
+`logbook.csv`: one line per **visit** (an aircraft seen again after half an
+hour away is a new visit), with the date, time, hex code, callsign,
+registration and type. It opens in any spreadsheet. The **Logbook** page
+(from Daily log) shows how many different aircraft and visits it holds, the
+most frequent visitors and the newest ones; the phone page shows the same and
+downloads the file.
+
+**First time here.** When an aircraft the logbook has never seen comes by,
+the radar says *First time here: N123AB (B738)*, with its own sound. Turn
+either off on the Logbook page (or `first_time_alert` / `sound_first_time` in
+`settings.txt`). For the first two days of a new logbook everything is new, so
+the announcements only start after that. Silenced aircraft are never
+announced.
 
 ### Updates
 

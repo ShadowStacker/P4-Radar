@@ -30,6 +30,7 @@ extern std::function<std::string(const std::string&)> g_trace_server;
 
 /** Answers adsbdb aircraft lookups (hex -> JSON, "" = 404). */
 extern std::function<std::string(const std::string&)> g_route_server;
+extern std::function<std::string(const std::string& kind, const std::string& value)> g_find_server;  // feed lookups by callsign/reg/hex
 
 /** The fake GitHub reports a newer release (v1.13.0) instead of the running one. */
 extern bool g_update_available;

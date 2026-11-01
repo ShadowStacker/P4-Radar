@@ -403,8 +403,37 @@ void updateStats() {
   s_stats_gap_ms = 0;
 }
 
+/** Find an aircraft: follows the search (app::findAircraft) and flies to what it finds. */
+void updateFind() {
+  static uint32_t s_version = 0;
+  const app::FindState f = app::findState();
+  if (f.version == s_version) return;
+  s_version = f.version;
+  switch (f.status) {
+    case app::FindStatus::Searching:
+      toast((std::string(LV_SYMBOL_EYE_OPEN "  Looking for ") + f.query + "...").c_str(), 4000);
+      break;
+    case app::FindStatus::Found: {
+      if (settingsOpen()) closeSettings();
+      RadarView& rv = RadarView::get();
+      rv.goTo(f.where, std::min(rv.viewport().radiusKm(), 60.0));
+      rv.selectWhenSeen(f.hex);
+      toast((std::string(LV_SYMBOL_OK "  Found ") + f.label).c_str(), 2500);
+      break;
+    }
+    case app::FindStatus::NotFound:
+      toast((std::string(LV_SYMBOL_WARNING "  ") + f.query + " isn't flying now (or not sending a position)").c_str(), 4000);
+      break;
+    case app::FindStatus::Failed:
+      toast(LV_SYMBOL_WARNING "  Couldn't look it up (no internet?)", 3000);
+      break;
+    case app::FindStatus::Idle: break;
+  }
+}
+
 void onAppTimer(lv_timer_t*) {
   logHealth();
+  updateFind();
   updateStats();
   announceWifi();
   updateSleepLayer();
