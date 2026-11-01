@@ -554,6 +554,8 @@ The page has tabs for:
   (saved for later, or connect now), move up, forget.
 - **Daily log**: today and the past week.
 - **Screenshots**: take one, and view or download the saved ones.
+- **System**: [backup and restore](#backup-and-restore), the
+  [system log](#system-log) and the last crash, if there was one.
 - **Update**: install a firmware file (the one that ends in `-ota.bin`). The
   radar checks the file first. It refuses the full USB image and files for
   another board, shows the same progress screen as an update from GitHub, then
@@ -600,6 +602,29 @@ option that does the same), or use the radar's hotspot (above). If visits are co
 doesn't show, send the serial log; every request is logged as
 `web: GET / from 192.168.1.23`.
 
+#### Backup and restore
+
+**Download a backup** on the System tab saves one text file with everything
+you've set up: all settings (with the saved Wi-Fi networks and their
+passwords), favorites and silenced aircraft. **Restore** reads such a file
+back, on the same radar or a new one; the radar confirms what it restored.
+Keep the file private, since it holds your Wi-Fi passwords. It's plain text in
+the same form as `settings.txt` and `favorites.txt`, so you can also look
+into it or edit it on a computer.
+
+#### System log
+
+Everything the radar prints on its serial port also goes into its system log,
+with the time in front of each line. The System tab shows the latest part
+(**Save** downloads it), so a problem can be looked into without a USB cable.
+With an SD card, the log is also written to `log/system.log` once a minute;
+past 512 KB it moves to `log/system.1.log` and a new one starts.
+
+If the radar restarted because of a crash or watchdog, the System tab shows
+**Last crash**: the last lines it printed before, kept in memory that survives
+the restart. With a card they're also saved as `log/crash-N.log` (N counts
+the starts). That's the most useful thing to attach to a bug report.
+
 | Option | What it does | Default |
 |---|---|---|
 | QR code | Opens the page on a phone | |
@@ -642,12 +667,22 @@ starts.
 | Feed | Aircraft count and seconds since the last successful update, or the last error |
 | Free memory | Internal RAM and PSRAM free (useful for bug reports) |
 | Running for | Time since the radar started |
-| Last restart | Why it last started: power on, restarted by the radar, reset button, or a problem (crash, watchdog, power dip) |
+| Last restart | Why it last started: power on, restarted by the radar, reset button, a fresh start at night (see below), or a problem (crash, watchdog, power dip) |
 | Starts | How many times it has started, and how many of those were unexpected (crashes, watchdogs, power dips) |
+| Fresh starts (memory) | How many times the memory watch restarted the radar (only shown once it has) |
 | On-screen stats | Small live numbers in the lower left, see below. Off by default. |
 | What's new | The notes for this version and the two before it. They're also shown once, by themselves, after an update. |
-| Restart | Reboot the device |
+| Restart | Reboot the device (after saving today's log and the system log to the card) |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
+
+**Memory watch.** The radar checks its free memory once a minute. If it stays
+unusually low for half an hour (a leak, or memory too broken up into small
+pieces), it starts afresh at the next quiet moment: between 3 and 5 AM, when
+nobody has touched it or used the phone page for 15 minutes, no alarm is
+ringing or due within half an hour, and no update is running. Today's log and
+the system log are saved first, and at night it goes straight back to sleep
+(or night dimming). The serial log and system log say `memory: low ...` when
+it starts counting.
 
 **On-screen stats**, line by line (times are per frame, averaged over the last second):
 
@@ -655,7 +690,7 @@ starts.
 |---|---|
 | `30 fps, frame 9.2 ms (max 14), 35% redrawn` | Frames drawn per second; time per frame, and the slowest one; how much of the screen each frame redraws (only what changed is redrawn) |
 | `draw 6.1 + panel 3.1 ms (rotate 1.4)` | The frame split into drawing the picture and handing it to the screen (turning it for the screen's orientation, then copying it) |
-| `radar 2.3 ms, background 12 ms (1)` | The radar's own drawing (sweep, aircraft, labels), and rebuilding its background layer (map, rings, trails) in the last second, with how many times |
+| `radar 2.3 ms, background 12 ms (1), rest 80%` | The radar's own drawing (sweep, aircraft, labels), and rebuilding its background layer (map, rings, trails) in the last second, with how many times; *rest* is the share of radar frames with nothing to redraw at all (with the sweep off). Aircraft that haven't moved by a whole pixel are never redrawn, so *redrawn* drops too |
 | `CPU 23% net, 41% UI` | How busy each processor core is |
 | `RAM ... PSRAM ...` | Free memory (and the lowest it has been) |
 | `16 aircraft (decode 9 ms), -54 dBm` | Aircraft shown, time to decode the last traffic update, Wi-Fi signal |

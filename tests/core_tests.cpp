@@ -14,6 +14,8 @@
 
 #include "core/adsb.h"
 #include "core/backup.h"
+#include "core/logbook.h"
+#include "core/memwatch.h"
 #include "core/syslog.h"
 #include "adsb_reference.h"
 #include "core/clock.h"
@@ -544,6 +546,128 @@ void testBackup() {
   CHECK(!core::backup::split("# Plane Radar backup\nnothing", &back));
   CHECK(text.size() < 32 * 1024);  // fits a phone page request read in one go
   std::printf("  backup file: %zu bytes\n", text.size());
+}
+
+void testMemWatch() {
+  namespace mw = core::memwatch;
+  mw::Watch w;
+  const mw::Sample ok{100 * 1024, 60 * 1024, 4 * 1024 * 1024};
+  const mw::Sample low_ram{8 * 1024, 4 * 1024, 4 * 1024 * 1024};
+  const mw::Sample frag{40 * 1024, 2 * 1024, 4 * 1024 * 1024};
+  const mw::Sample psram{40 * 1024, 20 * 1024, 100 * 1024};
+  for (int i = 0; i < 100; ++i) w.add(ok);
+  CHECK(!w.due());
+  for (int i = 0; i < mw::kLowSamples - 1; ++i) w.add(low_ram);
+  CHECK(!w.due() && std::strcmp(w.reason(), "RAM") == 0);
+  w.add(ok);  // recovered: the count starts over
+  CHECK(w.lowRun() == 0);
+  for (int i = 0; i < mw::kLowSamples; ++i) w.add(i % 2 ? frag : psram);  // any kind of low counts
+  CHECK(w.due());
+
+  core::Alarm alarms[core::kMaxAlarms];
+  mw::Moment m;
+  m.time_valid = true;
+  m.local.tm_hour = 3;
+  m.local.tm_min = 30;
+  m.local.tm_wday = 2;  // Tuesday
+  m.idle_ms = 20 * 60 * 1000;
+  m.alarms = alarms;
+  m.alarm_count = core::kMaxAlarms;
+  CHECK(mw::restartAllowed(m));
+  m.local.tm_hour = 5;
+  m.local.tm_min = 0;
+  CHECK(!mw::restartAllowed(m));  // window over
+  m.local.tm_hour = 2;
+  m.local.tm_min = 59;
+  CHECK(!mw::restartAllowed(m));
+  m.local.tm_hour = 4;
+  m.local.tm_min = 10;
+  m.idle_ms = 5 * 60 * 1000;
+  CHECK(!mw::restartAllowed(m));  // someone used it lately
+  m.idle_ms = 20 * 60 * 1000;
+  m.time_valid = false;
+  CHECK(!mw::restartAllowed(m));
+  m.time_valid = true;
+  m.updating = true;
+  CHECK(!mw::restartAllowed(m));
+  m.updating = false;
+  m.alarm_active = true;
+  CHECK(!mw::restartAllowed(m));
+  m.alarm_active = false;
+  // An alarm at 4:30 on weekdays: not from 4:00, fine again after it.
+  alarms[0].enabled = true;
+  alarms[0].hour = 4;
+  alarms[0].minute = 30;
+  alarms[0].days = 0x3E;
+  CHECK(!mw::restartAllowed(m));
+  m.local.tm_hour = 3;
+  m.local.tm_min = 59;
+  CHECK(mw::restartAllowed(m));
+  m.local.tm_wday = 6;  // Saturday: the alarm is off
+  m.local.tm_hour = 4;
+  m.local.tm_min = 10;
+  CHECK(mw::restartAllowed(m));
+  alarms[0].enabled = false;
+}
+
+void testLogbook() {
+  namespace lb = core::logbook;
+  CHECK(lb::parseHex("a1B2c3") == 0xa1b2c3 && lb::parseHex("~a1b2c") == 0 && lb::parseHex("abc") == 0);
+  CHECK(lb::addDays(20261101, 2) == 20261103 && lb::addDays(20261231, 1) == 20270101 &&
+        lb::addDays(20240301, -1) == 20240229 && lb::addDays(20261101, -365) == 20251101);
+
+  auto ac = [](const char* hex, const char* cs, const char* type) {
+    core::Aircraft a;
+    std::snprintf(a.hex, sizeof(a.hex), "%s", hex);
+    std::snprintf(a.callsign, sizeof(a.callsign), "%s", cs);
+    std::snprintf(a.type, sizeof(a.type), "%s", type);
+    return a;
+  };
+  lb::Book book;
+  const int64_t t0 = 1761955200;  // 2025-11-01 00:00 UTC
+  std::string csv;
+  auto firsts = book.observe({ac("a1b2c3", "KLM12", "B738"), ac("~00001", "TISB", "")}, t0, 20261101, 900, &csv);
+  CHECK(firsts.size() == 1 && firsts[0].hex == 0xa1b2c3 && book.aircraft() == 1 && book.visits() == 1);
+  CHECK(csv == "2026-11-01,09:00,a1b2c3,KLM12,,B738,first,1761955200\n");
+  CHECK(book.learning(20261101) && book.learning(20261102) && !book.learning(20261103));
+  // Still around a minute later: same visit. Back after an hour: a new one.
+  csv.clear();
+  firsts = book.observe({ac("a1b2c3", "KLM12", "B738")}, t0 + 60, 20261101, 901, &csv);
+  CHECK(firsts.empty() && csv.empty() && book.visits() == 1);
+  firsts = book.observe({ac("a1b2c3", "KLM34", "B738"), ac("3c6444", "DLH4", "A20N")}, t0 + 3700, 20261101, 1001, &csv);
+  CHECK(firsts.size() == 1 && book.visits() == 3 && book.aircraft() == 2);
+  CHECK(csv.find(",again,") != std::string::npos && csv.find("3c6444,DLH4,,A20N,first") != std::string::npos);
+  const lb::Entry* e = book.find(0xa1b2c3);
+  CHECK(e && e->visits == 2 && std::strcmp(e->label, "KLM34") == 0 && e->first_date == 20261101);
+  // Many aircraft: the index stays right across merges.
+  for (int i = 0; i < 1000; ++i) {
+    char hex[8];
+    std::snprintf(hex, sizeof(hex), "%06x", 0x100000 + i * 7);
+    book.observe({ac(hex, "X", "C172")}, t0 + 4000 + i, 20261102, 1200, nullptr);
+  }
+  CHECK(book.aircraft() == 1002 && book.find(0x100000 + 999 * 7) != nullptr && book.find(0x100001) == nullptr);
+  CHECK(book.frequent(1).size() == 1 && book.frequent(1)[0].hex == 0xa1b2c3);
+  CHECK(book.newest(2).size() == 2 && book.newest(2)[0].hex == 0x100000 + 999 * 7);
+
+  // Rebuilt from the file: the same totals.
+  std::string file = std::string(lb::csvHeader()) + csv;
+  lb::Book again;
+  size_t start = 0;
+  while (start < file.size()) {
+    size_t end = file.find('\n', start);
+    if (end == std::string::npos) end = file.size();
+    again.loadLine(file.substr(start, end - start));
+    start = end + 1;
+  }
+  again.loadLine("garbage line");
+  again.loaded();
+  CHECK(again.aircraft() == 2 && again.visits() == 2 && again.startDate() == 20261101);
+  const lb::Entry* r = again.find(0xa1b2c3);
+  CHECK(r && r->visits == 1 && std::strcmp(r->label, "KLM34") == 0);  // the first line came before this csv
+  // Seen again soon after a restart: not a new visit.
+  csv.clear();
+  again.observe({ac("3c6444", "DLH4", "A20N")}, t0 + 3800, 20261101, 1003, &csv);
+  CHECK(csv.empty());
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -1858,6 +1982,8 @@ int main() {
   testAdsbStreaming();
   testSyslog();
   testBackup();
+  testMemWatch();
+  testLogbook();
   testTraffic();
   testFavorites();
   testFilters();

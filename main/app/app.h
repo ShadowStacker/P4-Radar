@@ -226,6 +226,12 @@ std::vector<std::string> screenshots();
 /** Full path of a screenshot file, or "" if the name isn't one. */
 std::string screenshotPath(const std::string& name);
 
+/**
+ * UI task: restarts in a moment, once the day log and system log are on the
+ * card. `fresh`: a planned fresh start (the memory watch), shown as such.
+ */
+void restartSoon(bool fresh = false);
+
 // --- Backup (UI task) -------------------------------------------------------------------
 /** Settings (with Wi-Fi), favorites and silenced aircraft in one text file. */
 std::string backupText();

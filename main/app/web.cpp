@@ -506,8 +506,8 @@ void service() {
     std::printf("web: phone page stopped\n");
   }
   if (s_restart_at_ms != 0 && static_cast<int32_t>(plat::millis() - s_restart_at_ms) >= 0) {
-    settingsFlush();
-    plat::restart();
+    s_restart_at_ms = 0;
+    restartSoon();
   }
 }
 

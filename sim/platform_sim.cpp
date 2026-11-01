@@ -379,6 +379,16 @@ void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }
 size_t freePsram() { return 28 * 1024 * 1024; }
+MemoryInfo memoryInfo() {
+  MemoryInfo m;
+  const bool low = std::getenv("SIM_LOW_MEM") != nullptr;
+  m.ram_free = low ? 9 * 1024 : 412 * 1024;
+  m.ram_largest = low ? 3 * 1024 : 280 * 1024;
+  m.psram_free = 28 * 1024 * 1024;
+  m.psram_largest = 20 * 1024 * 1024;
+  return m;
+}
+void restartFresh() { std::printf("[sim] fresh start requested\n"); }
 Health sampleHealth(int) {
   Health h;
   h.cpu[0] = 23;

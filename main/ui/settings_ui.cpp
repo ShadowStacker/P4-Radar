@@ -1495,22 +1495,21 @@ void pageAbout() {
   infoRow("Last restart", boot.reset_reason);
   infoRow("Starts", fmtStr("%u (%u unexpected)", static_cast<unsigned>(boot.boots),
                            static_cast<unsigned>(boot.unexpected_resets)));
+  if (boot.refreshes > 0) infoRow("Fresh starts (memory)", fmtStr("%u", static_cast<unsigned>(boot.refreshes)));
   switchRow("On-screen stats", &app::settings().show_stats);
   lv_obj_t* note = label(s.list,
                          "Unexpected restarts are crashes, watchdog resets and power dips. On-screen stats show "
                          "frame rate, CPU, memory and more in the lower left corner.\n"
                          "Power-cycling three times in a row within 20 seconds of starting goes back to the "
-                         "previously installed version.",
+                         "previously installed version. If memory stays low for half an hour, the radar starts "
+                         "afresh between 3 and 5 AM while nobody is using it.",
                          font(FontSize::S), pal().text_dim);
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_pad_left(note, sc(16), 0);
 
   section("MAINTENANCE");
-  actionRow(LV_SYMBOL_REFRESH, "Restart", [] {
-    app::settingsFlush();
-    plat::restart();
-  }, pal().text);
+  actionRow(LV_SYMBOL_REFRESH, "Restart", [] { app::restartSoon(); }, pal().text);
   actionRow(LV_SYMBOL_TRASH, "Factory reset", [] {
     confirm("Factory reset?",
             "Erases Wi-Fi, location and all settings (also settings.txt on the SD card), then restarts. "

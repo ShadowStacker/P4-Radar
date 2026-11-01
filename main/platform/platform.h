@@ -214,6 +214,19 @@ WebStats webStats();
 size_t freeInternalHeap();
 size_t freePsram();
 
+/** Free memory now (cheap to ask). */
+struct MemoryInfo {
+  size_t ram_free = 0, ram_largest = 0;      // internal RAM: free, largest free block
+  size_t psram_free = 0, psram_largest = 0;
+};
+MemoryInfo memoryInfo();
+
+/**
+ * Restarts for a fresh start (the memory watch, at night): the next start
+ * says so in BootInfo, and it's counted.
+ */
+void restartFresh();
+
 /** Memory and CPU use, for the serial log and the on-screen stats. */
 struct Health {
   int cpu[2] = {-1, -1};  // % busy per core since the previous sample in the same slot; -1 = unknown
@@ -243,6 +256,8 @@ struct BootInfo {
   uint32_t boots = 0;              // starts counted since the last factory reset
   uint32_t unexpected_resets = 0;  // of which crashes, watchdogs or power dips
   char rolled_back_from[32] = "";  // version left after three quick restarts ("" = none)
+  bool refreshed = false;          // this start was a planned fresh start (restartFresh())
+  uint32_t refreshes = 0;          // fresh starts the memory watch asked for, ever
 };
 BootInfo bootInfo();
 /**

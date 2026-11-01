@@ -29,6 +29,7 @@
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
 #include "core/lookup_cache.h"
+#include "core/memwatch.h"
 #include "core/png.h"
 #include "core/sun.h"
 #include "core/syslog.h"
@@ -284,6 +285,26 @@ bool serviceSystemLog() {
   if (f == nullptr) return wrote;
   std::fwrite(text.data(), 1, text.size(), f);
   std::fclose(f);
+  return true;
+}
+
+// Before a restart: the day log and system log go to the card first.
+std::atomic<bool> s_flush_now{false};
+std::atomic<bool> s_flushed{false};
+
+/** Network task: saves what's only in RAM when a restart is coming. True if it did. */
+bool serviceRestartFlush() {
+  if (!s_flush_now.load() || s_flushed.load()) return false;
+  core::daylog::Day copy;
+  {
+    std::lock_guard<std::mutex> lock(s_day_mu);
+    copy = s_day;
+    s_day_dirty = false;
+  }
+  saveDay(copy);
+  s_log_saved_ms = plat::millis() - kLogSaveEveryMs;
+  serviceSystemLog();
+  s_flushed = true;
   return true;
 }
 
@@ -954,6 +975,63 @@ bool serviceSdFiles() {
   return true;
 }
 
+namespace {
+
+core::memwatch::Watch s_mem_watch;
+uint32_t s_restart_requested_ms = 0;  // UI task: restarting once the card is written (0 = not)
+bool s_restart_fresh = false;
+
+/** UI task: once a minute, how much memory is left; a fresh start at night if it stays low. */
+void serviceMemoryWatch(uint32_t now_ms) {
+  if (s_restart_requested_ms != 0) {
+    if (s_flushed.load() || now_ms - s_restart_requested_ms > 10000) {
+      settingsFlush();
+      s_restart_requested_ms = 0;  // (the simulator carries on)
+      s_flush_now = false;
+      if (s_restart_fresh) plat::restartFresh();
+      else plat::restart();
+    }
+    return;
+  }
+  static uint32_t s_sample_ms = 0;
+  if (now_ms - s_sample_ms < 60000) return;
+  s_sample_ms = now_ms;
+  const plat::MemoryInfo m = plat::memoryInfo();
+  const bool was_due = s_mem_watch.due();
+  s_mem_watch.add({m.ram_free, m.ram_largest, m.psram_largest});
+  if (s_mem_watch.lowRun() == 1) {
+    std::printf("memory: low (%s): RAM %u KB free, largest block %u KB, PSRAM largest %u KB\n", s_mem_watch.reason(),
+                static_cast<unsigned>(m.ram_free / 1024), static_cast<unsigned>(m.ram_largest / 1024),
+                static_cast<unsigned>(m.psram_largest / 1024));
+  }
+  if (!s_mem_watch.due()) return;
+  if (!was_due) std::printf("memory: low for %d minutes; a fresh start is due at night\n", core::memwatch::kLowSamples);
+  core::memwatch::Moment mo;
+  mo.time_valid = plat::timeValid();
+  if (mo.time_valid) mo.local = core::localTime(plat::unixTimeMs() / 1000);
+  const plat::WebStats ws = plat::webStats();
+  uint32_t idle = now_ms - s_last_activity;
+  if (ws.last_ms != 0) idle = std::min(idle, now_ms - ws.last_ms);
+  mo.idle_ms = idle;
+  mo.alarm_active = s_ringing >= 0 || s_snoozed >= 0;
+  mo.updating = updating();
+  mo.alarms = s_settings.alarms;
+  mo.alarm_count = core::kMaxAlarms;
+  if (!core::memwatch::restartAllowed(mo)) return;
+  std::printf("memory: fresh start now (%s low for %d minutes)\n", s_mem_watch.reason(), s_mem_watch.lowRun());
+  restartSoon(true);
+}
+
+}  // namespace
+
+void restartSoon(bool fresh) {
+  if (s_restart_requested_ms != 0) return;
+  s_restart_fresh = fresh;
+  s_restart_requested_ms = plat::millis() | 1;
+  s_flushed = false;
+  s_flush_now = true;
+}
+
 void tick(uint32_t now_ms) {
   // A fresh update has run a minute without crashing: keep it (otherwise the
   // next reset goes back to the previous version).
@@ -979,7 +1057,9 @@ void tick(uint32_t now_ms) {
     s_night_check_ms = now_ms;
     const int night = isNight() ? 1 : 0;
     if (night != s_night) {
-      const bool first = s_night < 0;  // just started: don't put it to sleep under someone's fingers
+      // Just started: don't put it to sleep under someone's fingers (unless
+      // this is the memory watch's fresh start, in the middle of the night).
+      const bool first = s_night < 0 && !plat::bootInfo().refreshed;
       s_night = night;
       if (s_settings.night_sleep && night && !first && !s_sleeping) {
         setSleeping(true);
@@ -997,6 +1077,7 @@ void tick(uint32_t now_ms) {
     }
   }
   checkAlarms(now_ms);
+  serviceMemoryWatch(now_ms);
   if (s_dirty && !s_menu_open.load() && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
@@ -1136,7 +1217,7 @@ std::string logFilePath(const std::string& name) {
 }
 
 bool serviceCardWork() {
-  return serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
+  return serviceRestartFlush() || serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
 }
 
 void timeZoneChanged() {

@@ -290,6 +290,97 @@ std::string readFile(const std::string& path) {
 }  // namespace
 
 /** Serves the phone page on http://localhost:8080 in real time: --web. */
+/** After frames that only redrew what changed, the screen must match a full redraw. */
+bool partialRedrawChecks() {
+    auto& st = app::settings();
+    auto check = [&](const char* what) {
+      const std::vector<uint16_t> partial = g_fb;
+      lv_obj_invalidate(lv_screen_active());
+      lv_refr_now(g_disp);
+      size_t diff = 0;
+      int fx = -1, fy = -1;
+      for (size_t i = 0; i < g_fb.size(); ++i) {
+        if (g_fb[i] != partial[i]) {
+          if (diff++ == 0) {
+            fx = static_cast<int>(i % g_size);
+            fy = static_cast<int>(i / g_size);
+          }
+        }
+      }
+      // A few pixels may differ where a dirty area's edge cuts through a
+      // letter (LVGL 9.4 rounds glyph edges a little differently per area);
+      // anything missed for real is far more than that.
+      constexpr size_t kGlyphEdgeTolerance = 8;
+      const bool ok = diff <= kGlyphEdgeTolerance;
+      std::printf("partial redraw (%s): %s", what, ok ? "OK" : "FAILED");
+      if (ok && diff) std::printf(" (%zu glyph-edge pixels)\n", diff);
+      else if (ok) std::printf("\n");
+      if (diff && std::getenv("SIM_DIFF_DUMP")) {
+        const std::vector<uint16_t> full = g_fb;
+        g_fb = partial;
+        writePng(sim::g_out_dir + "/diff_partial.png");
+        g_fb = full;
+        writePng(sim::g_out_dir + "/diff_full.png");
+      }
+      if (!ok) {
+        std::printf(" - %zu pixels differ, first at %d,%d (%04x partial, %04x full)\n", diff, fx, fy,
+                    partial[static_cast<size_t>(fy) * g_size + fx], g_fb[static_cast<size_t>(fy) * g_size + fx]);
+      }
+      return ok;
+    };
+    ui::RadarView::get().clearSelection();
+    lv_display_trigger_activity(nullptr);
+    bool ok = true;
+    st.sweep_enabled = true;
+    run(3000);
+    ok &= check("sweep");
+    st.sweep_trail_deg = 0;
+    ui::RadarView::get().markStaticDirty();
+    run(2000);
+    ok &= check("clean bar");
+    st.sweep_trail_deg = 70;
+    st.sweep_enabled = false;
+    run(6000);  // traffic moves on, a fetch arrives
+    ok &= check("no sweep");
+    st.clock_mode = true;
+    st.clock_smooth_seconds = true;
+    ui::RadarView::get().markStaticDirty();
+    run(2500);
+    ok &= check("clock");
+    st.clock_mode = false;
+    st.clock_smooth_seconds = false;
+    st.sweep_enabled = true;
+    st.sweep_reveal = true;
+    ui::RadarView::get().markStaticDirty();
+    run(3000);
+    ok &= check("echoes fade");
+    st.sweep_reveal = false;
+    int x = 0, y = 0;
+    if (findAircraftOnScreen(&x, &y)) {
+      tap(x, y);
+      run(2000);
+      ok &= check("selected aircraft");
+      ui::RadarView::get().clearSelection();
+    }
+    // Resting: zoomed out, traffic hardly moves a pixel between frames, so
+    // most frames redraw nothing - and the screen still matches a full redraw.
+    st.sweep_enabled = false;
+    ui::RadarView::get().markStaticDirty();
+    run(1000);
+    const uint32_t f0 = ui::RadarView::get().totals().frames, r0 = ui::RadarView::get().totals().rested;
+    run(8000);
+    const uint32_t frames = ui::RadarView::get().totals().frames - f0;
+    const uint32_t rested = ui::RadarView::get().totals().rested - r0;
+    const bool rests = frames > 0 && rested > 0;
+    std::printf("resting: %u of %u frames redrew nothing: %s\n", static_cast<unsigned>(rested),
+                static_cast<unsigned>(frames), rests ? "OK" : "FAILED");
+    ok &= rests && check("after resting");
+    st.sweep_enabled = true;
+    ui::RadarView::get().markStaticDirty();
+    run(500);
+    return ok;
+  }
+
 int runWeb() {
   sim::g_preset_wifi = true;
   setenv("SIM_WEB", "1", 1);
@@ -591,6 +682,7 @@ int main(int argc, char** argv) {
   ui::closeSettings();
   run(150000);  // 2.5 minutes of traffic so trails build up
   shot((p + "03_radar_home").c_str());
+  if (std::getenv("SIM_ONLY_PARTIAL")) return partialRedrawChecks() ? 0 : 1;  // just these checks (debugging)
 
   if (g_size == 800) {
     // Sweep animation frames for a GIF.
@@ -1143,81 +1235,7 @@ int main(int argc, char** argv) {
 
   // Partial redraws: after frames that only redrew what changed, the screen
   // must match a full redraw of the same moment, pixel for pixel.
-  {
-    auto& st = app::settings();
-    auto check = [&](const char* what) {
-      const std::vector<uint16_t> partial = g_fb;
-      lv_obj_invalidate(lv_screen_active());
-      lv_refr_now(g_disp);
-      size_t diff = 0;
-      int fx = -1, fy = -1;
-      for (size_t i = 0; i < g_fb.size(); ++i) {
-        if (g_fb[i] != partial[i]) {
-          if (diff++ == 0) {
-            fx = static_cast<int>(i % g_size);
-            fy = static_cast<int>(i / g_size);
-          }
-        }
-      }
-      // A few pixels may differ where a dirty area's edge cuts through a
-      // letter (LVGL 9.4 rounds glyph edges a little differently per area);
-      // anything missed for real is far more than that.
-      constexpr size_t kGlyphEdgeTolerance = 8;
-      const bool ok = diff <= kGlyphEdgeTolerance;
-      std::printf("partial redraw (%s): %s", what, ok ? "OK" : "FAILED");
-      if (ok && diff) std::printf(" (%zu glyph-edge pixels)\n", diff);
-      else if (ok) std::printf("\n");
-      if (diff && std::getenv("SIM_DIFF_DUMP")) {
-        const std::vector<uint16_t> full = g_fb;
-        g_fb = partial;
-        writePng(sim::g_out_dir + "/diff_partial.png");
-        g_fb = full;
-        writePng(sim::g_out_dir + "/diff_full.png");
-      }
-      if (!ok) {
-        std::printf(" - %zu pixels differ, first at %d,%d (%04x partial, %04x full)\n", diff, fx, fy,
-                    partial[static_cast<size_t>(fy) * g_size + fx], g_fb[static_cast<size_t>(fy) * g_size + fx]);
-      }
-      return ok;
-    };
-    ui::RadarView::get().clearSelection();
-    lv_display_trigger_activity(nullptr);
-    bool ok = true;
-    st.sweep_enabled = true;
-    run(3000);
-    ok &= check("sweep");
-    st.sweep_trail_deg = 0;
-    ui::RadarView::get().markStaticDirty();
-    run(2000);
-    ok &= check("clean bar");
-    st.sweep_trail_deg = 70;
-    st.sweep_enabled = false;
-    run(6000);  // traffic moves on, a fetch arrives
-    ok &= check("no sweep");
-    st.clock_mode = true;
-    st.clock_smooth_seconds = true;
-    ui::RadarView::get().markStaticDirty();
-    run(2500);
-    ok &= check("clock");
-    st.clock_mode = false;
-    st.clock_smooth_seconds = false;
-    st.sweep_enabled = true;
-    st.sweep_reveal = true;
-    ui::RadarView::get().markStaticDirty();
-    run(3000);
-    ok &= check("echoes fade");
-    st.sweep_reveal = false;
-    int x = 0, y = 0;
-    if (findAircraftOnScreen(&x, &y)) {
-      tap(x, y);
-      run(2000);
-      ok &= check("selected aircraft");
-      ui::RadarView::get().clearSelection();
-    }
-    ui::RadarView::get().markStaticDirty();
-    run(500);
-    if (!ok) return 1;
-  }
+  if (!partialRedrawChecks()) return 1;
 
   // "What's new" once after an update (here: from v1.10.0), and again from About.
   {

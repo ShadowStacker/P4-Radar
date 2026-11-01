@@ -10,6 +10,32 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.23.0] - 2026-11-01
+
+### Added
+- **System log.** Everything the radar prints is kept, with the time, on the
+  new **System** tab of the phone page (and can be saved from there). With an
+  SD card it's written to `log/system.log` once a minute.
+- **Crash log.** After a crash or watchdog restart, the last lines printed
+  before it are shown on the System tab and saved as `log/crash-N.log`.
+- **Backup and restore.** The System tab downloads one file with all
+  settings, saved Wi-Fi networks, favorites and silenced aircraft, and
+  restores it on the same radar or a new one.
+- **Memory watch.** If free memory stays very low for half an hour, the radar
+  starts afresh at night (3-5 AM, while nobody uses it and no alarm is due)
+  and goes straight back to sleep. About counts these fresh starts.
+
+### Changed
+- **Less redrawing when little moves.** Aircraft are drawn at whole pixels,
+  and only those that moved by a pixel (or whose label changed) are redrawn;
+  the rest of the radar is left alone. With the sweep off and nothing moving,
+  a frame redraws nothing at all; the on-screen stats show how often (*rest*).
+- **Faster traffic decoding.** A new decoder reads the feed in one pass
+  instead of building a tree of every value first: about four times faster on
+  a busy area, with exactly the same results.
+- **Restarting saves first.** Restart (in About or on the phone page) writes
+  today's log and the system log to the card before restarting.
+
 ## [v1.22.1] - 2026-11-01
 
 ### Changed

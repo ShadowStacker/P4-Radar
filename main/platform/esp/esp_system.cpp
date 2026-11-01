@@ -65,6 +65,15 @@ size_t freeInternalHeap() { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 
 size_t freePsram() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM); }
 
+MemoryInfo memoryInfo() {
+  MemoryInfo m;
+  m.ram_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  m.ram_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  m.psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  m.psram_largest = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  return m;
+}
+
 Health sampleHealth(int slot) {
   Health h;
   h.ram_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);

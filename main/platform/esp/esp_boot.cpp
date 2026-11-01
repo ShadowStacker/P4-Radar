@@ -56,6 +56,16 @@ void bootCheck() {
   nvs_handle_t h;
   if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) return;
   s_info.boots = getU32(h, "boots") + 1;
+  uint8_t fresh = 0;
+  if (nvs_get_u8(h, "fresh", &fresh) == ESP_OK) {
+    nvs_erase_key(h, "fresh");
+    if (fresh && esp_reset_reason() == ESP_RST_SW) {
+      s_info.refreshed = true;
+      s_info.reset_reason = "Fresh start at night (memory)";
+    }
+  }
+  s_info.refreshes = getU32(h, "refreshes") + (s_info.refreshed ? 1 : 0);
+  if (s_info.refreshed) nvs_set_u32(h, "refreshes", s_info.refreshes);
   s_info.unexpected_resets = getU32(h, "unexpected") + (s_info.unexpected ? 1 : 0);
   uint8_t quick = 0;
   nvs_get_u8(h, "quick", &quick);
@@ -96,6 +106,16 @@ void bootCheck() {
 }  // namespace esp
 
 BootInfo bootInfo() { return s_info; }
+
+void restartFresh() {
+  nvs_handle_t h;
+  if (nvs_open(kNamespace, NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_u8(h, "fresh", 1);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+  esp_restart();
+}
 
 void bootStable() {
   nvs_handle_t h;
