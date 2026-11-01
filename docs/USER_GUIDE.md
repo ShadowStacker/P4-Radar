@@ -279,6 +279,11 @@ proximity and favorite alerts.
 
 ### Display
 
+The Display page has the basics (theme, brightness, units, rotation,
+auto-hide). The rest is on four pages it links to: **Aircraft & labels**,
+**Map & airports**, **Radar sweep** and **Dimming & night**. The table lists
+them all, in that order.
+
 | Option | What it does | Default |
 |---|---|---|
 | Theme | **Green** (classic phosphor), **Amber**, **Blue**, **Night** (dim red to preserve night vision; aircraft colors stay red), **Custom** (your own colors, see below) | Green |

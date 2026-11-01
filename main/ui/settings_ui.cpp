@@ -77,11 +77,17 @@ lv_obj_t* baseRow(lv_obj_t* parent) {
   lv_obj_t* r = lv_obj_create(parent);
   lv_obj_set_width(r, lv_pct(100));
   lv_obj_set_height(r, LV_SIZE_CONTENT);
+  // Flat rows with a thin divider: no fill on top of the screen's background
+  // and no rounded border. Scrolling redraws every visible row each frame,
+  // and the panels' fills and antialiased corners were most of that work.
+  // A row shows its fill only while pressed.
   lv_obj_set_style_bg_color(r, p.panel, 0);
-  lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_opa(r, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
   lv_obj_set_style_border_color(r, p.panel_border, 0);
-  lv_obj_set_style_border_width(r, sc(2), 0);
-  lv_obj_set_style_radius(r, sc(22), 0);
+  lv_obj_set_style_border_width(r, sc(2) > 1 ? sc(2) : 1, 0);
+  lv_obj_set_style_border_side(r, LV_BORDER_SIDE_BOTTOM, 0);
+  lv_obj_set_style_radius(r, 0, 0);
   lv_obj_set_style_pad_hor(r, sc(22), 0);
   lv_obj_set_style_pad_ver(r, sc(18), 0);
   lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
@@ -243,9 +249,17 @@ void choiceRow(const char* text, const char* const* map, int current, std::funct
   lv_obj_set_style_pad_all(bm, 0, 0);
   lv_obj_set_style_pad_gap(bm, sc(6), 0);
   lv_obj_set_style_text_font(bm, font(FontSize::S), LV_PART_ITEMS);
-  lv_obj_set_style_bg_color(bm, p.bg, LV_PART_ITEMS);
+  // Unselected options are outlines (no fill to draw under the text); the
+  // chosen one is filled. Small corners: rounded ones cost per pixel.
+  lv_obj_set_style_bg_opa(bm, LV_OPA_TRANSP, LV_PART_ITEMS);
+  lv_obj_set_style_bg_opa(bm, LV_OPA_COVER, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
+  lv_obj_set_style_bg_opa(bm, LV_OPA_COVER, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_PRESSED);
+  lv_obj_set_style_bg_color(bm, p.panel_border, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_PRESSED);
+  lv_obj_set_style_border_color(bm, p.panel_border, LV_PART_ITEMS);
+  lv_obj_set_style_border_width(bm, sc(2) > 1 ? sc(2) : 1, LV_PART_ITEMS);
+  lv_obj_set_style_shadow_width(bm, 0, LV_PART_ITEMS);
   lv_obj_set_style_text_color(bm, p.text, LV_PART_ITEMS);
-  lv_obj_set_style_radius(bm, sc(14), LV_PART_ITEMS);
+  lv_obj_set_style_radius(bm, sc(8), LV_PART_ITEMS);
   lv_obj_set_style_bg_color(bm, p.accent, static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
   lv_obj_set_style_text_color(bm, lv_color_black(), static_cast<lv_style_selector_t>(LV_PART_ITEMS) | LV_STATE_CHECKED);
   onEvent(bm, LV_EVENT_VALUE_CHANGED, [bm, set] {
@@ -536,7 +550,17 @@ void pageDisplay() {
 
   switchRow("Auto-hide buttons after 10 s", &st.autohide_buttons);
 
-  section("AIRCRAFT");
+  // The rest is on sub-pages: one long page was slow to open and to scroll.
+  section("");
+  navRow(LV_SYMBOL_GPS, "Aircraft & labels", "", Page::Aircraft);
+  navRow(LV_SYMBOL_IMAGE, "Map & airports", "", Page::Map);
+  navRow(LV_SYMBOL_LOOP, "Radar sweep", st.sweep_enabled ? "On" : "Off", Page::Sweep);
+  navRow(LV_SYMBOL_EYE_CLOSE, "Dimming & night", st.night_dim ? (st.night_sleep ? "Sleep at night" : "Dim at night") : "",
+         Page::Power);
+}
+
+void pageAircraft() {
+  auto& st = app::settings();
   static const char* const kLabels[] = {"Off", "Callsign", "Full", ""};
   choiceRow("Labels", kLabels, static_cast<int>(st.labels),
             [](int v) { app::settings().labels = static_cast<core::LabelMode>(v); });
@@ -557,7 +581,10 @@ void pageDisplay() {
   switchRow("Airline and route on tap", &st.show_route_info);
   switchRow("Speed vectors (1 min)", &st.show_speed_vectors);
 
-  section("MAP");
+}
+
+void pageMap() {
+  auto& st = app::settings();
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
@@ -576,7 +603,7 @@ void pageDisplay() {
                   }
                   std::snprintf(app::settings().carto_key, sizeof(app::settings().carto_key), "%s", key.c_str());
                   changed();
-                  showPage(Page::Display);
+                  showPage(Page::Map);
                 });
     }, pal().accent);
     lv_obj_t* note = label(s.list,
@@ -597,7 +624,10 @@ void pageDisplay() {
   choiceRow("Airport code style", kCodeStyles, st.airport_codes > 1 ? 0 : st.airport_codes,
             [](int v) { app::settings().airport_codes = static_cast<uint8_t>(v); });
 
-  section("ANIMATION");
+}
+
+void pageSweep() {
+  auto& st = app::settings();
   switchRow("Radar sweep", &st.sweep_enabled);
   sliderRow("Sweep speed", 4, 60, st.sweep_rpm, [](int v) { app::settings().sweep_rpm = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d rpm", v); });
@@ -607,7 +637,10 @@ void pageDisplay() {
   switchRow("Smooth trail fade", &st.sweep_smooth);
   switchRow("Echoes fade after the beam", &st.sweep_reveal);
 
-  section("POWER");
+}
+
+void pagePower() {
+  auto& st = app::settings();
   static const char* const kDim[] = {"Never", "1 min", "5 min", "15 min", "30 min", ""};
   static const uint8_t kDimVals[] = {0, 1, 5, 15, 30};
   int cur = 0;
@@ -627,7 +660,7 @@ void pageDisplay() {
   static const char* const kNightBy[] = {"Set times", "Sunset to sunrise", ""};
   choiceRow("Night is", kNightBy, st.night_by_sun ? 1 : 0, [](int v) {
     app::settings().night_by_sun = v == 1;
-    lv_async_call([](void*) { showPage(Page::Display); }, nullptr);  // the time sliders come and go
+    lv_async_call([](void*) { showPage(Page::Power); }, nullptr);  // the time sliders come and go
   });
   if (st.night_by_sun) {
     int set = 0, rise = 0;
@@ -1697,6 +1730,10 @@ const char* pageTitle(Page p) {
     case Page::Wifi: return "Wi-Fi";
     case Page::Location: return "Location";
     case Page::Display: return "Display";
+    case Page::Aircraft: return "Aircraft & labels";
+    case Page::Map: return "Map & airports";
+    case Page::Sweep: return "Radar sweep";
+    case Page::Power: return "Dimming & night";
     case Page::Sound: return "Sound";
     case Page::Traffic: return "Traffic & data";
     case Page::Filters: return "Filters";
@@ -1729,6 +1766,10 @@ void showPage(Page page) {
     case Page::Wifi: pageWifi(); break;
     case Page::Location: pageLocation(); break;
     case Page::Display: pageDisplay(); break;
+    case Page::Aircraft: pageAircraft(); break;
+    case Page::Map: pageMap(); break;
+    case Page::Sweep: pageSweep(); break;
+    case Page::Power: pagePower(); break;
     case Page::Sound: pageSound(); break;
     case Page::Traffic: pageTraffic(); break;
     case Page::Filters: pageFilters(); break;
@@ -1772,7 +1813,10 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
   // Back (left) and close (right) on the upper diagonals of the circle.
   lv_obj_t* back = iconButton(s.screen, LV_SYMBOL_LEFT, sc(72), [] {
     if (s.page == Page::Main) closeSettings();
-    else if (s.page == Page::CustomTheme) showPage(Page::Display);
+    else if (s.page == Page::CustomTheme || s.page == Page::Aircraft || s.page == Page::Map ||
+             s.page == Page::Sweep || s.page == Page::Power) {
+      showPage(Page::Display);
+    }
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
     else if (s.page == Page::Silenced) showPage(Page::Sound);
     else showPage(Page::Main);

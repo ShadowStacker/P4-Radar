@@ -17,6 +17,10 @@
 #include <string>
 #include <vector>
 
+#if __has_include(<valgrind/callgrind.h>)
+#include <valgrind/callgrind.h>
+#endif
+
 #include "app/app.h"
 #include "app/maps.h"
 #include "app/web.h"
@@ -371,29 +375,73 @@ int runPages() {
   sim::g_preset_wifi = true;
   app::init();
   std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
-                plat::firmwareVersion());  // no "What's new" popping up during the scenes
+                plat::firmwareVersion());
   auto& st = app::settings();
   sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 120, 300);
   g_traffic = &traffic;
   ui::init(g_disp);
   run(3000);
-  const ui::Page pages[] = {ui::Page::Main, ui::Page::Display, ui::Page::Sound, ui::Page::Traffic, ui::Page::Filters,
-                            ui::Page::Updates, ui::Page::About, ui::Page::Wifi, ui::Page::Clock};
+  std::function<uint32_t(lv_obj_t*)> count = [&](lv_obj_t* o) {
+    uint32_t n = 1;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); ++i) n += count(lv_obj_get_child(o, static_cast<int32_t>(i)));
+    return n;
+  };
+  const ui::Page pages[] = {ui::Page::Main,    ui::Page::Display, ui::Page::Sound,   ui::Page::Traffic,
+                            ui::Page::Filters, ui::Page::Updates, ui::Page::About,   ui::Page::Wifi,
+                            ui::Page::Clock,   ui::Page::Map,     ui::Page::Sweep,   ui::Page::Power,
+                            ui::Page::Aircraft};
+  double total_open = 0, total_scroll = 0;
   for (ui::Page pg : pages) {
     ui::closeSettings();
     run(300);
-    auto t0 = std::chrono::steady_clock::now();
-    ui::openSettings(pg);
-    lv_refr_now(g_disp);
-    const double open_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    double open_ms = 1e9;
+    for (int k = 0; k < 5; ++k) {  // best of five: the host is noisy
+      ui::closeSettings();
+      run(200);
+      auto t0 = std::chrono::steady_clock::now();
+      ui::openSettings(pg);
+      lv_refr_now(g_disp);
+      open_ms = std::min(open_ms, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    }
     g_render_ms_total = 0;
     g_render_count = 0;
-    drag(S(400), S(650), S(400), S(150), 20);
-    run(1500);
-    std::printf("page %2d: open %6.1f ms, while scrolling %5.2f ms per frame, %u objects\n", static_cast<int>(pg),
-                open_ms, g_render_ms_total / std::max(1, g_render_count),
-                static_cast<unsigned>(lv_obj_get_child_count_by_type(lv_screen_active(), nullptr)));
+    for (int k = 0; k < 6; ++k) {
+      drag(S(400), S(650), S(400), S(250), 20);
+      drag(S(400), S(250), S(400), S(650), 20);
+    }
+    run(800);
+    const double scroll = g_render_ms_total / std::max(1, g_render_count);
+    total_open += open_ms;
+    total_scroll += scroll;
+    std::printf("page %2d: open %6.2f ms, while scrolling %5.3f ms per frame, %u objects\n", static_cast<int>(pg),
+                open_ms, scroll, static_cast<unsigned>(count(lv_screen_active())));
   }
+  std::printf("total: open %.1f ms, scrolling %.3f ms per frame\n", total_open,
+              total_scroll / (sizeof(pages) / sizeof(pages[0])));
+  return 0;
+}
+
+/** One settings page opened and scrolled up and down (for instruction counts under valgrind): --scroll PAGE. */
+int runScroll(int page) {
+  sim::g_preset_wifi = true;
+  app::init();
+  std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
+                plat::firmwareVersion());
+  auto& st = app::settings();
+  sim::FakeTraffic traffic({st.home_lat, st.home_lon}, 7, 120, 300);
+  g_traffic = &traffic;
+  ui::init(g_disp);
+  run(1000);
+  ui::openSettings(static_cast<ui::Page>(page));
+  run(500);
+#if __has_include(<valgrind/callgrind.h>)
+  CALLGRIND_ZERO_STATS;  // count only the scrolling
+#endif
+  for (int k = 0; k < 4; ++k) {
+    drag(S(400), S(650), S(400), S(250), 20);
+    drag(S(400), S(250), S(400), S(650), 20);
+  }
+  run(500);
   return 0;
 }
 
@@ -460,9 +508,14 @@ int main(int argc, char** argv) {
   int soak = 0;
   bool page_timing = false;
   bool web_mode = false;
+  int scroll_page = -1;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--bench") == 0) {
       bench = true;
+      continue;
+    }
+    if (std::strcmp(argv[i], "--scroll") == 0 && i + 1 < argc) {
+      scroll_page = std::atoi(argv[++i]);
       continue;
     }
     if (std::strcmp(argv[i], "--web") == 0) {
@@ -507,6 +560,7 @@ int main(int argc, char** argv) {
   if (soak) return runSoak(soak);
   if (page_timing) return runPages();
   if (web_mode) return runWeb();
+  if (scroll_page >= 0) return runScroll(scroll_page);
 
   sim::g_preset_wifi = false;  // start like a fresh device
   // A blank card: no settings.txt or favorites.txt from an earlier run.
@@ -582,6 +636,10 @@ int main(int argc, char** argv) {
     ui::Page page;
     const char* name;
   } pages[] = {{ui::Page::Display, "09_settings_display"},
+               {ui::Page::Aircraft, "79_settings_aircraft"},
+               {ui::Page::Map, "80_settings_map"},
+               {ui::Page::Sweep, "81_settings_sweep"},
+               {ui::Page::Power, "82_settings_dimming_night"},
                {ui::Page::Sound, "10_settings_sound"},
                {ui::Page::Location, "11_settings_location"},
                {ui::Page::Traffic, "12_settings_traffic"},
@@ -1275,7 +1333,7 @@ int main(int argc, char** argv) {
     std::printf("night by the sun: day %s, night %s, times %s\n", day ? "OK" : "FAILED", night ? "OK" : "FAILED",
                 times ? "OK" : "FAILED");
     if (!day || !night || !times) return 1;
-    ui::openSettings(ui::Page::Display);
+    ui::openSettings(ui::Page::Power);
     run(400);
     lv_obj_scroll_to_y(settingsList(), 99999, LV_ANIM_OFF);
     run(400);

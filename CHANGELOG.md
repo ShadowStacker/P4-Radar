@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.22.0] - 2026-11-01
+
+### Changed
+- **Smoother settings menus.** Rows are flat, with a thin line between them,
+  instead of rounded panels: about a quarter less drawing work while
+  scrolling (a third on the main page). Unselected choice buttons are
+  outlines.
+- **The Display page is split up.** It keeps the basics (theme, brightness,
+  units, rotation) and links to Aircraft & labels, Map & airports, Radar
+  sweep, and Dimming & night, so each page opens and scrolls faster.
+
 ## [v1.21.3] - 2026-11-01
 
 ### Fixed
