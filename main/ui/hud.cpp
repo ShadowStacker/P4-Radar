@@ -131,7 +131,7 @@ void updateStatus() {
       }
     }
   }
-  lv_label_set_text(h.status_label, txt);
+  setLabelText(h.status_label, txt);
   lv_obj_set_style_text_color(h.status_label, dot, 0);
   h.status_problem = !lv_color_eq(dot, p.accent);
 
@@ -146,12 +146,12 @@ void updateStatus() {
     setHidden(h.credit, v == core::tiles::Variant::None);
     // Only when it changes: setting a label's text re-lays it out and redraws it.
     static core::tiles::Variant s_shown = core::tiles::Variant::kCount;
-    if (v != core::tiles::Variant::None && v != s_shown) lv_label_set_text(h.credit_label, core::tiles::attribution(v));
+    if (v != core::tiles::Variant::None && v != s_shown) setLabelText(h.credit_label, core::tiles::attribution(v));
     s_shown = v;
   }
 
   if (h.mute_label) {
-    lv_label_set_text(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
+    setLabelText(h.mute_label, app::settings().sound_enabled ? LV_SYMBOL_VOLUME_MAX : LV_SYMBOL_MUTE);
   }
 
   if (h.clock) {
@@ -248,8 +248,8 @@ void openMapPicker() {
 }
 
 void setStat(int i, const char* title, const char* value) {
-  lv_label_set_text(h.stat_title[i], title);
-  lv_label_set_text(h.stat_value[i], value);
+  setLabelText(h.stat_title[i], title);
+  setLabelText(h.stat_value[i], value);
 }
 
 void updateCard() {
@@ -263,10 +263,10 @@ void updateCard() {
   if (!show) return;
 
   const core::Aircraft& a = t->ac;
-  lv_label_set_text(h.card_title, a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+  setLabelText(h.card_title, a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
   char badge[16];
   std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
-  lv_label_set_text(h.card_type, badge);
+  setLabelText(h.card_type, badge);
 
   // Airline and route (adsbdb), once looked up.
   {
@@ -274,22 +274,22 @@ void updateCard() {
     const bool mine = std::strcmp(rs.hex, a.hex) == 0;
     const core::route::Info& in = rs.info;
     if (mine && rs.status == app::RouteStatus::Loading) {
-      lv_label_set_text(h.card_route, "");
-      lv_label_set_text(h.card_airline, "Looking up airline and route...");
+      setLabelText(h.card_route, "");
+      setLabelText(h.card_airline, "Looking up airline and route...");
     } else if (mine && rs.status == app::RouteStatus::Ready) {
       char route[96] = "";
       if (in.has_route) {
         std::snprintf(route, sizeof(route), "%s (%s)  " LV_SYMBOL_RIGHT "  %s (%s)", in.origin.city, in.origin.code,
                       in.destination.city, in.destination.code);
       }
-      lv_label_set_text(h.card_route, route);
+      setLabelText(h.card_route, route);
       const char* who = in.airline[0] ? in.airline : in.owner;
       char line[96];
       std::snprintf(line, sizeof(line), "%s%s%s", who, who[0] && in.model[0] ? "  -  " : "", in.model);
-      lv_label_set_text(h.card_airline, line);
+      setLabelText(h.card_airline, line);
     } else {
-      lv_label_set_text(h.card_route, "");
-      lv_label_set_text(h.card_airline, mine && rs.status == app::RouteStatus::Unknown ? "No airline or route info" : "");
+      setLabelText(h.card_route, "");
+      setLabelText(h.card_airline, mine && rs.status == app::RouteStatus::Unknown ? "No airline or route info" : "");
     }
     setHidden(h.card_route, lv_label_get_text(h.card_route)[0] == '\0');
     setHidden(h.card_airline, lv_label_get_text(h.card_airline)[0] == '\0');
@@ -314,7 +314,7 @@ void updateCard() {
   char sub[96];
   std::snprintf(sub, sizeof(sub), "%s%s%s  %s%s%s", a.reg, a.reg[0] ? "  -  " : "", a.hex,
                 a.category[0] ? "cat " : "", a.category, hist);
-  lv_label_set_text(h.card_sub, sub);
+  setLabelText(h.card_sub, sub);
 
   char v[40];
   if (a.on_ground) std::snprintf(v, sizeof(v), "Ground");

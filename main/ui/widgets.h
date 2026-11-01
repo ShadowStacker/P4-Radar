@@ -22,6 +22,11 @@ lv_obj_t* pillButton(lv_obj_t* parent, const char* text, Callback cb, bool accen
 /** Translucent rounded panel. */
 lv_obj_t* panel(lv_obj_t* parent);
 lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* f, lv_color_t c);
+/**
+ * Sets a label's text only if it changed: setting it re-lays the label out
+ * and redraws it even when the text is the same (labels refreshed by timers).
+ */
+void setLabelText(lv_obj_t* l, const char* text);
 
 /**
  * Modal confirm dialog centered on screen. `on_yes` runs when confirmed.

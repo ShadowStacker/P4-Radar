@@ -10,6 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.22.1] - 2026-11-01
+
+### Changed
+- **Smoother radar when traffic arrives.** The background layer (map, rings,
+  trails) is rebuilt in eight small steps instead of four, so no single frame
+  carries much of it.
+- **Settings from the phone apply without a freeze.** Only a new theme, colors
+  or sizes rebuild the screens; anything else just updates the radar, and an
+  open settings page shows the new value where it is. Aircraft no longer
+  vanish for a few seconds after such a change (only new filters start over).
+- **Less redrawing of unchanged text.** The status pill, info card and
+  settings pages leave text alone when it hasn't changed.
+
 ## [v1.22.0] - 2026-11-01
 
 ### Changed

@@ -179,7 +179,7 @@ void updateUpdateBox() {
   } else {
     std::snprintf(text, sizeof(text), "Connecting...");
   }
-  lv_label_set_text(s_update_text, text);
+  setLabelText(s_update_text, text);
   s_update_shown = u.state;
 }
 
@@ -394,7 +394,7 @@ void updateStats() {
                 ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",
                 static_cast<unsigned>(up / 3600), static_cast<unsigned>(up / 60 % 60), static_cast<unsigned>(up % 60),
                 static_cast<unsigned>(s_stats_gap_ms));
-  lv_label_set_text(s_stats, text);
+  setLabelText(s_stats, text);
   s_last_ms = now;
   s_frames = 0;
   s_draw_us = s_draw_max_us = 0;
@@ -456,13 +456,25 @@ bool sameFavorites(const std::vector<core::Favorite>& a, const std::vector<core:
 }
 
 /** settings.txt on the SD card replaced the settings: redraw everything with them. */
+/** Settings that change how screens are built (colors, fonts): those need a rebuild. */
+bool looksDifferent(const core::Settings& a, const core::Settings& b) {
+  return a.theme != b.theme || a.label_size != b.label_size || a.custom_hue != b.custom_hue ||
+         a.custom_sat != b.custom_sat || a.custom_bg != b.custom_bg || a.custom_grid != b.custom_grid ||
+         a.custom_aircraft_hue != b.custom_aircraft_hue || a.custom_aircraft_sat != b.custom_aircraft_sat ||
+         a.custom_label_hue != b.custom_label_hue || a.custom_label_sat != b.custom_label_sat ||
+         a.custom_alt_low_hue != b.custom_alt_low_hue || a.custom_alt_mid_hue != b.custom_alt_mid_hue ||
+         a.custom_alt_high_hue != b.custom_alt_high_hue || a.clock_hand_hue != b.clock_hand_hue ||
+         a.clock_hand_sat != b.clock_hand_sat || a.clock_second_hue != b.clock_second_hue ||
+         a.clock_second_sat != b.clock_second_sat;
+}
+
 void onSettingsLoaded(const core::Settings& before) {
   const core::Settings& st = app::settings();
   if (before.rotation != st.rotation) {
     plat::restart();  // the orientation is set up at boot (the new one is already saved)
     return;
   }
-  sprites::init(st.aircraft_scale);
+  if (before.aircraft_scale != st.aircraft_scale) sprites::init(st.aircraft_scale);
   if (s_settings_screen != nullptr) {
     // X shouldn't undo what came from the card.
     s_snapshot = st;
@@ -479,7 +491,15 @@ void onSettingsLoaded(const core::Settings& before) {
       return;
     }
   }
-  rebuild();
+  // Only a new look needs every screen rebuilt (a moment's freeze); for
+  // anything else the radar redraws itself and an open settings page is
+  // refreshed to show the new values.
+  if (looksDifferent(before, st)) {
+    rebuild();
+    return;
+  }
+  RadarView::get().markStaticDirty();
+  if (s_settings_screen != nullptr) settings_ui::refresh();
 }
 
 }  // namespace

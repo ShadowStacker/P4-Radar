@@ -187,7 +187,7 @@ void onSliderEvent(lv_event_t* e) {
   switch (lv_event_get_code(e)) {
     case LV_EVENT_VALUE_CHANGED: {
       const int v = lv_slider_get_value(sl);
-      lv_label_set_text(ctx->value_label, ctx->fmt(v).c_str());
+      setLabelText(ctx->value_label, ctx->fmt(v).c_str());
       ctx->set(v);
       changed();
       break;
@@ -435,7 +435,7 @@ void pageWifi() {
       case plat::WifiState::Failed: txt = fmtStr("Failed: %s", ws.reason); break;
       default: txt = app::settings().wifi_ssid[0] ? "Disconnected" : "Not configured"; break;
     }
-    lv_label_set_text(s.wifi_status, txt.c_str());
+    setLabelText(s.wifi_status, txt.c_str());
     if (s.scanning) {
       std::vector<plat::WifiNetwork> nets;
       if (plat::wifiScanResults(&nets)) {
@@ -855,7 +855,7 @@ void pageClock() {
   auto& st = app::settings();
   const Palette& p = pal();
   lv_obj_t* now = infoRow("Time now", nowText());
-  s.tick = [now] { lv_label_set_text(now, nowText().c_str()); };
+  s.tick = [now] { setLabelText(now, nowText().c_str()); };
   navRow(LV_SYMBOL_GPS, "Time zone", core::timeZone(st.time_zone).name, Page::TimeZone);
   switchRow("Clock face on the radar", &st.clock_mode);
   switchRow("24-hour time", &st.clock_24h);
@@ -954,7 +954,7 @@ void pageAlarmEdit() {
     const core::Alarm& al = c.alarms[s.alarm_index];
     char hm[16];
     core::formatTime(al.hour, al.minute, c.clock_24h, hm, sizeof(hm));
-    if (s_big) lv_label_set_text(s_big, hm);
+    if (s_big) setLabelText(s_big, hm);
   };
   refresh();
   lv_obj_add_event_cb(big, [](lv_event_t*) { s_big = nullptr; }, LV_EVENT_DELETE, nullptr);
@@ -1015,7 +1015,7 @@ void pageAlarmEdit() {
       al.enabled = true;
       char d[40];
       core::formatDays(mask, d, sizeof(d));
-      lv_label_set_text(title, fmtStr("Repeat: %s", d).c_str());
+      setLabelText(title, fmtStr("Repeat: %s", d).c_str());
       app::sound(core::Sound::Click);
       changed();
     });
@@ -1044,17 +1044,17 @@ void pageSdCard() {
     const app::maps::SdStatus sd = app::maps::sdStatus();
     switch (sd.state) {
       case app::maps::SdState::Mounted:
-        lv_label_set_text(card, fmtStr("%s, %s free", bytesText(sd.total_bytes).c_str(),
+        setLabelText(card, fmtStr("%s, %s free", bytesText(sd.total_bytes).c_str(),
                                        bytesText(sd.free_bytes).c_str()).c_str());
         break;
-      case app::maps::SdState::Unmounted: lv_label_set_text(card, "Unmounted - safe to remove"); break;
-      case app::maps::SdState::NoCard: lv_label_set_text(card, sd.error[0] ? sd.error : "No card"); break;
-      default: lv_label_set_text(card, "Checking..."); break;
+      case app::maps::SdState::Unmounted: setLabelText(card, "Unmounted - safe to remove"); break;
+      case app::maps::SdState::NoCard: setLabelText(card, sd.error[0] ? sd.error : "No card"); break;
+      default: setLabelText(card, "Checking..."); break;
     }
-    if (sd.busy) lv_label_set_text(saved, "Working...");
-    else if (sd.state != app::maps::SdState::Mounted) lv_label_set_text(saved, "-");
-    else if (!sd.counted) lv_label_set_text(saved, "Not counted");
-    else lv_label_set_text(saved, fmtStr("%u (%s)", static_cast<unsigned>(sd.tiles), bytesText(sd.tile_bytes).c_str()).c_str());
+    if (sd.busy) setLabelText(saved, "Working...");
+    else if (sd.state != app::maps::SdState::Mounted) setLabelText(saved, "-");
+    else if (!sd.counted) setLabelText(saved, "Not counted");
+    else setLabelText(saved, fmtStr("%u (%s)", static_cast<unsigned>(sd.tiles), bytesText(sd.tile_bytes).c_str()).c_str());
   };
   s.tick = refresh;
   const app::maps::SdStatus sd = app::maps::sdStatus();
@@ -1403,29 +1403,29 @@ void pageDayLog() {
   s.tick = [date, count, busiest, closest, highest, fastest, special, favs] {
     const core::daylog::Day d = app::dayLogToday();
     if (d.date == 0) {
-      lv_label_set_text(date, "Waiting for the time (needs internet)");
+      setLabelText(date, "Waiting for the time (needs internet)");
       return;
     }
     static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    lv_label_set_text(date, fmtStr("%s %d, %d", kMonths[(d.date / 100 % 100 + 11) % 12], d.date % 100, d.date / 10000).c_str());
-    lv_label_set_text(count, fmtStr("%d different", d.count()).c_str());
+    setLabelText(date, fmtStr("%s %d, %d", kMonths[(d.date / 100 % 100 + 11) % 12], d.date % 100, d.date / 10000).c_str());
+    setLabelText(count, fmtStr("%d different", d.count()).c_str());
     if (d.peak_minute >= 0) {
       char hm[16];
       core::formatTime(d.peak_minute / 60, d.peak_minute % 60, app::settings().clock_24h, hm, sizeof(hm));
-      lv_label_set_text(busiest, fmtStr("%d at once, %s", d.peak, hm).c_str());
+      setLabelText(busiest, fmtStr("%d at once, %s", d.peak, hm).c_str());
     } else {
-      lv_label_set_text(busiest, "-");
+      setLabelText(busiest, "-");
     }
     char dist[24];
     app::formatDistance(d.closest.value, dist, sizeof(dist));
-    lv_label_set_text(closest, recordText(d.closest, fmtStr("%s at %d ft", dist, static_cast<int>(d.closest.alt_ft))).c_str());
-    lv_label_set_text(highest, recordText(d.highest, fmtStr("%d ft", static_cast<int>(d.highest.value))).c_str());
-    lv_label_set_text(fastest, recordText(d.fastest, fmtStr("%d kt", static_cast<int>(d.fastest.value))).c_str());
-    lv_label_set_text(special, fmtStr("%d / %d", static_cast<int>(d.military.size()), static_cast<int>(d.emergencies.size())).c_str());
+    setLabelText(closest, recordText(d.closest, fmtStr("%s at %d ft", dist, static_cast<int>(d.closest.alt_ft))).c_str());
+    setLabelText(highest, recordText(d.highest, fmtStr("%d ft", static_cast<int>(d.highest.value))).c_str());
+    setLabelText(fastest, recordText(d.fastest, fmtStr("%d kt", static_cast<int>(d.fastest.value))).c_str());
+    setLabelText(special, fmtStr("%d / %d", static_cast<int>(d.military.size()), static_cast<int>(d.emergencies.size())).c_str());
     std::string f;
     for (const std::string& x : d.favorites) f += (f.empty() ? "" : ", ") + x;
-    lv_label_set_text(favs, f.empty() ? "-" : f.c_str());
+    setLabelText(favs, f.empty() ? "-" : f.c_str());
   };
 }
 
@@ -1470,9 +1470,9 @@ void pageUpdates() {
     if (u.state == app::UpdateState::NoImage) {
       text = fmtStr("%s - no update file for this board; flash it over USB", u.latest);
     }
-    lv_label_set_text(latest, text.c_str());
+    setLabelText(latest, text.c_str());
     if (u.state == app::UpdateState::Available) {
-      lv_label_set_text(lv_obj_get_child(install, 1), fmtStr("Install %s", u.latest).c_str());
+      setLabelText(lv_obj_get_child(install, 1), fmtStr("Install %s", u.latest).c_str());
       lv_obj_remove_flag(install, LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_add_flag(install, LV_OBJ_FLAG_HIDDEN);
@@ -1525,21 +1525,21 @@ void pageAbout() {
 
   s.tick = [wifi, feed, mem, up] {
     const unsigned secs = static_cast<unsigned>(plat::millis() / 1000);
-    lv_label_set_text(up, secs >= 86400 ? fmtStr("%ud %uh %um", secs / 86400, secs / 3600 % 24, secs / 60 % 60).c_str()
+    setLabelText(up, secs >= 86400 ? fmtStr("%ud %uh %um", secs / 86400, secs / 3600 % 24, secs / 60 % 60).c_str()
                                         : fmtStr("%uh %02um %02us", secs / 3600, secs / 60 % 60, secs % 60).c_str());
     const plat::WifiStatus ws = plat::wifiStatus();
-    lv_label_set_text(wifi, ws.state == plat::WifiState::Connected
+    setLabelText(wifi, ws.state == plat::WifiState::Connected
                                 ? fmtStr("%s, %d dBm", ws.ip, ws.rssi).c_str()
                                 : "offline");
     const app::FeedStatus fs = app::feedStatus();
     if (fs.ever_ok) {
       const unsigned age = (plat::millis() - fs.last_ok_ms) / 1000;
-      lv_label_set_text(feed, fmtStr("%d aircraft, %us ago (%s)", fs.last_count, age,
+      setLabelText(feed, fmtStr("%d aircraft, %us ago (%s)", fs.last_count, age,
                                      core::adsb::sourceName(fs.source)).c_str());
     } else {
-      lv_label_set_text(feed, fs.error[0] ? fs.error : "waiting");
+      setLabelText(feed, fs.error[0] ? fs.error : "waiting");
     }
-    lv_label_set_text(mem, fmtStr("%u KB RAM, %u KB PSRAM", static_cast<unsigned>(plat::freeInternalHeap() / 1024),
+    setLabelText(mem, fmtStr("%u KB RAM, %u KB PSRAM", static_cast<unsigned>(plat::freeInternalHeap() / 1024),
                                   static_cast<unsigned>(plat::freePsram() / 1024))
                                .c_str());
   };
@@ -1661,14 +1661,14 @@ void pagePhone() {
     if (server == nullptr) return;
     const plat::WebStats ws = plat::webStats();
     const int test = app::web::selfTest();
-    if (!ws.running) lv_label_set_text(server, ws.error[0] ? ws.error : "Not running");
-    else if (test == 0) lv_label_set_text(server, "Running, checking...");
-    else lv_label_set_text(server, test > 0 ? "Running and answering" : "Running, but not answering");
+    if (!ws.running) setLabelText(server, ws.error[0] ? ws.error : "Not running");
+    else if (test == 0) setLabelText(server, "Running, checking...");
+    else setLabelText(server, test > 0 ? "Running and answering" : "Running, but not answering");
     if (ws.requests == 0) {
-      lv_label_set_text(visits, "None yet");
+      setLabelText(visits, "None yet");
     } else {
       const unsigned ago = (plat::millis() - ws.last_ms) / 1000;
-      lv_label_set_text(visits, fmtStr("%u, last from %s, %s ago", static_cast<unsigned>(ws.requests), ws.last_client,
+      setLabelText(visits, fmtStr("%u, last from %s, %s ago", static_cast<unsigned>(ws.requests), ws.last_client,
                                        ago < 120 ? fmtStr("%u s", ago).c_str() : fmtStr("%u min", ago / 60).c_str())
                                     .c_str());
     }
@@ -1759,7 +1759,7 @@ void showPage(Page page) {
   s.wifi_status = nullptr;
   s.wifi_list = nullptr;
   s.scanning = false;
-  lv_label_set_text(s.title, pageTitle(page));
+  setLabelText(s.title, pageTitle(page));
   lv_obj_clean(s.list);
   lv_obj_scroll_to_y(s.list, 0, LV_ANIM_OFF);
   switch (page) {
@@ -1797,6 +1797,14 @@ void onTimer(lv_timer_t*) {
 }  // namespace
 
 Page currentPage() { return s.page; }
+
+void refresh() {
+  if (s.list == nullptr) return;
+  const int32_t y = lv_obj_get_scroll_y(s.list);
+  showPage(s.page);
+  lv_obj_update_layout(s.list);
+  lv_obj_scroll_to_y(s.list, y, LV_ANIM_OFF);
+}
 int32_t scrollY() { return s.list ? lv_obj_get_scroll_y(s.list) : 0; }
 
 lv_obj_t* create(Page page, int32_t scroll_y) {

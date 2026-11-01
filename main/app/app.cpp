@@ -281,7 +281,14 @@ void applySettings(const core::Settings& next) {
   }
   settingsChanged();
   settingsFlushImpl();  // saves to flash and rewrites the file in the current layout
-  traffic().clear();     // filters may have changed
+  // New filters: start over, so aircraft they hide go now (and ones they show
+  // come with the next update). Otherwise the aircraft stay on screen.
+  const bool filters_changed =
+      before.military_only != s_settings.military_only || before.show_ground != s_settings.show_ground ||
+      before.min_alt_ft != s_settings.min_alt_ft || before.max_alt_ft != s_settings.max_alt_ft ||
+      before.category_mask != s_settings.category_mask || before.min_speed_kt != s_settings.min_speed_kt ||
+      before.max_speed_kt != s_settings.max_speed_kt || std::strcmp(before.type_filter, s_settings.type_filter) != 0;
+  if (filters_changed) traffic().clear();
   requestRefresh();
   if (s_on_loaded) s_on_loaded(before);
 }

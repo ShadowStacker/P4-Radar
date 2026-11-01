@@ -1239,6 +1239,31 @@ int main(int argc, char** argv) {
     if (!shown || !remembered || !once || !again) return 1;
   }
 
+  // Settings changed from the phone (or settings.txt): only a new look
+  // rebuilds the screens; otherwise the open page just shows the new value.
+  {
+    ui::openSettings(ui::Page::Sound);
+    run(400);
+    lv_obj_t* page = lv_screen_active();
+    std::vector<std::string> problems;
+    app::applySettingsText("volume = 33", &problems);
+    run(300);
+    const bool kept = lv_screen_active() == page && hasLabel(page, "33%");
+    const core::Theme theme = app::settings().theme;
+    app::applySettingsText(theme == core::Theme::Amber ? "theme = ocean" : "theme = amber", &problems);
+    run(300);
+    const bool rebuilt = lv_screen_active() != page;
+    std::printf("settings from the phone: value refreshed in place %s, new theme rebuilds %s\n", kept ? "OK" : "FAILED",
+                rebuilt ? "OK" : "FAILED");
+    // Back as it was, the same way (the page is still open), then close it.
+    static const char* const kThemeNames[] = {"phosphor", "amber", "ocean", "night", "custom"};
+    app::applySettingsText(std::string("theme = ") + kThemeNames[static_cast<int>(theme)] + "\nvolume = 60", &problems);
+    run(300);
+    ui::closeSettings(false);
+    run(600);
+    if (!kept || !rebuilt) return 1;
+  }
+
   // Screenshot button: the picture lands on the card as a PNG.
   {
     ui::RadarView::get().clearSelection();

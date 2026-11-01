@@ -20,7 +20,10 @@ namespace ui {
 
 namespace {
 
-constexpr int kStaticBands = 4;  // background static renders take this many frames
+// Background static renders take this many frames (each draws a horizontal
+// strip): small steps keep each frame light, for the sweep and for the
+// screen, which reads its picture from the same memory.
+constexpr int kStaticBands = 8;
 
 constexpr uint32_t kFastFrameMs = 33;   // ~30 fps while animating
 constexpr uint32_t kSlowFrameMs = 100;  // 10 fps is plenty for dead-reckoned motion

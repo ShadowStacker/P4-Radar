@@ -1,5 +1,7 @@
 #include "ui/widgets.h"
 
+#include <cstring>
+
 #include "app/app.h"
 #include "ui/theme.h"
 
@@ -151,6 +153,12 @@ void toast(const char* text, uint32_t ms) {
   lv_obj_align(o, LV_ALIGN_TOP_MID, 0, sc(150));
   label(o, text, font(FontSize::M), p.text);
   lv_obj_delete_delayed(o, ms);
+}
+
+void setLabelText(lv_obj_t* l, const char* text) {
+  const char* now = lv_label_get_text(l);
+  if (now != nullptr && std::strcmp(now, text) == 0) return;
+  lv_label_set_text(l, text);
 }
 
 }  // namespace ui
