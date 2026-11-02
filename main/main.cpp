@@ -21,7 +21,7 @@
 
 namespace {
 
-// cJSON (routes, flight history, update checks) builds a node per value;
+// A wide-area ADS-B response becomes tens of thousands of small cJSON nodes;
 // keep them in PSRAM so parsing never starves Wi-Fi or LVGL of internal RAM.
 void* psramMalloc(size_t size) {
   void* p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -42,12 +42,6 @@ extern "C" void app_main(void) {
   ESP_ERROR_CHECK(err);
   // Count this start; three quick ones in a row go back to the previous version.
   plat::esp::bootCheck();
-  // The system log, before the other tasks start (they print through it). If
-  // the last start crashed within seconds, this one goes without, in case
-  // that's the trouble (a third quick crash would go back a version).
-  const bool safe = plat::bootInfo().quick_start >= 2;
-  plat::logCaptureStart(!safe);
-  if (safe) ESP_LOGW("main", "quick restart after a crash: system log capture off this time");
   // Every HTTPS connection logs "Certificate validated" at info level; only
   // problems are worth printing.
   esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);

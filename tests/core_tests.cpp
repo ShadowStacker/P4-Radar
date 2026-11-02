@@ -12,9 +12,6 @@
 #include <zlib.h>
 
 #include "core/adsb.h"
-#include "core/backup.h"
-#include "core/syslog.h"
-#include "core/replay.h"
 #include "core/clock.h"
 #include "cJSON.h"
 #include "core/daylog.h"
@@ -269,142 +266,6 @@ void testAdsbParse() {
         "https://api.airplanes.live/v2/point/52.10000/4.20000/250");
   CHECK(core::adsb::buildUrl(core::DataSource::AdsbLol, -33.9, 151.2, 50) ==
         "https://api.adsb.lol/v2/lat/-33.90000/lon/151.20000/dist/27");
-}
-
-std::string g_sunk;
-void sinkLine(const char* line, size_t len) { g_sunk.append(line, len); }
-
-void testSyslog() {
-  namespace sl = core::syslog;
-  sl::reset();
-  sl::setLineSink(sinkLine);
-  const char* part1 = "\x1b[0;32mI (12) main: hel";
-  sl::append(part1, std::strlen(part1), "10:00:00 ");
-  CHECK(sl::recent().empty());  // no whole line yet
-  const char* part2 = "lo\x1b[0m\r\n\nnext\n";
-  sl::append(part2, std::strlen(part2), "10:00:01 ");
-  CHECK(sl::recent() == "10:00:00 I (12) main: hello\n10:00:01 next\n");
-  CHECK(g_sunk == sl::recent());
-  CHECK(sl::takePending() == sl::recent());
-  CHECK(sl::takePending().empty());
-  // A color code split between two calls.
-  sl::append("a\x1b[0;3", 6, nullptr);
-  sl::append("1mb\n", 4, nullptr);
-  CHECK(sl::recent().find("ab\n") != std::string::npos);
-  // Lots of text: the recent part keeps whole lines, pending notes the loss.
-  sl::reset();
-  std::string line(99, 'x');
-  line += '\n';
-  for (int i = 0; i < 1000; ++i) sl::append(line.data(), line.size(), "");
-  const std::string r = sl::recent();
-  CHECK(r.size() <= sl::kRecentBytes && r.size() > sl::kRecentBytes - 200);
-  CHECK(r.size() % 100 == 0);
-  const std::string pend = sl::takePending();
-  CHECK(pend.find("of log lost") != std::string::npos);
-  CHECK(pend.size() < sl::kPendingBytes + 4096 + 100);
-  CHECK(sl::totalBytes() == 100000);
-  // Very long lines are cut into pieces.
-  sl::reset();
-  std::string longline(3000, 'y');
-  sl::append(longline.data(), longline.size(), nullptr);
-  CHECK(sl::recent().size() == 2048 + 2);
-  sl::setLineSink(nullptr);
-  sl::reset();
-}
-
-void testBackup() {
-  core::Settings st;
-  std::snprintf(st.wifi_ssid, sizeof(st.wifi_ssid), "Home");
-  std::snprintf(st.wifi_pass, sizeof(st.wifi_pass), "secret pass");
-  std::snprintf(st.wifi_saved[0].ssid, sizeof(st.wifi_saved[0].ssid), "Cabin");
-  st.home_lat = 47.25;
-  core::Favorite f;
-  std::snprintf(f.hex, sizeof(f.hex), "a1b2c3");
-  std::snprintf(f.label, sizeof(f.label), "N123AB");
-  core::backup::Parts parts;
-  parts.settings = core::settings_text::serialize(st);
-  parts.favorites = core::settings_text::serializeFavorites({f}, {"N999ZZ"});
-  parts.silenced = core::settings_text::serializeFavorites({});
-  const std::string text = core::backup::make("v1.23.0, 2026-11-01 10:00", parts);
-  CHECK(text.compare(0, 20, "# Plane Radar backup") == 0);
-
-  core::backup::Parts back;
-  CHECK(core::backup::split(text, &back));
-  CHECK(back.has_settings && back.has_favorites && back.has_silenced);
-  core::Settings st2;
-  CHECK(core::settings_text::parse(back.settings, &st2) > 50);
-  CHECK(std::strcmp(st2.wifi_pass, "secret pass") == 0 && std::strcmp(st2.wifi_saved[0].ssid, "Cabin") == 0);
-  CHECK(st2.home_lat == 47.25);
-  std::vector<core::Favorite> favs;
-  std::vector<std::string> tails;
-  core::settings_text::parseFavorites(back.favorites, &favs, &tails);
-  CHECK(favs.size() == 1 && std::strcmp(favs[0].hex, "a1b2c3") == 0 && tails.size() == 1 && tails[0] == "N999ZZ");
-  favs.clear();
-  core::settings_text::parseFavorites(back.silenced, &favs, &tails);
-  CHECK(favs.empty());
-
-  // Windows line ends, a section from a newer version, and files that aren't backups.
-  std::string crlf;
-  for (char c : text) {
-    if (c == '\n') crlf += '\r';
-    crlf += c;
-  }
-  crlf += "[[places]]\r\nhome = 1\r\n";
-  CHECK(core::backup::split(crlf, &back) && back.has_settings);
-  CHECK(back.silenced.find("home = 1") == std::string::npos);
-  CHECK(!core::backup::split(parts.settings, &back));
-  CHECK(!core::backup::split("", &back));
-  CHECK(!core::backup::split("# Plane Radar backup\nnothing", &back));
-  CHECK(text.size() < 32 * 1024);  // fits a phone page request read in one go
-  std::printf("  backup file: %zu bytes\n", text.size());
-}
-
-void testReplay() {
-  namespace rp = core::replay;
-  std::vector<core::Aircraft> in;
-  for (int i = 0; i < 120; ++i) {
-    core::Aircraft a;
-    std::snprintf(a.hex, sizeof(a.hex), i == 3 ? "~%05x" : "%06x", 0xa00000 + i);
-    std::snprintf(a.callsign, sizeof(a.callsign), "KLM%04d", i);
-    std::snprintf(a.type, sizeof(a.type), "B738");
-    a.lat = 44.25 + i * 0.001234;
-    a.lon = -121.15 - i * 0.002;
-    a.alt_ft = 1000 + i * 250;
-    a.alt_valid = i != 5;
-    a.on_ground = i == 7;
-    a.emergency = i == 9;
-    a.military = i == 11;
-    a.track_deg = i * 3.01f;
-    a.heading_deg = 359.99f;
-    a.gs_kt = 412.3f;
-    a.vrate_fpm = -1984;
-    in.push_back(a);
-  }
-  const std::string frame = rp::encodeFrame(1761955200, in);
-  CHECK(frame.size() < in.size() * 38);  // compressed
-  rp::FrameHeader h;
-  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(frame.data()), &h) && h.time_s == 1761955200 &&
-        h.packed + rp::kHeaderBytes == frame.size());
-  std::vector<core::Aircraft> out;
-  CHECK(rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(frame.data()) + rp::kHeaderBytes, &out));
-  CHECK(out.size() == in.size());
-  bool same = out.size() == in.size();
-  for (size_t i = 0; same && i < in.size(); ++i) {
-    const core::Aircraft &a = in[i], &b = out[i];
-    same = std::strcmp(a.hex, b.hex) == 0 && std::strcmp(a.callsign, b.callsign) == 0 && std::strcmp(a.type, b.type) == 0 &&
-           std::fabs(a.lat - b.lat) < 1e-6 && std::fabs(a.lon - b.lon) < 1e-6 && a.alt_ft == b.alt_ft &&
-           a.alt_valid == b.alt_valid && a.on_ground == b.on_ground && a.emergency == b.emergency &&
-           a.military == b.military && std::fabs(a.track_deg - b.track_deg) < 0.01f && std::fabs(b.heading_deg - 359.99f) < 0.01f &&
-           std::fabs(b.gs_kt - 412.3f) < 0.06f && b.vrate_fpm == -1984;
-  }
-  CHECK(same);
-  CHECK(!rp::readHeader(reinterpret_cast<const uint8_t*>("garbage garbage!"), &h));
-  CHECK(rp::fileName(20261101) == "replay/2026-11-01.rpl" && rp::dateOfFile("2026-11-01.rpl") == 20261101 &&
-        rp::dateOfFile("2026-11-01.txt") == 0 && rp::dateOfFile("notes.rpl") == 0);
-  CHECK(rp::addDays(20261101, -6) == 20261026 && rp::addDays(20261231, 1) == 20270101 && rp::addDays(20240301, -1) == 20240229);
-  const std::string empty = rp::encodeFrame(5, {});
-  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(empty.data()), &h) &&
-        rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(empty.data()) + rp::kHeaderBytes, &out) && out.empty());
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -1716,9 +1577,6 @@ int main() {
   testViewport();
   testZoomButtons();
   testAdsbParse();
-  testSyslog();
-  testBackup();
-  testReplay();
   testTraffic();
   testFavorites();
   testFilters();

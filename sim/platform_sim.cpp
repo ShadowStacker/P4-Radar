@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <chrono>
-#include <ctime>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -20,7 +19,6 @@
 #include <zlib.h>
 
 #include "app/app.h"
-#include "core/syslog.h"
 #include "platform/platform.h"
 #include "sim_state.h"
 
@@ -390,40 +388,6 @@ Health sampleHealth(int) {
   h.top = "adsb 18%, lvgl 35%";
   return h;
 }
-namespace {
-FILE* s_real_stdout = nullptr;
-ssize_t simTee(void*, const char* buf, size_t n) {
-  std::fwrite(buf, 1, n, s_real_stdout);
-  std::fflush(s_real_stdout);
-  const time_t t = time(nullptr);
-  std::tm lt;
-  localtime_r(&t, &lt);
-  char st[16];
-  std::strftime(st, sizeof(st), "%H:%M:%S ", &lt);
-  core::syslog::append(buf, n, st);
-  return static_cast<ssize_t>(n);
-}
-}  // namespace
-
-void logCaptureStart(bool) {
-  if (s_real_stdout != nullptr) return;
-  s_real_stdout = fdopen(dup(1), "w");
-  cookie_io_functions_t io = {nullptr, simTee, nullptr, nullptr};
-  FILE* tee = fopencookie(nullptr, "w", io);
-  if (tee == nullptr) return;
-  setvbuf(tee, nullptr, _IOLBF, 1024);
-  stdout = tee;
-}
-
-void logDrain() {}  // the simulator's tee adds to the log as it prints
-
-std::string takeCrashLog() {
-  static bool taken = false;
-  if (taken || std::getenv("SIM_CRASH") == nullptr) return "";
-  taken = true;
-  return "12:00:01 I (5000) adsb: 212 aircraft\n12:00:02 E (5100) lvgl: out of memory\n";
-}
-
 BootInfo bootInfo() {
   BootInfo b;
   b.reset_reason = "Power on";

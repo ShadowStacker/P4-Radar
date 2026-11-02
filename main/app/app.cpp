@@ -14,14 +14,12 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <ctime>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "core/adsb.h"
-#include "core/backup.h"
 #include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
@@ -31,9 +29,7 @@
 #include "core/lookup_cache.h"
 #include "core/png.h"
 #include "core/sun.h"
-#include "core/syslog.h"
 #include "core/watch.h"
-#include "core/replay.h"
 #include "core/route.h"
 #include "core/settings_text.h"
 #include "core/trace.h"
@@ -241,200 +237,6 @@ bool serviceDayLog() {
   return true;
 }
 
-// System log (core::syslog) on the card. Network task.
-constexpr uint32_t kLogSaveEveryMs = 60 * 1000;
-uint32_t s_log_saved_ms = 0;
-std::mutex s_crash_mu;
-std::string s_crash_log;        // the previous run's last lines, if it crashed
-bool s_crash_saved = false;     // written to the card (or nothing to write)
-
-/** Network task: adds new log lines to log/system.log now and then. True if it wrote. */
-bool serviceSystemLog() {
-  const bool card = maps::sdStatus().state == maps::SdState::Mounted;
-  bool wrote = false;
-  if (card && !s_crash_saved) {
-    s_crash_saved = true;
-    std::string crash;
-    {
-      std::lock_guard<std::mutex> lock(s_crash_mu);
-      crash = s_crash_log;
-    }
-    if (!crash.empty()) {
-      mkdir(sdPath("log").c_str(), 0775);
-      char name[48];
-      std::snprintf(name, sizeof(name), "log/crash-%u.log", static_cast<unsigned>(plat::bootInfo().boots));
-      const plat::BootInfo boot = plat::bootInfo();
-      writeText(name, std::string("Restart reason: ") + boot.reset_reason + "\nLast lines before it:\n\n" + crash);
-      wrote = true;
-    }
-  }
-  const uint32_t now = plat::millis();
-  if (now - s_log_saved_ms < kLogSaveEveryMs) return wrote;
-  s_log_saved_ms = now;
-  const std::string text = core::syslog::takePending();
-  if (!card || text.empty()) return wrote;  // without a card the lines only stay in RAM
-  mkdir(sdPath("log").c_str(), 0775);
-  const std::string path = sdPath("log/system.log");
-  struct stat st;
-  if (stat(path.c_str(), &st) == 0 && static_cast<size_t>(st.st_size) + text.size() > core::syslog::kFileBytes) {
-    const std::string old = sdPath("log/system.1.log");
-    std::remove(old.c_str());
-    std::rename(path.c_str(), old.c_str());
-  }
-  FILE* f = std::fopen(path.c_str(), "ab");
-  if (f == nullptr) return wrote;
-  std::fwrite(text.data(), 1, text.size(), f);
-  std::fclose(f);
-  return true;
-}
-
-// Flight replay: recording (network task) and playing back (network task,
-// steered from the UI through s_replay_mu).
-int64_t s_replay_recorded_s = 0;
-int s_replay_pruned_date = 0;
-constexpr double kReplayRadiusKm = 150.0;
-
-/** Network task, each fetch: a snapshot of the traffic around home, every kFrameEveryS. */
-void recordReplay(const std::vector<core::Aircraft>& all) {
-  if (!s_settings.replay_record || !plat::timeValid() || maps::sdStatus().state != maps::SdState::Mounted) return;
-  const int64_t now = plat::unixTimeMs() / 1000;
-  if (now - s_replay_recorded_s < core::replay::kFrameEveryS) return;
-  s_replay_recorded_s = now;
-  const core::LatLon home{s_settings.home_lat, s_settings.home_lon};
-  std::vector<core::Aircraft> near;
-  for (const core::Aircraft& a : all) {
-    if (near.size() < core::TrafficStore::kMaxTracks && core::distanceKm(home, {a.lat, a.lon}) <= kReplayRadiusKm) {
-      near.push_back(a);
-    }
-  }
-  const int date = core::daylog::dateOf(core::localTime(now));
-  mkdir(sdPath("replay").c_str(), 0775);
-  if (date != s_replay_pruned_date) {
-    // A new day: the oldest days go.
-    s_replay_pruned_date = date;
-    const int oldest = core::replay::addDays(date, -(core::replay::kKeepDays - 1));
-    if (DIR* d = opendir(sdPath("replay").c_str())) {
-      std::vector<std::string> old;
-      while (dirent* e = readdir(d)) {
-        const int fd = core::replay::dateOfFile(e->d_name);
-        if (fd != 0 && fd < oldest) old.push_back(e->d_name);
-      }
-      closedir(d);
-      for (const std::string& n : old) std::remove((sdPath("replay") + "/" + n).c_str());
-    }
-  }
-  const std::string frame = core::replay::encodeFrame(now, near);
-  if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "ab")) {
-    std::fwrite(frame.data(), 1, frame.size(), f);
-    std::fclose(f);
-  }
-}
-
-struct ReplayCtl {
-  bool active = false;
-  int date = 0;
-  int64_t pos_s = 0;      // the moment shown
-  double pos = 0;         // the same, with the fraction
-  bool playing = false;
-  int speed = 10;
-  uint32_t tick_ms = 0;   // when pos_s last moved on
-  std::vector<std::pair<int64_t, uint32_t>> index;  // frame time, file offset
-  int loaded_date = 0;
-  int shown = -1;         // index of the frame in the traffic
-  uint32_t shown_ms = 0;
-};
-std::mutex s_replay_mu;
-ReplayCtl s_replay;
-
-/** Network task: plays the replay on. True if it read a frame. */
-bool serviceReplayImpl() {
-  int date;
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active) return false;
-    date = s_replay.date;
-    if (s_replay.loaded_date == date) date = 0;
-  }
-  if (date != 0) {
-    // The day's frames: where each one starts.
-    std::vector<std::pair<int64_t, uint32_t>> index;
-    if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "rb")) {
-      uint8_t head[core::replay::kHeaderBytes];
-      long off = 0;
-      while (std::fread(head, 1, sizeof(head), f) == sizeof(head)) {
-        core::replay::FrameHeader h;
-        if (!core::replay::readHeader(head, &h)) break;
-        index.emplace_back(h.time_s, static_cast<uint32_t>(off));
-        off += static_cast<long>(sizeof(head) + h.packed);
-        if (std::fseek(f, off, SEEK_SET) != 0) break;
-      }
-      std::fclose(f);
-    }
-    std::printf("replay: %d has %u frames\n", date, static_cast<unsigned>(index.size()));
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    s_replay.index = std::move(index);
-    s_replay.loaded_date = date;
-    s_replay.shown = -1;
-    if (!s_replay.index.empty() &&
-        (s_replay.pos_s < s_replay.index.front().first || s_replay.pos_s > s_replay.index.back().first)) {
-      s_replay.pos_s = s_replay.index.front().first;
-    }
-    s_replay.pos = static_cast<double>(s_replay.pos_s);
-  }
-  int want;
-  uint32_t offset;
-  int load_date;
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    ReplayCtl& r = s_replay;
-    if (r.index.empty()) return false;
-    const uint32_t now = plat::millis();
-    if (r.playing) {
-      r.pos += r.speed * (now - r.tick_ms) / 1000.0;
-      if (r.pos >= r.index.back().first) {
-        r.pos = static_cast<double>(r.index.back().first);
-        r.playing = false;
-      }
-    }
-    r.tick_ms = now;
-    r.pos_s = static_cast<int64_t>(r.pos);
-    auto it = std::upper_bound(r.index.begin(), r.index.end(), r.pos_s,
-                               [](int64_t t, const std::pair<int64_t, uint32_t>& e) { return t < e.first; });
-    want = it == r.index.begin() ? 0 : static_cast<int>(it - r.index.begin()) - 1;
-    // The same frame again now and then, so paused aircraft don't time out.
-    if (want == r.shown && now - r.shown_ms < 10000) return false;
-    offset = r.index[static_cast<size_t>(want)].second;
-    load_date = r.loaded_date;
-  }
-  std::vector<core::Aircraft> frame;
-  if (FILE* f = std::fopen(sdPath(core::replay::fileName(load_date).c_str()).c_str(), "rb")) {
-    uint8_t head[core::replay::kHeaderBytes];
-    core::replay::FrameHeader h;
-    if (std::fseek(f, static_cast<long>(offset), SEEK_SET) == 0 && std::fread(head, 1, sizeof(head), f) == sizeof(head) &&
-        core::replay::readHeader(head, &h)) {
-      std::vector<uint8_t> packed(h.packed);
-      if (std::fread(packed.data(), 1, packed.size(), f) == packed.size()) core::replay::decodeFrame(h, packed.data(), &frame);
-    }
-    std::fclose(f);
-  }
-  const std::vector<core::Favorite> favs = favorites();
-  frame.erase(std::remove_if(frame.begin(), frame.end(),
-                             [&](const core::Aircraft& a) {
-                               return !core::passesFilters(a, s_settings) && !core::containsHex(favs, a.hex);
-                             }),
-              frame.end());
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active || s_replay.loaded_date != load_date) return true;  // stopped meanwhile
-    s_replay.shown = want;
-    s_replay.shown_ms = plat::millis();
-  }
-  core::AlertZone quiet;
-  quiet.radius_km = 0;
-  s_traffic.update(frame, plat::millis(), quiet);
-  return true;
-}
-
 /** UI task: applies a settings.txt read by the network task. */
 void applySettingsFile() {
   std::string text;
@@ -617,7 +419,6 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
-  if (ok) recordReplay(*parsed);
   if (ok) {
     const std::vector<core::Favorite> favs = favorites();
     const bool watching = core::watchActive(s_settings);
@@ -902,12 +703,6 @@ void networkLoop() {
     const bool menu = s_menu_open.load();  // radar hidden: no tiles or flight history needed
     // The SD card and saved map tiles work without Wi-Fi.
     if (maps::serviceSd() || serviceSdFiles() || serviceDayLog() || serviceCardWork()) continue;
-    if (replayActive()) {
-      // Replaying: no live traffic (the map still fills in).
-      const bool online = plat::wifiStatus().state == plat::WifiState::Connected;
-      if (!serviceReplay() && (menu || !maps::service(online))) plat::sleepMs(50);
-      continue;
-    }
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
@@ -972,11 +767,6 @@ void init() {
     plat::wifiConnect(s_settings.wifi_ssid, s_settings.wifi_pass);
   }
   const plat::BootInfo boot = plat::bootInfo();
-  {
-    std::lock_guard<std::mutex> lock(s_crash_mu);
-    s_crash_log = plat::takeCrashLog();
-    if (!s_crash_log.empty()) std::printf("log: the last run ended with \"%s\"; its last lines are kept\n", boot.reset_reason);
-  }
   if (boot.rolled_back_from[0] != '\0') {
     std::lock_guard<std::mutex> lock(s_mu);
     s_notices.push_back(std::string("Went back to ") + plat::firmwareVersion() + ": " + boot.rolled_back_from +
@@ -1121,7 +911,6 @@ void tick(uint32_t now_ms) {
     s_confirmed = true;
     plat::confirmFirmware();
   }
-  plat::logDrain();
   runUiJobs();
   applySettingsFile();
   serviceWifi(now_ms);
@@ -1258,125 +1047,7 @@ std::string screenshotPath(const std::string& name) {
 
 void clearLookupCache() { s_lookup_clear = true; }
 
-bool serviceReplay() { return serviceReplayImpl(); }
-
-bool replayActive() {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  return s_replay.active;
-}
-
-std::vector<int> replayDays() {
-  std::vector<int> out;
-  if (!cardReady()) return out;
-  if (DIR* d = opendir(sdPath("replay").c_str())) {
-    while (dirent* e = readdir(d)) {
-      const int date = core::replay::dateOfFile(e->d_name);
-      if (date != 0) out.push_back(date);
-    }
-    closedir(d);
-  }
-  std::sort(out.rbegin(), out.rend());
-  return out;
-}
-
-void replayStart(int date) {
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    s_replay = ReplayCtl();
-    s_replay.active = true;
-    s_replay.date = date;
-    s_replay.tick_ms = plat::millis();
-  }
-  s_traffic.clear();
-  std::printf("replay: start %d\n", date);
-}
-
-void replayStop() {
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active) return;
-    s_replay = ReplayCtl();
-  }
-  s_traffic.clear();
-  requestRefresh();
-  std::printf("replay: back to live traffic\n");
-}
-
-ReplayState replayState() {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  ReplayState st;
-  st.active = s_replay.active;
-  st.date = s_replay.date;
-  st.ready = s_replay.loaded_date == s_replay.date && !s_replay.index.empty();
-  st.loading = s_replay.active && s_replay.loaded_date != s_replay.date;
-  st.pos_s = s_replay.pos_s;
-  if (!s_replay.index.empty()) {
-    st.first_s = s_replay.index.front().first;
-    st.last_s = s_replay.index.back().first;
-  }
-  st.playing = s_replay.playing;
-  st.speed = s_replay.speed;
-  return st;
-}
-
-void replaySeek(int64_t t) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  s_replay.pos_s = t;
-  s_replay.pos = static_cast<double>(t);
-  s_replay.tick_ms = plat::millis();
-}
-
-void replayPlay(bool on) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  if (on && !s_replay.index.empty() && s_replay.pos_s >= s_replay.index.back().first) {
-    s_replay.pos_s = s_replay.index.front().first;  // from the start again
-    s_replay.pos = static_cast<double>(s_replay.pos_s);
-  }
-  s_replay.playing = on;
-  s_replay.tick_ms = plat::millis();
-}
-
-void replaySpeed(int x) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  s_replay.speed = std::max(1, std::min(600, x));
-}
-
-std::string crashLog() {
-  std::lock_guard<std::mutex> lock(s_crash_mu);
-  return s_crash_log;
-}
-
-std::vector<std::string> logFiles() {
-  std::vector<std::string> out;
-  if (!cardReady()) return out;
-  DIR* d = opendir(sdPath("log").c_str());
-  if (d == nullptr) return out;
-  while (dirent* e = readdir(d)) {
-    const std::string n = e->d_name;
-    if (!logFilePath(n).empty()) out.push_back(n);
-  }
-  closedir(d);
-  std::sort(out.begin(), out.end(), [](const std::string& a, const std::string& b) {
-    const bool sa = a.compare(0, 6, "system") == 0, sb = b.compare(0, 6, "system") == 0;
-    if (sa != sb) return sa;  // system.log first, then the crashes, newest first
-    if (a.size() != b.size()) return sa ? a.size() < b.size() : a.size() > b.size();
-    return sa ? a < b : a > b;
-  });
-  return out;
-}
-
-std::string logFilePath(const std::string& name) {
-  const bool system = name == "system.log" || name == "system.1.log";
-  bool crash = name.size() > 10 && name.size() < 30 && name.compare(0, 6, "crash-") == 0 &&
-               name.compare(name.size() - 4, 4, ".log") == 0;
-  for (size_t i = 6; crash && i < name.size() - 4; ++i) crash = std::isdigit(static_cast<unsigned char>(name[i])) != 0;
-  if (!system && !crash) return "";
-  return sdPath("log") + "/" + name;
-}
-
-bool serviceCardWork() {
-  return serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
-}
+bool serviceCardWork() { return serviceScreenshot() || serviceRouteCache() || serviceLookupClear(); }
 
 void timeZoneChanged() {
   core::applyTimeZone(s_settings.time_zone);
@@ -1648,62 +1319,6 @@ void setFavorites(const std::vector<core::Favorite>& favs) {
   }
   plat::favoritesSave(favs);
   queueFavoritesFile();
-}
-
-std::string backupText() {
-  core::backup::Parts parts;
-  parts.settings = core::settings_text::serialize(s_settings);
-  parts.favorites = core::settings_text::serializeFavorites(favorites(), unresolvedFavorites());
-  parts.silenced = core::settings_text::serializeFavorites(silenced());
-  std::string title = plat::firmwareVersion();
-  if (plat::timeValid()) {
-    const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
-    char date[24];
-    std::strftime(date, sizeof(date), "%Y-%m-%d %H:%M", &t);
-    title += std::string(", ") + date;
-  }
-  return core::backup::make(title, parts);
-}
-
-bool restoreBackup(const std::string& text, std::string* summary) {
-  core::backup::Parts parts;
-  if (!core::backup::split(text, &parts)) {
-    *summary = "That isn't a Plane Radar backup file";
-    return false;
-  }
-  std::string done;
-  if (parts.has_settings) {
-    std::vector<std::string> problems;
-    const int n = applySettingsText(parts.settings, &problems);
-    done += std::to_string(n) + " settings";
-    if (!problems.empty()) done += " (" + std::to_string(problems.size()) + " lines skipped)";
-    settingsFlush();
-  }
-  std::vector<core::Favorite> quiet;
-  if (parts.has_silenced) {
-    std::vector<std::string> tails;  // silenced aircraft are saved by address only
-    core::settings_text::parseFavorites(parts.silenced, &quiet, &tails);
-    {
-      std::lock_guard<std::mutex> lock(s_favorites_mu);
-      s_silenced = quiet;
-    }
-    plat::silencedSave(quiet);
-    done += (done.empty() ? "" : ", ") + std::to_string(quiet.size()) + " silenced";
-  }
-  if (parts.has_favorites) {
-    std::vector<core::Favorite> favs;
-    std::vector<std::string> tails;
-    core::settings_text::parseFavorites(parts.favorites, &favs, &tails);
-    favs.erase(std::remove_if(favs.begin(), favs.end(),
-                              [&](const core::Favorite& f) { return core::containsHex(quiet, f.hex); }),
-               favs.end());
-    setFavorites(favs);
-    for (const std::string& t : tails) lookupFavorite(t);
-    done += (done.empty() ? "" : ", ") + std::to_string(favs.size() + tails.size()) + " favorites";
-  }
-  std::printf("backup: restored %s\n", done.c_str());
-  *summary = "Restored " + done;
-  return true;
 }
 
 bool popNotice(std::string* out) {

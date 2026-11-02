@@ -311,7 +311,6 @@ void pageMain() {
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
   navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
-  navRow(LV_SYMBOL_PLAY, "Replay a day", app::replayActive() ? "Playing" : "", Page::Replay);
   navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -1362,53 +1361,6 @@ std::string recordText(const core::daylog::Record& r, const std::string& what) {
   return fmtStr("%s%s%s, %s, %s", r.label, r.type[0] ? " " : "", r.type, what.c_str(), hm);
 }
 
-/** "Oct 31" for yyyymmdd. */
-std::string dayName(int date) {
-  static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-  return fmtStr("%s %d", kMonths[(date / 100 % 100 + 11) % 12], date % 100);
-}
-
-void pageReplay() {
-  const std::vector<int> days = app::replayDays();
-  if (app::replayActive()) {
-    actionRow(LV_SYMBOL_CLOSE, "Back to live traffic", [] {
-      app::replayStop();
-      closeSettings();
-    }, pal().accent);
-  }
-  section("RECORDED DAYS");
-  if (days.empty()) {
-    lv_obj_t* l = label(s.list,
-                        app::maps::sdStatus().state == app::maps::SdState::Mounted
-                            ? "Nothing recorded yet. The radar records the traffic around home while it shows it."
-                            : "Replays need an SD card.",
-                        font(FontSize::M), pal().text_dim);
-    lv_obj_set_width(l, lv_pct(90));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(l, sc(16), 0);
-  }
-  const int today = days.empty() ? 0 : core::daylog::dateOf(core::localTime(plat::unixTimeMs() / 1000));
-  for (int d : days) {
-    const std::string name = d == today ? "Today" : dayName(d);
-    actionRow(LV_SYMBOL_PLAY, name.c_str(), [d] {
-      app::replayStart(d);
-      closeSettings();
-    }, pal().text);
-  }
-  section("RECORDING");
-  switchRow("Record the traffic around home", &app::settings().replay_record);
-  lv_obj_t* note = label(s.list,
-                         "Every 15 seconds the aircraft within 150 km of home (while the radar shows that area) go "
-                         "into replay/ on the SD card, about 2-5 MB a day; a week is kept. While a replay plays, "
-                         "live traffic, alerts and the logs pause. Drag the bar to move in time, tap the speed to "
-                         "change it, and X to go back to live traffic.",
-                         font(FontSize::S), pal().text_dim);
-  lv_obj_set_width(note, lv_pct(90));
-  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_pad_left(note, sc(16), 0);
-}
-
 void pageDayLog() {
   lv_obj_t* date = infoRow("Today", "");
   lv_obj_t* count = infoRow("Aircraft", "");
@@ -1787,7 +1739,6 @@ const char* pageTitle(Page p) {
     case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
     case Page::DayLog: return "Daily log";
-    case Page::Replay: return "Replay";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -1824,7 +1775,6 @@ void showPage(Page page) {
     case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
     case Page::DayLog: pageDayLog(); break;
-    case Page::Replay: pageReplay(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
