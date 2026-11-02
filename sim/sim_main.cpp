@@ -1664,7 +1664,9 @@ int main(int argc, char** argv) {
     r = web("GET", "/api/logbook.csv", "", cookie);
     if (!(r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos)) why += " logbook.csv";
     r = web("POST", "/api/find", "q=SIM42", cookie);
-    if (r.body.find("\"status\":\"searching\"") == std::string::npos) why += " find-start(" + r.body + ")";
+    if (r.body.find("\"status\":\"searching\"") == std::string::npos && r.body.find("\"status\":\"found\"") == std::string::npos) {
+      why += " find-start(" + r.body + ")";  // (found at once if it's on the radar already)
+    }
     for (int i = 0; i < 40; ++i) {  // the lookup runs between traffic updates
       run(250);
       r = web("GET", "/api/find", "", cookie);

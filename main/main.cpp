@@ -31,7 +31,6 @@ void* psramMalloc(size_t size) {
 }  // namespace
 
 extern "C" void app_main(void) {
-  plat::logCaptureStart();  // before anything prints, and before other tasks start
   cJSON_Hooks hooks = {psramMalloc, free};
   cJSON_InitHooks(&hooks);
 
@@ -43,6 +42,12 @@ extern "C" void app_main(void) {
   ESP_ERROR_CHECK(err);
   // Count this start; three quick ones in a row go back to the previous version.
   plat::esp::bootCheck();
+  // The system log, before the other tasks start (they print through it). If
+  // the last start crashed within seconds, this one goes without, in case
+  // that's the trouble (a third quick crash would go back a version).
+  const bool safe = plat::bootInfo().quick_start >= 2;
+  plat::logCaptureStart(!safe);
+  if (safe) ESP_LOGW("main", "quick restart after a crash: system log capture off this time");
   // Every HTTPS connection logs "Certificate validated" at info level; only
   // problems are worth printing.
   esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);

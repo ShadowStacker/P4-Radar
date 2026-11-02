@@ -245,7 +245,9 @@ Health sampleHealth(int slot);
  * Copies everything printed (printf and ESP-IDF's log) into core::syslog,
  * still printing it on the serial port. Call first thing at startup.
  */
-void logCaptureStart();
+void logCaptureStart(bool capture = true);
+/** Moves what was printed since the last call into core::syslog, with the time. UI task, often. */
+void logDrain();
 /**
  * The last lines printed before an unexpected restart (crash, watchdog),
  * kept in RAM that survives the restart; "" after a normal start. Taking it
@@ -261,6 +263,7 @@ struct BootInfo {
   uint32_t unexpected_resets = 0;  // of which crashes, watchdogs or power dips
   char rolled_back_from[32] = "";  // version left after three quick restarts ("" = none)
   bool refreshed = false;          // this start was a planned fresh start (restartFresh())
+  uint8_t quick_start = 0;         // starts in a row less than 20 s apart, this one included
   uint32_t refreshes = 0;          // fresh starts the memory watch asked for, ever
 };
 BootInfo bootInfo();

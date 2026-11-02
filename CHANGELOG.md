@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.25.1] - 2026-11-02
+
+### Fixed
+- **v1.23.0 to v1.25.0 crashed at startup** and went back to v1.22.1. The new
+  system log did its work (timestamps, copying, locking) inside every
+  printed line, on every task, and that overflowed the small stacks of
+  system tasks such as the Wi-Fi event loop. Printing now only copies the
+  bytes into a buffer; the time is added later on the UI task. The event
+  loop also gets a bigger stack, and if the radar crashes within seconds of
+  starting, the next start runs without the log capture.
+
 ## [v1.25.0] - 2026-11-01
 
 ### Added

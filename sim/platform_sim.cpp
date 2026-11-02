@@ -431,7 +431,7 @@ ssize_t simTee(void*, const char* buf, size_t n) {
 }
 }  // namespace
 
-void logCaptureStart() {
+void logCaptureStart(bool) {
   if (s_real_stdout != nullptr) return;
   s_real_stdout = fdopen(dup(1), "w");
   cookie_io_functions_t io = {nullptr, simTee, nullptr, nullptr};
@@ -440,6 +440,8 @@ void logCaptureStart() {
   setvbuf(tee, nullptr, _IOLBF, 1024);
   stdout = tee;
 }
+
+void logDrain() {}  // the simulator's tee adds to the log as it prints
 
 std::string takeCrashLog() {
   static bool taken = false;

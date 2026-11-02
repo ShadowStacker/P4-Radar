@@ -1374,6 +1374,7 @@ void tick(uint32_t now_ms) {
     s_confirmed = true;
     plat::confirmFirmware();
   }
+  plat::logDrain();
   runUiJobs();
   applySettingsFile();
   serviceWifi(now_ms);
