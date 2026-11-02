@@ -2,6 +2,7 @@
 // esp_wifi_remote + esp_hosted expose the regular esp_wifi API over SDIO.
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -12,6 +13,8 @@
 #include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
 
@@ -27,8 +30,16 @@ bool s_want_connected = false;
 uint32_t s_retry_delay_ms = 2000;
 esp_timer_handle_t s_retry_timer = nullptr;
 esp_netif_t* s_netif = nullptr;
-uint32_t s_rssi_checked_ms = 0;
 bool s_radio_ok = true;
+
+// Every esp_wifi_* call is a request to the ESP32-C6 over SDIO, and can take
+// seconds (up to the 5 s RPC timeout) when that link is busy or stuck. None
+// is ever made while holding s_mu or from the UI's path: wifiStatus() only
+// copies, and the "wifi" task below does the slow asking (signal strength,
+// reconnecting, hotspot clients).
+std::atomic<bool> s_retry_due{false};
+std::atomic<int> s_hotspot_clients{0};
+TaskHandle_t s_wifi_task = nullptr;
 
 bool s_scan_running = false;
 bool s_scan_done = false;
@@ -48,11 +59,57 @@ const char* reasonText(uint8_t reason) {
   }
 }
 
+/** Timer callback (esp_timer task, which also drives the screen's clock): only hands over. */
 void retryNow(void*) {
-  std::lock_guard<std::mutex> lock(s_mu);
-  if (!s_want_connected) return;
-  s_status.state = WifiState::Connecting;
-  esp_wifi_connect();
+  s_retry_due = true;
+  if (s_wifi_task != nullptr) xTaskNotifyGive(s_wifi_task);
+}
+
+bool hotspotActive();
+
+/** The "wifi" task: the slow requests to the radio, away from the screen and the feed. */
+void wifiTask(void*) {
+  uint32_t next_rssi_ms = 0, rssi_every_ms = 5000;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+    if (s_retry_due.exchange(false)) {
+      bool connect = false;
+      {
+        std::lock_guard<std::mutex> lock(s_mu);
+        if (s_want_connected) {
+          s_status.state = WifiState::Connecting;
+          connect = true;
+        }
+      }
+      if (connect) esp_wifi_connect();
+    }
+    const uint32_t now = millis();
+    bool connected;
+    {
+      std::lock_guard<std::mutex> lock(s_mu);
+      connected = s_status.state == WifiState::Connected;
+    }
+    if (connected && static_cast<int32_t>(now - next_rssi_ms) >= 0) {
+      wifi_ap_record_t ap;
+      const uint32_t t0 = millis();
+      const bool ok = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
+      const uint32_t took = millis() - t0;
+      // A slow or failed answer means the link is struggling: ask less often.
+      rssi_every_ms = ok && took < 500 ? 5000 : std::min<uint32_t>(rssi_every_ms * 2, 60000);
+      if (took >= 500) ESP_LOGW(TAG, "signal check took %u ms", static_cast<unsigned>(took));
+      next_rssi_ms = millis() + rssi_every_ms;
+      if (ok) {
+        std::lock_guard<std::mutex> lock(s_mu);
+        s_status.rssi = ap.rssi;
+      }
+    }
+    if (hotspotActive()) {
+      wifi_sta_list_t list = {};
+      s_hotspot_clients = esp_wifi_ap_get_sta_list(&list) == ESP_OK ? list.num : 0;
+    } else {
+      s_hotspot_clients = 0;
+    }
+  }
 }
 
 void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data) {
@@ -100,7 +157,6 @@ void onWifiEvent(void*, esp_event_base_t base, int32_t id, void* data) {
     s_status.reason[0] = '\0';
     std::snprintf(s_status.ip, sizeof(s_status.ip), IPSTR, IP2STR(&ev->ip_info.ip));
     s_retry_delay_ms = 2000;
-    s_rssi_checked_ms = 0;
     ESP_LOGI(TAG, "connected, ip %s", s_status.ip);
   }
 }
@@ -140,6 +196,7 @@ bool wifiStart() {
     // slow to notice (or misses) phones connecting to the settings page.
     if (err == ESP_OK) esp_wifi_set_ps(WIFI_PS_NONE);
   }
+  if (err == ESP_OK) xTaskCreatePinnedToCore(wifiTask, "wifi", 4096, nullptr, 3, &s_wifi_task, 0);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Wi-Fi co-processor not available: %s", esp_err_to_name(err));
     std::lock_guard<std::mutex> lock(s_mu);
@@ -155,7 +212,8 @@ bool wifiStart() {
 
 namespace {
 esp_netif_t* s_ap_netif = nullptr;
-bool s_ap_on = false;
+std::atomic<bool> s_ap_on{false};
+bool hotspotActive() { return s_ap_on; }
 }  // namespace
 
 bool hotspotStart(const char* ssid, const char* pass) {
@@ -189,31 +247,25 @@ void hotspotStop() {
 
 bool hotspotOn() { return s_ap_on; }
 
-int hotspotClients() {
-  if (!s_ap_on) return 0;
-  wifi_sta_list_t list = {};
-  return esp_wifi_ap_get_sta_list(&list) == ESP_OK ? list.num : 0;
-}
+int hotspotClients() { return s_ap_on ? s_hotspot_clients.load() : 0; }
 
 const char* hotspotIp() { return "192.168.4.1"; }
 
 WifiStatus wifiStatus() {
-  std::lock_guard<std::mutex> lock(s_mu);
-  if (s_status.state == WifiState::Connected && millis() - s_rssi_checked_ms > 5000) {
-    s_rssi_checked_ms = millis();
-    wifi_ap_record_t ap;
-    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) s_status.rssi = ap.rssi;
-  }
+  std::lock_guard<std::mutex> lock(s_mu);  // never held across a radio request
   return s_status;
 }
 
 void wifiConnect(const char* ssid, const char* pass) {
-  std::lock_guard<std::mutex> lock(s_mu);
-  if (!s_radio_ok) return;
-  esp_timer_stop(s_retry_timer);
-  s_want_connected = false;
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    if (!s_radio_ok) return;
+    esp_timer_stop(s_retry_timer);
+    s_retry_due = false;
+    s_want_connected = false;
+    s_status = WifiStatus{};
+  }
   esp_wifi_disconnect();
-  s_status = WifiStatus{};
   if (ssid == nullptr || ssid[0] == '\0') return;
 
   wifi_config_t wc = {};
@@ -224,16 +276,18 @@ void wifiConnect(const char* ssid, const char* pass) {
   wc.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
   wc.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
   esp_wifi_set_config(WIFI_IF_STA, &wc);
-
-  s_want_connected = true;
-  s_retry_delay_ms = 2000;
-  s_status.state = WifiState::Connecting;
-  std::snprintf(s_status.ssid, sizeof(s_status.ssid), "%s", ssid);
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_want_connected = true;
+    s_retry_delay_ms = 2000;
+    s_status.state = WifiState::Connecting;
+    std::snprintf(s_status.ssid, sizeof(s_status.ssid), "%s", ssid);
+  }
   esp_wifi_connect();
 }
 
 void wifiScanStart() {
-  std::lock_guard<std::mutex> lock(s_mu);
+  std::unique_lock<std::mutex> lock(s_mu);
   if (!s_radio_ok) {
     s_scan_results.clear();
     s_scan_done = true;
@@ -241,11 +295,14 @@ void wifiScanStart() {
   }
   if (s_scan_running) return;
   s_scan_done = false;
+  s_scan_running = true;
+  lock.unlock();
   wifi_scan_config_t sc = {};
   sc.show_hidden = false;
-  if (esp_wifi_scan_start(&sc, false) == ESP_OK) {
-    s_scan_running = true;
-  } else {
+  const bool started = esp_wifi_scan_start(&sc, false) == ESP_OK;
+  lock.lock();
+  if (!started) {
+    s_scan_running = false;
     // Typically "busy connecting"; report an empty result so the UI recovers.
     ESP_LOGW(TAG, "scan could not start");
     s_scan_results.clear();

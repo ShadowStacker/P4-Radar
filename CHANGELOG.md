@@ -10,6 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.2] - 2026-11-02
+
+### Fixed
+- **The screen, menus and live data freezing for many seconds at a time.**
+  The screen asked the Wi-Fi chip for its signal strength every 5 seconds
+  and waited for the answer. When the link to the Wi-Fi chip was busy, that
+  could take up to 5 seconds. Everything else that needed the Wi-Fi status
+  (the screen, the feed, the phone page) waited too, so it could seize up
+  almost completely. Reconnecting after a drop also waited on the clock
+  that keeps the screen ticking. A separate background task now does all
+  the talking to the Wi-Fi chip; the screen and the feed only read the last
+  known status and never wait.
+
 ## [v1.32.1] - 2026-11-02
 
 ### Fixed
