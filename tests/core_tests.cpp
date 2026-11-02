@@ -14,6 +14,7 @@
 #include "core/adsb.h"
 #include "core/backup.h"
 #include "core/syslog.h"
+#include "core/replay.h"
 #include "core/clock.h"
 #include "cJSON.h"
 #include "core/daylog.h"
@@ -356,6 +357,54 @@ void testBackup() {
   CHECK(!core::backup::split("# Plane Radar backup\nnothing", &back));
   CHECK(text.size() < 32 * 1024);  // fits a phone page request read in one go
   std::printf("  backup file: %zu bytes\n", text.size());
+}
+
+void testReplay() {
+  namespace rp = core::replay;
+  std::vector<core::Aircraft> in;
+  for (int i = 0; i < 120; ++i) {
+    core::Aircraft a;
+    std::snprintf(a.hex, sizeof(a.hex), i == 3 ? "~%05x" : "%06x", 0xa00000 + i);
+    std::snprintf(a.callsign, sizeof(a.callsign), "KLM%04d", i);
+    std::snprintf(a.type, sizeof(a.type), "B738");
+    a.lat = 44.25 + i * 0.001234;
+    a.lon = -121.15 - i * 0.002;
+    a.alt_ft = 1000 + i * 250;
+    a.alt_valid = i != 5;
+    a.on_ground = i == 7;
+    a.emergency = i == 9;
+    a.military = i == 11;
+    a.track_deg = i * 3.01f;
+    a.heading_deg = 359.99f;
+    a.gs_kt = 412.3f;
+    a.vrate_fpm = -1984;
+    in.push_back(a);
+  }
+  const std::string frame = rp::encodeFrame(1761955200, in);
+  CHECK(frame.size() < in.size() * 38);  // compressed
+  rp::FrameHeader h;
+  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(frame.data()), &h) && h.time_s == 1761955200 &&
+        h.packed + rp::kHeaderBytes == frame.size());
+  std::vector<core::Aircraft> out;
+  CHECK(rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(frame.data()) + rp::kHeaderBytes, &out));
+  CHECK(out.size() == in.size());
+  bool same = out.size() == in.size();
+  for (size_t i = 0; same && i < in.size(); ++i) {
+    const core::Aircraft &a = in[i], &b = out[i];
+    same = std::strcmp(a.hex, b.hex) == 0 && std::strcmp(a.callsign, b.callsign) == 0 && std::strcmp(a.type, b.type) == 0 &&
+           std::fabs(a.lat - b.lat) < 1e-6 && std::fabs(a.lon - b.lon) < 1e-6 && a.alt_ft == b.alt_ft &&
+           a.alt_valid == b.alt_valid && a.on_ground == b.on_ground && a.emergency == b.emergency &&
+           a.military == b.military && std::fabs(a.track_deg - b.track_deg) < 0.01f && std::fabs(b.heading_deg - 359.99f) < 0.01f &&
+           std::fabs(b.gs_kt - 412.3f) < 0.06f && b.vrate_fpm == -1984;
+  }
+  CHECK(same);
+  CHECK(!rp::readHeader(reinterpret_cast<const uint8_t*>("garbage garbage!"), &h));
+  CHECK(rp::fileName(20261101) == "replay/2026-11-01.rpl" && rp::dateOfFile("2026-11-01.rpl") == 20261101 &&
+        rp::dateOfFile("2026-11-01.txt") == 0 && rp::dateOfFile("notes.rpl") == 0);
+  CHECK(rp::addDays(20261101, -6) == 20261026 && rp::addDays(20261231, 1) == 20270101 && rp::addDays(20240301, -1) == 20240229);
+  const std::string empty = rp::encodeFrame(5, {});
+  CHECK(rp::readHeader(reinterpret_cast<const uint8_t*>(empty.data()), &h) &&
+        rp::decodeFrame(h, reinterpret_cast<const uint8_t*>(empty.data()) + rp::kHeaderBytes, &out) && out.empty());
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -1669,6 +1718,7 @@ int main() {
   testAdsbParse();
   testSyslog();
   testBackup();
+  testReplay();
   testTraffic();
   testFavorites();
   testFilters();

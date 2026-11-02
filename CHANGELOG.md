@@ -10,6 +10,35 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.26.0] - 2026-11-02
+
+v1.23.0 to v1.25.1 crashed at startup on the board and are withdrawn. This
+version starts again from v1.22.1 and adds only the following.
+
+### Added
+- **System log.** Everything the radar prints is kept, with the time, on the
+  new **System** tab of the phone page (and can be saved from there). With an
+  SD card it's written to `log/system.log` once a minute.
+- **Crash log.** After a crash or watchdog restart, the last lines printed
+  before it are shown on the System tab and saved as `log/crash-N.log`.
+- **Backup and restore.** The System tab downloads one file with all
+  settings, saved Wi-Fi networks, favorites and silenced aircraft, and
+  restores it on the same radar or a new one.
+- **Flight replay.** The traffic around home is recorded on the SD card every
+  15 seconds (a week is kept). **Settings → Replay a day** plays a day back on
+  the radar, with a time slider, play/pause and speeds up to 300×.
+
+### Changed
+- **Less redrawing when little moves.** Aircraft are drawn at whole pixels,
+  and only those that moved by a pixel (or whose label changed) are redrawn.
+  With the sweep off and nothing moving, a frame redraws nothing at all; the
+  on-screen stats show how often (*rest*).
+
+### Fixed
+- **A possible crash with big range rings.** LVGL's circle drawing writes past
+  its memory for some radii above about 920 pixels (rings when the view is far
+  from home). Such rings are now drawn as short lines.
+
 ## [v1.22.1] - 2026-11-01
 
 ### Changed

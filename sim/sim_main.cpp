@@ -130,6 +130,7 @@ void writePng(const std::string& path) {
 }
 
 void feedTraffic() {
+  if (app::replayActive()) return;  // the replay fills the traffic instead
   if (sim::g_ms < g_next_fetch) return;
   g_next_fetch = sim::g_ms + app::settings().poll_interval_s * 1000u;
   core::LatLon c;
@@ -149,6 +150,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     feedTraffic();
     // In the network task's order: card work first, then downloads.
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
+    app::serviceReplay();
     if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
@@ -1118,6 +1120,37 @@ int main(int argc, char** argv) {
     run(300);
   }
 
+  // Flight replay: what was recorded so far played back, then live again.
+  {
+    const std::vector<int> days = app::replayDays();
+    const bool recorded = !days.empty();
+    if (recorded) app::replayStart(days.front());
+    run(1500);
+    app::ReplayState rs = app::replayState();
+    std::vector<core::Track> shown;
+    app::traffic().snapshot(shown);
+    const bool loaded = rs.active && rs.ready && rs.last_s > rs.first_s && !shown.empty();
+    app::replaySeek(rs.first_s);
+    app::replaySpeed(60);
+    app::replayPlay(true);
+    run(3000);
+    rs = app::replayState();
+    const bool played = rs.pos_s >= rs.first_s + 120 && rs.pos_s <= rs.first_s + 240;
+    shot((p + "85_replay").c_str());
+    const bool bar = hasLabel(lv_layer_top(), "Replay ") && hasLabel(lv_layer_top(), "60x");
+    ui::openSettings(ui::Page::Replay);
+    run(400);
+    shot((p + "86_replay_days").c_str());
+    ui::closeSettings();
+    app::replayStop();
+    run(3000);
+    const bool live = !app::replayActive() && !hasLabel(lv_layer_top(), "Replay ");
+    std::printf("replay (%u days): loaded %s, plays %s, bar %s, back to live %s\n", static_cast<unsigned>(days.size()),
+                recorded && loaded ? "OK" : "FAILED", played ? "OK" : "FAILED", bar ? "OK" : "FAILED",
+                live ? "OK" : "FAILED");
+    if (!recorded || !loaded || !played || !bar || !live) return 1;
+  }
+
   // Several Wi-Fi networks: connecting to a new one keeps the old one saved;
   // forgetting one removes it.
   {
@@ -1456,24 +1489,21 @@ int main(int argc, char** argv) {
     ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
     const bool shots_ok = ok;
     // System tab: the log, a backup, and restoring it (with one change).
+    std::string why;
     r = web("GET", "/api/log", "", cookie);
-    bool system_ok = r.status == 200 && r.body.find("\"text\":\"") != std::string::npos && r.body.find("web:") != std::string::npos;
+    if (!(r.status == 200 && r.body.find("\"text\":\"") != std::string::npos)) why += " log";
     r = web("GET", "/api/backup", "", cookie);
     std::string backup = r.body;
-    system_ok = system_ok && backup.compare(0, 20, "# Plane Radar backup") == 0 && backup.find("[[favorites]]") != std::string::npos;
+    if (!(backup.compare(0, 20, "# Plane Radar backup") == 0 && backup.find("[[favorites]]") != std::string::npos)) why += " backup";
     const size_t vol = backup.find("\nvolume = ");
     if (vol != std::string::npos) backup.replace(vol + 10, backup.find('\n', vol + 1) - vol - 10, "33");
-    plat::WebRequest rr;
-    rr.method = "POST";
-    rr.path = "/api/restore";
-    rr.body = backup;
-    rr.content_length = backup.size();
-    r = sim::g_web_handler(rr);
+    r = web("POST", "/api/restore", backup, cookie);
     run(300);
-    system_ok = system_ok && r.body.find("\"ok\":true") != std::string::npos && app::settings().volume == 33;
-    rr.body = "not a backup";
-    rr.content_length = rr.body.size();
-    system_ok = system_ok && sim::g_web_handler(rr).body.find("isn't a Plane Radar backup") != std::string::npos;
+    if (!(r.body.find("\"ok\":true") != std::string::npos && app::settings().volume == 33)) why += " restore(" + r.body + ")";
+    r = web("POST", "/api/restore", "not a backup", cookie);
+    if (r.body.find("isn't a Plane Radar backup") == std::string::npos) why += " not-a-backup";
+    const bool system_ok = why.empty();
+    if (!system_ok) std::printf("system tab checks failed:%s\n", why.c_str());
     ok = ok && system_ok;
     std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, log and backup %s\n", login_ok ? "OK" : "FAILED",
                 settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",

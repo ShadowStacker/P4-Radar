@@ -188,6 +188,8 @@ const Field kFields[] = {
     SECTION("Daily log"),
     F32(log_radius_km, 1, 400, "Count aircraft within this distance of home, in km"),
 
+    BOOL(replay_record, "Record the traffic around home on the SD card for replays (a week is kept)"),
+
     SECTION("Phone page"),
     BOOL(web_enabled, "Settings page for phones on your network (PIN on the radar's screen)"),
 
