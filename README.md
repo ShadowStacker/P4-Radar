@@ -86,8 +86,9 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Nearby aircraft**: a list of what's around, sorted by distance, altitude or speed; tap one to see it on the radar.
 - **Logbook**: every aircraft ever seen near home, with visits, in `logbook.csv`; a "first time here" alert for
   aircraft it has never seen.
-- **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
-  the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.
+- **Daily log**: how many different aircraft flew near home today, the busiest moment and hour (with an hourly
+  chart), the closest pass, the highest and fastest, military and emergency aircraft, and favorites seen. Each day
+  is saved on the SD card, with 7- and 30-day totals and a CSV download.
 - **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
   there is one (also Settings → Updates), with automatic rollback if a new version fails to start, and
   power-cycling three times quickly goes back to the previous version.

@@ -64,6 +64,10 @@ button:disabled{opacity:.5}
 #toast.show{opacity:1}
 .hidden{display:none!important}
 .sig{color:var(--dim);font-size:13px;white-space:nowrap}
+.hours{display:flex;align-items:flex-end;gap:2px;height:90px;margin:10px 0 2px}
+.hours i{flex:1;background:var(--acc);opacity:.6;border-radius:2px 2px 0 0;min-height:1px}
+.hours i.top{opacity:1}
+.hlab{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
 a.sec{display:inline-block;color:var(--acc);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:15px;text-decoration:none}
 </style></head><body>
 <header><h1><span class="dot"></span>Plane Radar<small id="ver"></small></h1>
@@ -204,10 +208,15 @@ async function wifiAdd(now){
 async function wifiUse(s){if(!confirm('Switch the radar to '+s+' now?'))return;await api('/api/wifi/use',{ssid:s});toast('Connecting to '+s+'...')}
 async function wifiForget(s,first){if(!confirm('Forget '+s+'?'+(first?' The radar is using it: it moves on to the next saved network.':'')))return;await api('/api/wifi/forget',{ssid:s});viewWifi()}
 async function wifiUp(s,first){if(first&&!confirm(s+' becomes the network used first, and the radar switches to it now.'))return;await api('/api/wifi/up',{ssid:s});viewWifi()}
+function bars(h){const top=Math.max(...h);return `<div class="hours">${h.map(v=>`<i class="${v==top&&v>0?'top':''}" style="height:${top?Math.max(1,90*v/top):1}px" title="${v}"></i>`).join('')}</div><div class="hlab"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>`}
 async function viewLog(){
   const [j,b]=await Promise.all([api('/api/daylog'),api('/api/logbook')]);
   const lst=(v,f)=>v.map(e=>`<div class="row"><div class="lbl"><b>${esc(e.label)}</b><span>${esc(e.type||'')} · ${e.hex}</span></div><div class="val">${f(e)}</div></div>`).join('');
   $('#view').innerHTML=`<div class="card"><b>Today</b>${j.today.map(([k,v])=>`<div class="row"><div class="lbl"><span>${esc(k)}</span></div><div class="val">${esc(v)}</div></div>`).join('')}</div>
+  <div class="card"><b>Today by hour</b>${bars(j.hourly)}</div>
+  ${j.totals.map(t=>`<div class="card"><b>Last ${t.days} days</b><div class="row"><div class="lbl"><span>Aircraft</span></div><div class="val">${t.unique} different (${Math.round(t.sum/t.logged)} a day)</div></div>
+  <div class="row"><div class="lbl"><span>Busiest day</span></div><div class="val">${t.best_date}, ${t.best_count}</div></div>${bars(t.hourly)}</div>`).join('')}
+  <div class="card flex"><a class="sec" href="/api/daylog.csv" download="daily-log.csv">Download daily counts (CSV)</a><span class="muted">The last 90 days, one line a day with the hourly counts.</span></div>
   <div class="card"><b>Logbook</b>${b.loaded?`<p class="muted">${b.aircraft} different aircraft, ${b.visits} visits since ${String(b.since).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3')}.${b.learning?' Still learning: "first time here" alerts start after two days.':''}</p>
   ${b.frequent.length?'<p class="muted">Most frequent</p>'+lst(b.frequent,e=>e.visits+' visits'):''}${b.newest.length?'<p class="muted">Newest</p>'+lst(b.newest,e=>e.first):''}
   <div class="flex" style="margin-top:8px"><a class="sec" href="/api/logbook.csv" download="logbook.csv">Download logbook.csv</a></div>`:'<p class="muted">Needs an SD card in the radar.</p>'}</div>

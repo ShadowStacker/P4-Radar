@@ -94,6 +94,7 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | 📷 Camera | right, below the clock | Save a [screenshot](#screenshots) of the radar on the SD card |
+| ✈ Airplane | left, below the power button | Open the [Nearby aircraft](#nearby-aircraft) list |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Tap: zoom in / out a little (1.25×), smoothly; quick taps add up. Hold: keeps zooming, gently speeding up, until you let go. |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
@@ -516,7 +517,8 @@ page turns recording off (`replay_record` in `settings.txt`).
 
 ### Nearby aircraft
 
-**Settings → Nearby aircraft** lists the aircraft the radar has right now
+**Settings → Nearby aircraft** (or the airplane button on the left of the
+radar) lists the aircraft the radar has right now
 (what it receives for the area on screen), each with its type, distance from
 home, altitude and speed; favorites are in their own color. **Sort by**
 distance (nearest first), altitude (highest first) or speed (fastest first).
@@ -657,10 +659,17 @@ aircraft, how many were **military** or squawked an **emergency**, and which
 within** (default 25 mi) of home count, and only while the radar is showing
 the area around home (it only receives traffic for the area on screen).
 
+**Today by hour** shows how many different aircraft came by in each hour of
+the day, as bars; the busiest hour is the bright one.
+
 With an SD card, each day is saved as `log/YYYY-MM-DD.txt` (readable on a
 computer), the count carries on after a restart, and **Earlier days** lists
-the last week. The count needs the time from the internet to know when a day
-starts.
+the last week. **Last 7 days** and **Last 30 days** add the days up: different
+aircraft over the whole period (each counted once), the average a day, the
+busiest day and hour, and for the week the hours as bars. The phone page's
+Daily log tab shows the same, and **Download daily counts** saves the last 90
+days as a spreadsheet file (one line a day, with the 24 hourly counts). The
+count needs the time from the internet to know when a day starts.
 
 #### Logbook
 

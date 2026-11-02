@@ -45,6 +45,7 @@ struct Hud {
   lv_obj_t* clock = nullptr;
   lv_obj_t* sleep = nullptr;
   lv_obj_t* camera = nullptr;     // screenshot
+  lv_obj_t* list_btn = nullptr;   // nearby aircraft list
   lv_obj_t* alt_key = nullptr;    // altitude color scale under the status pill
   lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
@@ -584,6 +585,7 @@ void leavePickMode() {
   setHidden(h.clock, false);
   setHidden(h.sleep, false);
   setHidden(h.camera, false);
+  setHidden(h.list_btn, false);
   updateCard();
 }
 
@@ -638,6 +640,7 @@ void enterPickMode() {
   setHidden(h.clock, true);
   setHidden(h.sleep, true);
   setHidden(h.camera, true);
+  setHidden(h.list_btn, true);
   updateCard();
 }
 
@@ -744,6 +747,17 @@ void create(lv_obj_t* parent) {
     lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
   }
   placePolar(h.camera, 121.5f, 0.80f);
+
+  // Nearby aircraft list, mirroring the camera button.
+  h.list_btn = iconButton(h.controls, "", d, [] { openSettings(Page::Nearby); });
+  {
+    lv_obj_t* icon = lv_image_create(h.list_btn);
+    lv_image_set_src(icon, sprites::planeIcon(sc(36) | 1));
+    lv_obj_center(icon);
+    lv_obj_set_style_image_recolor(icon, p.text, 0);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+  }
+  placePolar(h.list_btn, -121.5f, 0.80f);
 
   // Sleep, mirroring the clock button: screen off and quiet until a tap
   // (or an alarm, with Wake on alarm on).

@@ -1291,8 +1291,19 @@ int main(int argc, char** argv) {
       walk(lv_screen_active());
       return found;
     };
-    ui::openSettings(ui::Page::Nearby);
-    run(600);
+    // The airplane button on the radar (left side, mirroring the camera) opens it.
+    lv_display_trigger_activity(nullptr);
+    run(300);
+    const float ang = -121.5f * 3.14159265f / 180.0f;
+    const int bx = static_cast<int>(g_size / 2 + std::sin(ang) * g_size / 2 * 0.80f);
+    const int by = static_cast<int>(g_size / 2 - std::cos(ang) * g_size / 2 * 0.80f);
+    for (int i = 0; i < 2 && !ui::settingsOpen(); ++i) {  // the first tap may only bring the buttons back
+      tap(bx, by);
+      run(600);
+    }
+    const bool button = ui::settingsOpen() && hasLabel(lv_screen_active(), "Nearby aircraft");
+    std::printf("nearby aircraft button: %s\n", button ? "OK" : "FAILED");
+    if (!button) return 1;
     const std::string by_distance = firstRowName();
     shot((p + "87_nearby_aircraft").c_str());
     // Sort by altitude: tap the "Altitude" choice.
@@ -1372,6 +1383,22 @@ int main(int argc, char** argv) {
     shot((p + "82_logbook").c_str());
     ui::closeSettings();
     run(300);
+    // The daily log's hours: today's chart has the hours counted so far.
+    const core::daylog::Day today = app::dayLogToday();
+    int counted = 0;
+    for (int h = 0; h < 24; ++h) counted += today.hourly[h];
+    ui::openSettings(ui::Page::DayLog);
+    run(800);
+    const bool chart = counted > 0 && core::daylog::busiestHour(today) >= 0 && hasLabel(lv_screen_active(), "Busiest hour");
+    if (lv_obj_t* head = findLabel(lv_screen_active(), "TODAY BY HOUR")) {
+      lv_obj_scroll_to_view_recursive(head, LV_ANIM_OFF);
+      run(300);
+    }
+    shot((p + "83_daily_log_hours").c_str());
+    ui::closeSettings();
+    run(300);
+    std::printf("daily log by hour (%d counted): %s\n", counted, chart ? "OK" : "FAILED");
+    if (!chart) return 1;
   }
 
   // Flight replay: what was recorded so far played back, then live again.
@@ -1761,10 +1788,14 @@ int main(int argc, char** argv) {
     if (!(r.body.find("\"loaded\":true") != std::string::npos && r.body.find("\"frequent\":[{") != std::string::npos)) why += " logbook";
     r = web("GET", "/api/logbook.csv", "", cookie);
     if (!(r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos)) why += " logbook.csv";
+    r = web("GET", "/api/daylog", "", cookie);
+    if (r.body.find("\"hourly\":[") == std::string::npos) why += " daylog-hours";
+    r = web("GET", "/api/daylog.csv", "", cookie);
+    if (!(r.status == 200 && r.body.compare(0, 14, "date,aircraft,") == 0 && r.body.find("\n2") != std::string::npos)) why += " daylog.csv";
     const bool backup_ok = why.empty();
     if (!backup_ok) std::printf("backup checks failed:%s\n", why.c_str());
     ok = ok && backup_ok;
-    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, backup and logbook %s\n", login_ok ? "OK" : "FAILED",
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, backup, logbook and daily log %s\n", login_ok ? "OK" : "FAILED",
                 settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
                 backup_ok ? "OK" : "FAILED");
     if (!ok) return 1;

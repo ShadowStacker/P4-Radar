@@ -310,7 +310,8 @@ void pageMain() {
   {
     std::vector<core::Track> all;
     app::traffic().snapshot(all);
-    navRow(LV_SYMBOL_LIST, "Nearby aircraft", fmtStr("%u", static_cast<unsigned>(all.size())), Page::Nearby);
+    navRowImage(sprites::planeIcon(sc(30) | 1), "Nearby aircraft", fmtStr("%u", static_cast<unsigned>(all.size())),
+                Page::Nearby);
   }
   navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
@@ -1511,6 +1512,65 @@ void pageLogbook() {
   lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
+/**
+ * 24 bars, one per hour of the day, with 0 / 6 / 12 / 18 under them. Returns
+ * the bars, for hourBars() to set.
+ */
+std::vector<lv_obj_t*> hourChart() {
+  const Palette& p = pal();
+  const int32_t h = sc(100), w = sc(14), gap = sc(4);
+  lv_obj_t* box = lv_obj_create(s.list);
+  lv_obj_remove_style_all(box);
+  lv_obj_set_size(box, 24 * (w + gap), h + sc(26));
+  lv_obj_set_style_margin_left(box, sc(16), 0);
+  lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+  std::vector<lv_obj_t*> bars;
+  for (int i = 0; i < 24; ++i) {
+    lv_obj_t* b = lv_obj_create(box);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_style_bg_color(b, p.accent, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(b, sc(2), 0);
+    lv_obj_set_size(b, w, 1);
+    lv_obj_set_pos(b, i * (w + gap), h - 1);
+    bars.push_back(b);
+    if (i % 6 == 0) {
+      lv_obj_t* t = label(box, fmtStr("%d", i).c_str(), font(FontSize::S), p.text_dim);
+      lv_obj_set_pos(t, i * (w + gap), h + sc(4));
+    }
+  }
+  return bars;
+}
+
+/** Sets the bars to the counts (scaled to the largest); the busiest hour stands out. */
+void hourBars(const std::vector<lv_obj_t*>& bars, const int* counts) {
+  if (bars.size() != 24) return;
+  int top = 0, best = -1;
+  for (int i = 0; i < 24; ++i) {
+    if (counts[i] > top) {
+      top = counts[i];
+      best = i;
+    }
+  }
+  const int32_t h = sc(100);
+  for (int i = 0; i < 24; ++i) {
+    const int32_t bh = top > 0 ? std::max<int32_t>(1, static_cast<int32_t>(static_cast<int64_t>(h) * counts[i] / top)) : 1;
+    if (lv_obj_get_height(bars[i]) != bh) {
+      lv_obj_set_height(bars[i], bh);
+      lv_obj_set_y(bars[i], h - bh);
+    }
+    lv_obj_set_style_bg_opa(bars[i], i == best ? LV_OPA_COVER : LV_OPA_60, 0);
+  }
+}
+
+std::string hourText(int h) {
+  char a[16], b[16];
+  core::formatTime(h, 0, app::settings().clock_24h, a, sizeof(a));
+  core::formatTime((h + 1) % 24, 0, app::settings().clock_24h, b, sizeof(b));
+  return std::string(a) + "-" + b;
+}
+
 /** Nearby aircraft: what the radar has now, sorted; a tap shows one on the radar. */
 int s_nearby_sort = 0;  // 0 distance, 1 altitude, 2 speed
 
@@ -1594,12 +1654,27 @@ void pageDayLog() {
   lv_obj_t* special = infoRow("Military / emergencies", "");
   lv_obj_t* favs = infoRow("Favorites seen", "");
   for (lv_obj_t* l : {closest, highest, fastest, favs}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  section("TODAY BY HOUR");
+  lv_obj_t* busiest_hour = infoRow("Busiest hour", "");
+  const std::vector<lv_obj_t*> today_bars = hourChart();
   navRow(LV_SYMBOL_DIRECTORY, "Logbook", fmtStr("%u aircraft", static_cast<unsigned>(app::logbookSummary(0).aircraft)),
          Page::Logbook);
   auto& st = app::settings();
   sliderRow("Count aircraft within", 1, 100, static_cast<int>(app::kmToUnits(st.log_radius_km) + 0.5),
             [](int v) { app::settings().log_radius_km = static_cast<float>(app::unitsToKm(v)); },
             [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
+
+  for (int days : {7, 30}) {
+    const app::DayLogTotals t = app::dayLogTotals(days);
+    if (t.days < 2) break;
+    section(days == 7 ? "LAST 7 DAYS" : "LAST 30 DAYS");
+    infoRow("Aircraft", fmtStr("%d different (%d a day)", t.unique, t.sum / t.days));
+    infoRow("Busiest day", fmtStr("%s, %d", dayName(t.best_date).c_str(), t.best_count));
+    int best = 0;
+    for (int h = 1; h < 24; ++h) best = t.hourly[h] > t.hourly[best] ? h : best;
+    if (t.hourly[best] > 0) infoRow("Busiest hour", hourText(best));
+    if (days == 7) hourBars(hourChart(), t.hourly);
+  }
 
   section("EARLIER DAYS");
   const std::vector<core::daylog::Day> history = app::dayLogHistory(7);
@@ -1625,8 +1700,13 @@ void pageDayLog() {
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_pad_left(note, sc(16), 0);
 
-  s.tick = [date, count, busiest, closest, highest, fastest, special, favs] {
+  s.tick = [date, count, busiest, closest, highest, fastest, special, favs, busiest_hour, today_bars] {
     const core::daylog::Day d = app::dayLogToday();
+    int hours[24];
+    for (int h = 0; h < 24; ++h) hours[h] = d.hourly[h];
+    hourBars(today_bars, hours);
+    const int bh = core::daylog::busiestHour(d);
+    setLabelText(busiest_hour, bh < 0 ? "-" : fmtStr("%s, %d aircraft", hourText(bh).c_str(), d.hourly[bh]).c_str());
     if (d.date == 0) {
       setLabelText(date, "Waiting for the time (needs internet)");
       return;

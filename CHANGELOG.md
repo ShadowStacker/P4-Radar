@@ -10,6 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.0] - 2026-11-02
+
+### Added
+- **An airplane button on the radar** (left side, opposite the camera) opens
+  the Nearby aircraft list.
+- **Daily log by the hour.** Today's aircraft per hour as bars and the
+  busiest hour, plus totals for the last 7 and 30 days (different aircraft,
+  the busiest day and hour). The phone page shows them too and downloads the
+  last 90 days as a CSV file.
+
 ## [v1.31.0] - 2026-11-02
 
 ### Added

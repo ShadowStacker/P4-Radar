@@ -260,7 +260,25 @@ plat::WebResponse getDayLog() {
       })) {
     return busy();
   }
-  return json("{\"sd\":" + boolJson(sd) + ",\"today\":[" + today + "],\"days\":[" + days + "]}");
+  // Hours and totals (read from the card here, not on the UI task).
+  const core::daylog::Day d = dayLogToday();
+  std::string hours;
+  for (int h = 0; h < 24; ++h) hours += (h ? "," : "") + std::to_string(d.hourly[h]);
+  std::string totals;
+  for (int n : {7, 30}) {
+    const DayLogTotals t = dayLogTotals(n);
+    if (t.days < 2) continue;
+    std::string th;
+    for (int h = 0; h < 24; ++h) th += (h ? "," : "") + std::to_string(t.hourly[h]);
+    char best[16];
+    std::snprintf(best, sizeof(best), "%04d-%02d-%02d", t.best_date / 10000, t.best_date / 100 % 100, t.best_date % 100);
+    totals += std::string(totals.empty() ? "" : ",") + "{\"days\":" + std::to_string(n) + ",\"logged\":" +
+              std::to_string(t.days) + ",\"unique\":" + std::to_string(t.unique) + ",\"sum\":" +
+              std::to_string(t.sum) + ",\"best_date\":\"" + best + "\",\"best_count\":" +
+              std::to_string(t.best_count) + ",\"hourly\":[" + th + "]}";
+  }
+  return json("{\"sd\":" + boolJson(sd) + ",\"today\":[" + today + "],\"days\":[" + days + "],\"hourly\":[" + hours +
+              "],\"totals\":[" + totals + "]}");
 }
 
 plat::WebResponse getShots() {
@@ -443,6 +461,11 @@ plat::WebResponse handle(plat::WebRequest& r) {
   if (p == "/api/wifi/scan") return wifiScan(post);
   if (post && p.compare(0, 10, "/api/wifi/") == 0) return wifiAction(p.substr(10), r);
   if (p == "/api/daylog") return getDayLog();
+  if (p == "/api/daylog.csv") {
+    plat::WebResponse res = text(dayLogCsv(90));
+    res.type = "text/csv; charset=utf-8";
+    return res;
+  }
   if (p == "/api/logbook") return getLogbook();
   if (p == "/api/logbook.csv") return csvFile(logbookPath());
   if (p == "/api/shots") return getShots();

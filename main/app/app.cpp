@@ -9,6 +9,7 @@
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
+#include <iterator>
 #include <memory>
 #include <deque>
 #include <cmath>
@@ -1064,6 +1065,37 @@ std::vector<core::daylog::Day> dayLogHistory(int days) {
       out.push_back(d);
     }
   }
+  return out;
+}
+
+DayLogTotals dayLogTotals(int days) {
+  DayLogTotals out;
+  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
+  all.insert(all.begin(), dayLogToday());
+  std::vector<uint32_t> unique;
+  for (const core::daylog::Day& d : all) {
+    if (d.date == 0) continue;
+    ++out.days;
+    out.sum += d.count();
+    if (d.count() > out.best_count) {
+      out.best_count = d.count();
+      out.best_date = d.date;
+    }
+    std::vector<uint32_t> merged;
+    std::set_union(unique.begin(), unique.end(), d.seen.begin(), d.seen.end(), std::back_inserter(merged));
+    unique.swap(merged);
+    for (int h = 0; h < 24; ++h) out.hourly[h] += d.hourly[h];
+  }
+  out.unique = static_cast<int>(unique.size());
+  return out;
+}
+
+std::string dayLogCsv(int days) {
+  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
+  std::string out = core::daylog::csvHeader();
+  for (auto it = all.rbegin(); it != all.rend(); ++it) out += core::daylog::csvLine(*it);  // oldest first
+  const core::daylog::Day today = dayLogToday();
+  if (today.date != 0) out += core::daylog::csvLine(today);
   return out;
 }
 

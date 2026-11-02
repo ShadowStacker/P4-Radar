@@ -254,6 +254,27 @@ const lv_draw_buf_t* clockIcon(int32_t size) {
   return buf;
 }
 
+const lv_draw_buf_t* planeIcon(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  const float c = size / 2.0f;
+  drawTris(&layer, kJet, sizeof(kJet) / sizeof(kJet[0]), c, c, size * 0.48f, 0);
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.emplace_back(size, buf);
+  return buf;
+}
+
 const lv_draw_buf_t* cameraIcon(int32_t size) {
   static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
   for (const auto& e : s_cache) {

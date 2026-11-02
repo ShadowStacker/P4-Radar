@@ -1389,6 +1389,21 @@ void testDayLog() {
   CHECK(dl::fileName(20261029) == "2026-10-29.txt");
   CHECK(dl::summary(back, "1.4 mi") == "Oct 29: 3 aircraft, closest UAL1 1.4 mi");
 
+  // Hourly counts: different aircraft each hour (9:05 and 10:00 above).
+  CHECK(day.hourly[9] == 3 && day.hourly[10] == 3 && day.hourly[11] == 0 && dl::busiestHour(day) == 9);
+  CHECK(back.hourly[9] == 3 && back.hourly[10] == 3);
+  CHECK(text.find("hourly = 0 0 0 0 0 0 0 0 0 3 3 0") != std::string::npos);
+  CHECK(dl::csvLine(back).compare(0, 30, "2026-10-29,3,3,09:05,1,0,0,0,0") == 0);
+  const std::string csv_line = dl::csvLine(back);
+  CHECK(std::count(csv_line.begin(), csv_line.end(), ',') ==
+        std::count(dl::csvHeader(), dl::csvHeader() + std::strlen(dl::csvHeader()), ','));
+  // After a restart within the hour, the saved count isn't lowered.
+  dl::Day resumed = back;
+  dl::observe(&resumed, {fetch[0]}, home, 40, 20261029, 10 * 60 + 30, nullptr);
+  CHECK(resumed.hourly[10] == 3);
+  dl::Day old_file;  // a file from before v1.24.0: no hourly line
+  CHECK(dl::parse("date = 2026-10-01\naircraft = 1\nseen = a1b2c3\n", &old_file) && dl::busiestHour(old_file) == -1);
+
   // Midnight: a fresh day.
   CHECK(dl::observe(&day, fetch, home, 40, 20261030, 1, nullptr));
   CHECK(day.date == 20261030 && day.count() == 3 && day.favorites.empty());

@@ -201,6 +201,18 @@ bool serviceRoute();
 core::daylog::Day dayLogToday();
 /** Earlier days from the SD card, newest first (up to `days`). Reads the card: UI task, on demand. */
 std::vector<core::daylog::Day> dayLogHistory(int days);
+/** Today and the days before it (up to `days` in all), added up. Reads the card. */
+struct DayLogTotals {
+  int days = 0;        // days with a log
+  int unique = 0;      // different aircraft over them all
+  int sum = 0;         // daily counts added up
+  int best_date = 0;   // the busiest day
+  int best_count = 0;
+  int hourly[24] = {}; // aircraft per hour of the day, added up
+};
+DayLogTotals dayLogTotals(int days);
+/** The last `days` days (today included) as CSV, oldest first. Reads the card. */
+std::string dayLogCsv(int days);
 
 // --- Night mode ---------------------------------------------------------------------
 /** True while it's night (night mode on): by the clock times, or sunset to sunrise. */
