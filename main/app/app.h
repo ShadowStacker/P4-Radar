@@ -7,6 +7,7 @@
 
 #include "core/daylog.h"
 #include "core/favorites.h"
+#include "core/logbook.h"
 #include "core/geo.h"
 #include "core/route.h"
 #include "core/settings.h"
@@ -231,6 +232,19 @@ std::string screenshotPath(const std::string& name);
 std::string backupText();
 /** Applies a backup file. False if it isn't one; *summary says what was restored or why not. */
 bool restoreBackup(const std::string& text, std::string* summary);
+
+// --- Logbook (thread-safe) --------------------------------------------------------------
+struct LogbookSummary {
+  bool loaded = false;  // read from the card (false: no card)
+  size_t aircraft = 0;
+  uint64_t visits = 0;
+  int start_date = 0;   // yyyymmdd
+  bool learning = true; // too new for "first time here"
+  std::vector<core::logbook::Entry> frequent, newest;
+};
+LogbookSummary logbookSummary(size_t top = 5);
+/** Full path of logbook.csv ("" without a card). */
+std::string logbookPath();
 
 // --- Flight replay (thread-safe) --------------------------------------------------------
 /** Days recorded on the card (yyyymmdd), newest first. Reads the card. */

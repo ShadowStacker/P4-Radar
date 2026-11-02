@@ -205,8 +205,12 @@ async function wifiUse(s){if(!confirm('Switch the radar to '+s+' now?'))return;a
 async function wifiForget(s,first){if(!confirm('Forget '+s+'?'+(first?' The radar is using it: it moves on to the next saved network.':'')))return;await api('/api/wifi/forget',{ssid:s});viewWifi()}
 async function wifiUp(s,first){if(first&&!confirm(s+' becomes the network used first, and the radar switches to it now.'))return;await api('/api/wifi/up',{ssid:s});viewWifi()}
 async function viewLog(){
-  const j=await api('/api/daylog');
+  const [j,b]=await Promise.all([api('/api/daylog'),api('/api/logbook')]);
+  const lst=(v,f)=>v.map(e=>`<div class="row"><div class="lbl"><b>${esc(e.label)}</b><span>${esc(e.type||'')} · ${e.hex}</span></div><div class="val">${f(e)}</div></div>`).join('');
   $('#view').innerHTML=`<div class="card"><b>Today</b>${j.today.map(([k,v])=>`<div class="row"><div class="lbl"><span>${esc(k)}</span></div><div class="val">${esc(v)}</div></div>`).join('')}</div>
+  <div class="card"><b>Logbook</b>${b.loaded?`<p class="muted">${b.aircraft} different aircraft, ${b.visits} visits since ${String(b.since).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3')}.${b.learning?' Still learning: "first time here" alerts start after two days.':''}</p>
+  ${b.frequent.length?'<p class="muted">Most frequent</p>'+lst(b.frequent,e=>e.visits+' visits'):''}${b.newest.length?'<p class="muted">Newest</p>'+lst(b.newest,e=>e.first):''}
+  <div class="flex" style="margin-top:8px"><a class="sec" href="/api/logbook.csv" download="logbook.csv">Download logbook.csv</a></div>`:'<p class="muted">Needs an SD card in the radar.</p>'}</div>
   <div class="card"><b>Earlier days</b>${j.days.length?j.days.map(d=>`<p>${esc(d)}</p>`).join(''):'<p class="muted">'+(j.sd?'Nothing saved yet.':'With an SD card, every day is kept.')+'</p>'}</div>`;
 }
 async function viewShots(){

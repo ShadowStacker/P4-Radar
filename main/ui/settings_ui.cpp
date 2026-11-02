@@ -1409,6 +1409,53 @@ void pageReplay() {
   lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
+void pageLogbook() {
+  const app::LogbookSummary b = app::logbookSummary(5);
+  if (!b.loaded) {
+    lv_obj_t* l = label(s.list,
+                        "The logbook needs an SD card: it keeps every aircraft seen near home in logbook.csv on the "
+                        "card.",
+                        font(FontSize::M), pal().text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  } else {
+    infoRow("Aircraft", fmtStr("%u different", static_cast<unsigned>(b.aircraft)));
+    infoRow("Visits", fmtStr("%llu", static_cast<unsigned long long>(b.visits)));
+    if (b.start_date) infoRow("Since", fmtStr("%s, %d", dayName(b.start_date).c_str(), b.start_date / 10000));
+  }
+  section("FIRST TIME HERE");
+  switchRow("Announce new aircraft", &app::settings().first_time_alert);
+  switchRow("With a sound", &app::settings().sound_first_time);
+  actionRow(LV_SYMBOL_PLAY, "Test the sound", [] { plat::playSound(core::Sound::FirstTime); }, pal().text);
+  if (b.loaded && b.learning) {
+    lv_obj_t* l = label(s.list, "Still learning: announcements start two days after the logbook began.",
+                        font(FontSize::S), pal().text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
+  auto list = [](const char* title, const std::vector<core::logbook::Entry>& v, bool visits) {
+    if (v.empty()) return;
+    section(title);
+    for (const core::logbook::Entry& e : v) {
+      const std::string name = std::string(e.label) + (e.type[0] ? std::string("  ") + e.type : "");
+      infoRow(name.c_str(), visits ? fmtStr("%u visits", static_cast<unsigned>(e.visits))
+                                   : dayName(static_cast<int>(e.first_date)));
+    }
+  };
+  list("MOST FREQUENT", b.frequent, true);
+  list("NEWEST", b.newest, false);
+  lv_obj_t* note = label(s.list,
+                         "Every airborne aircraft within the daily log's distance of home is written down, one line "
+                         "per visit (seen again after half an hour away), in logbook.csv on the SD card. The phone "
+                         "page downloads it.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
 void pageDayLog() {
   lv_obj_t* date = infoRow("Today", "");
   lv_obj_t* count = infoRow("Aircraft", "");
@@ -1419,6 +1466,8 @@ void pageDayLog() {
   lv_obj_t* special = infoRow("Military / emergencies", "");
   lv_obj_t* favs = infoRow("Favorites seen", "");
   for (lv_obj_t* l : {closest, highest, fastest, favs}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  navRow(LV_SYMBOL_DIRECTORY, "Logbook", fmtStr("%u aircraft", static_cast<unsigned>(app::logbookSummary(0).aircraft)),
+         Page::Logbook);
   auto& st = app::settings();
   sliderRow("Count aircraft within", 1, 100, static_cast<int>(app::kmToUnits(st.log_radius_km) + 0.5),
             [](int v) { app::settings().log_radius_km = static_cast<float>(app::unitsToKm(v)); },
@@ -1788,6 +1837,7 @@ const char* pageTitle(Page p) {
     case Page::Favorites: return "Favorites";
     case Page::DayLog: return "Daily log";
     case Page::Replay: return "Replay";
+    case Page::Logbook: return "Logbook";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -1825,6 +1875,7 @@ void showPage(Page page) {
     case Page::Favorites: pageFavorites(); break;
     case Page::DayLog: pageDayLog(); break;
     case Page::Replay: pageReplay(); break;
+    case Page::Logbook: pageLogbook(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
@@ -1877,6 +1928,7 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
     }
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
     else if (s.page == Page::Silenced) showPage(Page::Sound);
+    else if (s.page == Page::Logbook) showPage(Page::DayLog);
     else showPage(Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));

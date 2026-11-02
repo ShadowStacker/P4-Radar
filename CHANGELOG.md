@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.29.0] - 2026-11-02
+
+### Added
+- **Logbook.** Every aircraft seen near home is written down in
+  `logbook.csv` on the SD card, one line per visit. A new Logbook page (from
+  Daily log) and the phone page's Daily log tab show the totals, the most
+  frequent visitors and the newest ones, and the phone page downloads the
+  file.
+- **"First time here" alert.** An aircraft the logbook has never seen is
+  announced, with its own sound (after the logbook's first two days).
+  Either can be turned off on the Logbook page.
+
 ## [v1.28.0] - 2026-11-02
 
 ### Added

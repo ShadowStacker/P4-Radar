@@ -315,6 +315,53 @@ plat::WebResponse postRestore(plat::WebRequest& r) {
   return ok(",\"summary\":" + jsonString(summary));
 }
 
+plat::WebResponse getLogbook() {
+  const LogbookSummary b = logbookSummary(10);
+  auto list = [](const std::vector<core::logbook::Entry>& v) {
+    std::string out;
+    for (const core::logbook::Entry& e : v) {
+      char hex[8], first[16];
+      std::snprintf(hex, sizeof(hex), "%06x", static_cast<unsigned>(e.hex));
+      std::snprintf(first, sizeof(first), "%04u-%02u-%02u", static_cast<unsigned>(e.first_date / 10000),
+                    static_cast<unsigned>(e.first_date / 100 % 100), static_cast<unsigned>(e.first_date % 100));
+      out += std::string(out.empty() ? "" : ",") + "{\"hex\":\"" + hex + "\",\"label\":" + jsonString(e.label) +
+             ",\"type\":" + jsonString(e.type) + ",\"visits\":" + std::to_string(e.visits) + ",\"first\":\"" +
+             first + "\"}";
+    }
+    return out;
+  };
+  return json("{\"loaded\":" + boolJson(b.loaded) + ",\"aircraft\":" + std::to_string(b.aircraft) +
+              ",\"visits\":" + std::to_string(b.visits) + ",\"since\":" + std::to_string(b.start_date) +
+              ",\"learning\":" + boolJson(b.learning) + ",\"frequent\":[" + list(b.frequent) + "],\"newest\":[" +
+              list(b.newest) + "]}");
+}
+
+/** A CSV file from the card (its newest 4 MB). */
+plat::WebResponse csvFile(const std::string& path) {
+  FILE* f = path.empty() ? nullptr : std::fopen(path.c_str(), "rb");
+  if (f == nullptr) return error("Nothing saved yet", 404);
+  constexpr long kMax = 4 * 1024 * 1024;
+  std::fseek(f, 0, SEEK_END);
+  const long size = std::ftell(f);
+  std::string body;
+  if (size > kMax) {
+    std::fseek(f, size - kMax, SEEK_SET);
+    body = core::logbook::csvHeader();
+    int c;
+    while ((c = std::fgetc(f)) != EOF && c != '\n') {}  // to a whole line
+  } else {
+    std::fseek(f, 0, SEEK_SET);
+  }
+  char buf[4096];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) body.append(buf, n);
+  std::fclose(f);
+  plat::WebResponse r;
+  r.type = "text/csv; charset=utf-8";
+  r.body = std::move(body);
+  return r;
+}
+
 plat::WebResponse takeShot() {
   bool taken = false;
   if (!runOnUi([&] { taken = requestScreenshot(); })) return busy();
@@ -396,6 +443,8 @@ plat::WebResponse handle(plat::WebRequest& r) {
   if (p == "/api/wifi/scan") return wifiScan(post);
   if (post && p.compare(0, 10, "/api/wifi/") == 0) return wifiAction(p.substr(10), r);
   if (p == "/api/daylog") return getDayLog();
+  if (p == "/api/logbook") return getLogbook();
+  if (p == "/api/logbook.csv") return csvFile(logbookPath());
   if (p == "/api/shots") return getShots();
   if (p.compare(0, 7, "/shots/") == 0) return getShot(p.substr(7));
   if (post && p == "/api/screenshot") return takeShot();

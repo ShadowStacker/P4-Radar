@@ -57,6 +57,7 @@ const char* soundName(core::Sound s) {
     case core::Sound::FavoriteNear: return "favorite_nearby";
     case core::Sound::Alarm: return "alarm";
     case core::Sound::Watch: return "watchlist";
+    case core::Sound::FirstTime: return "first_time";
     default: return "unknown";
   }
 }

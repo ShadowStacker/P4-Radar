@@ -22,6 +22,7 @@
 #endif
 
 #include "app/app.h"
+#include "core/logbook.h"
 #include "app/maps.h"
 #include "app/web.h"
 #include "core/png.h"
@@ -657,9 +658,22 @@ int main(int argc, char** argv) {
   std::remove((std::string(plat::sdRoot()) + "/favorites.txt").c_str());
   // Screenshots are named by the (fixed) simulated time: start without old ones.
   if (std::system(("rm -rf '" + std::string(plat::sdRoot()) + "/screenshots'").c_str()) != 0) return 1;
+  {
+    // A logbook that began ten days ago (so "first time here" isn't still learning).
+    const std::string root = plat::sdRoot();
+    if (std::system(("mkdir -p '" + root + "'").c_str()) != 0) return 1;
+    const int64_t then = plat::unixTimeMs() / 1000 - 10 * 86400;
+    const std::tm t = core::localTime(then);
+    if (FILE* f = std::fopen((root + "/logbook.csv").c_str(), "wb")) {
+      std::fprintf(f, "%s%04d-%02d-%02d,12:00,a00001,OLD1,N1,C172,first,%lld\n", core::logbook::csvHeader(),
+                   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, static_cast<long long>(then));
+      std::fclose(f);
+    }
+  }
   app::init();
   std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "%s",
                 plat::firmwareVersion());  // no "What's new" popping up during the scenes
+  app::settings().first_time_alert = false;  // (turned on in its own scene: every fake aircraft is new)
   sim::FakeTraffic traffic({app::settings().home_lat, app::settings().home_lon}, 42);
   g_traffic = &traffic;
   sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
@@ -1231,6 +1245,30 @@ int main(int argc, char** argv) {
     run(300);
   }
 
+  // Logbook: a new visitor is announced; the page lists the book.
+  {
+    auto& st = app::settings();
+    st.first_time_alert = true;
+    traffic.addVisitor("abcdef", "NEW1ST", "B744");
+    bool announced = false;
+    for (int i = 0; i < 40 && !announced; ++i) {
+      run(250);
+      announced = hasLabel(lv_layer_top(), "First time here: NEW1ST") || hasLabel(lv_layer_sys(), "First time here: NEW1ST");
+    }
+    const app::LogbookSummary book = app::logbookSummary(5);
+    const bool booked = book.loaded && !book.learning && book.aircraft > 10;
+    std::printf("logbook (%u aircraft): %s, first-time alert %s\n", static_cast<unsigned>(book.aircraft),
+                booked ? "OK" : "FAILED", announced ? "OK" : "FAILED");
+    if (!booked || !announced) return 1;
+    st.first_time_alert = false;
+    run(3000);
+    ui::openSettings(ui::Page::Logbook);
+    run(600);
+    shot((p + "82_logbook").c_str());
+    ui::closeSettings();
+    run(300);
+  }
+
   // Flight replay: what was recorded so far played back, then live again.
   {
     const std::vector<int> days = app::replayDays();
@@ -1614,10 +1652,14 @@ int main(int argc, char** argv) {
     if (!(r.body.find("\"ok\":true") != std::string::npos && app::settings().volume == 33)) why += " restore(" + r.body + ")";
     r = web("POST", "/api/restore", "not a backup", cookie);
     if (r.body.find("isn't a Plane Radar backup") == std::string::npos) why += " not-a-backup";
+    r = web("GET", "/api/logbook", "", cookie);
+    if (!(r.body.find("\"loaded\":true") != std::string::npos && r.body.find("\"frequent\":[{") != std::string::npos)) why += " logbook";
+    r = web("GET", "/api/logbook.csv", "", cookie);
+    if (!(r.status == 200 && r.body.compare(0, 10, "date,time,") == 0 && r.body.find(",first,") != std::string::npos)) why += " logbook.csv";
     const bool backup_ok = why.empty();
     if (!backup_ok) std::printf("backup checks failed:%s\n", why.c_str());
     ok = ok && backup_ok;
-    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, backup %s\n", login_ok ? "OK" : "FAILED",
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, backup and logbook %s\n", login_ok ? "OK" : "FAILED",
                 settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
                 backup_ok ? "OK" : "FAILED");
     if (!ok) return 1;

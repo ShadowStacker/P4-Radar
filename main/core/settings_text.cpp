@@ -169,6 +169,8 @@ const Field kFields[] = {
     STR(watch_callsigns, "Callsigns or registrations, e.g. \"RCH*, N123AB\""),
     F32(watch_radius_km, 1, 400, "Within this distance of home, km"),
     BOOL(sound_watch, "Play a sound"),
+    BOOL(first_time_alert, "Announce aircraft never seen near home before (needs the SD card's logbook)"),
+    BOOL(sound_first_time, "Play a sound for them"),
 
     SECTION("Filters"),
     BOOL(show_ground, nullptr),

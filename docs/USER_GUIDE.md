@@ -648,6 +648,24 @@ computer), the count carries on after a restart, and **Earlier days** lists
 the last week. The count needs the time from the internet to know when a day
 starts.
 
+#### Logbook
+
+With an SD card, the radar also keeps a **logbook** of every aircraft ever
+seen near home (within the same distance as the daily log), in
+`logbook.csv`: one line per **visit** (an aircraft seen again after half an
+hour away is a new visit), with the date, time, hex code, callsign,
+registration and type. It opens in any spreadsheet. The **Logbook** page
+(from Daily log) shows how many different aircraft and visits it holds, the
+most frequent visitors and the newest ones; the phone page shows the same and
+downloads the file.
+
+**First time here.** When an aircraft the logbook has never seen comes by,
+the radar says *First time here: N123AB (B738)*, with its own sound. Turn
+either off on the Logbook page (or `first_time_alert` / `sound_first_time` in
+`settings.txt`). For the first two days of a new logbook everything is new, so
+the announcements only start after that. Silenced aircraft are never
+announced.
+
 ### Updates
 
 | Item | Meaning | Default |
