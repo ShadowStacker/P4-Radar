@@ -81,6 +81,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
 - **Silenced aircraft**: the opposite of favorites. A mute button on the info card stops the sounds
   for that aircraft (a local flight school's trainers, say); emergencies still sound.
 - **Screenshots**: a camera button saves the radar as a PNG on the SD card.
+- **Flight replay**: a week of traffic around home is recorded on the SD card and plays back on the radar.
 - **Daily log**: how many different aircraft flew near home today, the busiest moment, the closest pass,
   the highest and fastest, military and emergency aircraft, and favorites seen. Each day is saved on the SD card.
 - **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when

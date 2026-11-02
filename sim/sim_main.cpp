@@ -132,6 +132,7 @@ void writePng(const std::string& path) {
 }
 
 void feedTraffic() {
+  if (app::replayActive()) return;  // the replay fills the traffic instead
   if (sim::g_ms < g_next_fetch) return;
   g_next_fetch = sim::g_ms + app::settings().poll_interval_s * 1000u;
   core::LatLon c;
@@ -151,6 +152,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     feedTraffic();
     // In the network task's order: card work first, then downloads.
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
+    app::serviceReplay();
     if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
@@ -1227,6 +1229,37 @@ int main(int argc, char** argv) {
     }
     app::settings().show_stats = false;
     run(300);
+  }
+
+  // Flight replay: what was recorded so far played back, then live again.
+  {
+    const std::vector<int> days = app::replayDays();
+    const bool recorded = !days.empty();
+    if (recorded) app::replayStart(days.front());
+    run(1500);
+    app::ReplayState rs = app::replayState();
+    std::vector<core::Track> shown;
+    app::traffic().snapshot(shown);
+    const bool loaded = rs.active && rs.ready && rs.last_s > rs.first_s && !shown.empty();
+    app::replaySeek(rs.first_s);
+    app::replaySpeed(60);
+    app::replayPlay(true);
+    run(3000);
+    rs = app::replayState();
+    const bool played = rs.pos_s >= rs.first_s + 120 && rs.pos_s <= rs.first_s + 240;
+    shot((p + "85_replay").c_str());
+    const bool bar = hasLabel(lv_layer_top(), "Replay ") && hasLabel(lv_layer_top(), "60x");
+    ui::openSettings(ui::Page::Replay);
+    run(400);
+    shot((p + "86_replay_days").c_str());
+    ui::closeSettings();
+    app::replayStop();
+    run(3000);
+    const bool live = !app::replayActive() && !hasLabel(lv_layer_top(), "Replay ");
+    std::printf("replay (%u days): loaded %s, plays %s, bar %s, back to live %s\n", static_cast<unsigned>(days.size()),
+                recorded && loaded ? "OK" : "FAILED", played ? "OK" : "FAILED", bar ? "OK" : "FAILED",
+                live ? "OK" : "FAILED");
+    if (!recorded || !loaded || !played || !bar || !live) return 1;
   }
 
   // Several Wi-Fi networks: connecting to a new one keeps the old one saved;

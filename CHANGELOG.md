@@ -10,6 +10,15 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.28.0] - 2026-11-02
+
+### Added
+- **Flight replay.** With an SD card, the traffic around home is recorded
+  every 15 seconds (a week is kept). **Settings → Replay a day** plays a day
+  back on the radar, with a time slider, play/pause and speeds up to 300×.
+  Live traffic and alerts pause while a replay plays. Recording can be turned
+  off on the same page.
+
 ## [v1.27.0] - 2026-11-02
 
 ### Added

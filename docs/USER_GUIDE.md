@@ -494,6 +494,21 @@ If you change settings on the screen while no card is inserted and then insert
 one, the radar's settings win and are written to the card. *Factory reset*
 deletes `settings.txt` but keeps `favorites.txt`.
 
+### Flight replay
+
+With an SD card, the radar records the traffic around home: every 15 seconds,
+the aircraft within 150 km of home (while it's showing that area) go into
+`replay/YYYY-MM-DD.rpl`, about 2 to 5 MB a day. A week is kept; older days are
+deleted.
+
+**Settings → Replay a day** lists the recorded days. Pick one and the radar
+plays it back instead of live traffic, with a bar at the bottom: the time,
+play/pause, a slider to move through the day, the speed (tap it: 1×, 10×, 60×
+or 300×) and **X** to go back to live traffic. You can pan, zoom and tap
+aircraft as usual. While a replay plays, live traffic, alerts and sounds, the
+daily log and the logbook pause. **Record the traffic around home** on the same
+page turns recording off (`replay_record` in `settings.txt`).
+
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.
