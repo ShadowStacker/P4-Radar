@@ -313,7 +313,12 @@ int mapSeamCheck(const std::string& p) {
     rv.viewport().setCenter({st.home_lat + 0.0123, st.home_lon - 0.0217});
     rv.viewport().setRadiusKm(radius);
     rv.markStaticDirty();
+    const uint64_t cu0 = rv.mapLayer().compose_us_;
+    const uint32_t cn0 = rv.mapLayer().composes_;
     run(6000);
+    const uint32_t cn = rv.mapLayer().composes_ - cn0;
+    std::printf("map compose at %.1f km: %u times, %.1f ms each\n", radius, static_cast<unsigned>(cn),
+                cn ? (rv.mapLayer().compose_us_ - cu0) / 1000.0 / cn : 0.0);
     lv_obj_invalidate(lv_screen_active());
     lv_refr_now(g_disp);
     const core::Viewport& vp = rv.viewport();
@@ -1059,6 +1064,21 @@ int main(int argc, char** argv) {
     {
       const core::Settings before = st;
       const int bad = mapSeamCheck(p);
+      // Tiles arriving one after another (a new map picture every 250 ms)
+      // with the sweep off (10 fps): the background still shows them as it
+      // goes, instead of starting over each time and showing nothing.
+      ui::RadarView& rv = ui::RadarView::get();
+      st.sweep_enabled = false;
+      run(1000);
+      const uint32_t shown0 = rv.totals().static_shown;
+      for (int i = 0; i < 16; ++i) {
+        rv.markStaticDirty();
+        run(250);
+      }
+      const uint32_t shown = rv.totals().static_shown - shown0;
+      std::printf("background while tiles arrive: shown %u times in 4 s: %s\n", static_cast<unsigned>(shown),
+                  shown >= 3 ? "OK" : "FAILED");
+      if (shown < 3) return 1;
       st = before;
       ui::RadarView::get().goHome(false);
       ui::RadarView::get().markStaticDirty();

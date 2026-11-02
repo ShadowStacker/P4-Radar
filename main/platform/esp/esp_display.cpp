@@ -9,6 +9,7 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "bsp/touch.h"
+#include "esp_app_desc.h"
 #include "esp_cache.h"
 #include "esp_private/dw_gdma.h"
 #include "hal/axi_icm_ll.h"
@@ -254,6 +255,12 @@ void bootScreen(const char* status) {
     lv_obj_set_style_text_color(s_label, lv_color_hex(0x8EA3AE), 0);
     lv_obj_set_style_text_font(s_label, &lv_font_montserrat_22, 0);
     lv_obj_align(s_label, LV_ALIGN_CENTER, 0, 30);
+    // The version at the bottom (inside the round panel's edge).
+    lv_obj_t* version = lv_label_create(scr);
+    lv_label_set_text_fmt(version, "v%s", esp_app_get_description()->version);
+    lv_obj_set_style_text_color(version, lv_color_hex(0x55707C), 0);
+    lv_obj_set_style_text_font(version, &lv_font_montserrat_22, 0);
+    lv_obj_align(version, LV_ALIGN_BOTTOM_MID, 0, -lv_display_get_vertical_resolution(nullptr) / 9);
   }
   lv_label_set_text(s_label, status);
   const bool first = bsp_display_brightness_get() == 0;

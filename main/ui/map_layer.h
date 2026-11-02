@@ -54,6 +54,10 @@ class MapLayer {
   app::maps::Look look_;
   std::unordered_map<uint64_t, Tile> tiles_;
   std::vector<Needed> needed_;
+ public:
+  uint64_t compose_us_ = 0;  // time spent composing the map picture (for the stats)
+  uint32_t composes_ = 0;
+ private:
   std::vector<uint64_t> last_request_;
   uint32_t frame_ = 0;
 

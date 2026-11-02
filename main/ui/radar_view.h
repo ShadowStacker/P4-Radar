@@ -55,6 +55,7 @@ class RadarView {
   }
 
   size_t visibleCount() const { return blips_.size(); }
+  const MapLayer& mapLayer() const { return map_; }
   /** Map shown under the radar (None when off). */
   core::tiles::Variant mapVariant() const { return map_.variant(); }
 
@@ -68,6 +69,7 @@ class RadarView {
     uint32_t blips = 0;       // aircraft drawn (summed over frames)
     uint32_t labels = 0;      // labels drawn (summed over frames)
     uint32_t rested = 0;      // frames with nothing to redraw (nothing moved by a pixel)
+    uint32_t static_shown = 0;  // background builds finished and put on screen
   };
   Stats& stats() { return stats_; }
   /** The same, never reset (for the on-screen stats, which take differences). */

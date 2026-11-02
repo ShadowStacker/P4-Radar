@@ -236,6 +236,7 @@ void MapLayer::drawTile(lv_layer_t* layer, const core::Viewport& vp, uint64_t ke
 }
 
 void MapLayer::compose(const core::Viewport& vp, lv_color_t bg) {
+  const uint64_t compose_t0 = plat::micros();
   const int32_t W = static_cast<int32_t>(vp.cx() * 2), H = static_cast<int32_t>(vp.cy() * 2);
   if (pic_ == nullptr) pic_ = createImageBuf(W, H, LV_COLOR_FORMAT_RGB565);
   if (pic_ == nullptr || canvas_ == nullptr) return;
@@ -263,6 +264,8 @@ void MapLayer::compose(const core::Viewport& vp, lv_color_t bg) {
   pic_kmpp_ = vp.kmPerPx();
   pic_valid_ = true;
   pic_dirty_ = false;
+  compose_us_ += plat::micros() - compose_t0;
+  ++composes_;
 }
 
 bool MapLayer::draw(lv_layer_t* layer, const core::Viewport& vp) const {

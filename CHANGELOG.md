@@ -10,6 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.26.3] - 2026-11-02
+
+### Changed
+- **Map tiles show up as they arrive.** The background is rebuilt in eight
+  small steps, and a new tile used to start that over; while tiles kept
+  coming (every quarter second) nothing new reached the screen until the
+  last one was in. Now a rebuild that's under way finishes and shows first,
+  and the next one brings what arrived meanwhile.
+- **The version is shown at the bottom of the loading screen.**
+
 ## [v1.26.2] - 2026-11-02
 
 ### Fixed

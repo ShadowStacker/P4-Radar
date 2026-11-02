@@ -388,8 +388,14 @@ void RadarView::frame() {
   const bool need_static = static_dirty_ || view_changed || (want_trails && !static_has_trails_) ||
                            (want_trails && tracks_version_ != static_tracks_version_);
   const uint64_t s0 = plat::micros();
-  if (need_static) {
-    if (view_changed || busy || !static_shown_ || back_canvas_ == nullptr) {
+  const bool redraw_now = view_changed || busy || !static_shown_ || back_canvas_ == nullptr;
+  // New content (map tiles, trails) while a background build is under way:
+  // let that build finish and show first; the new content comes with the
+  // next one. (Restarting it instead meant that while tiles kept arriving -
+  // every 250 ms, and a build takes 8 frames - nothing new was shown at all.)
+  const bool finish_first = need_static && !redraw_now && back_band_ > 0;
+  if (need_static && !finish_first) {
+    if (redraw_now) {
       // The view moved: draw it now, whole.
       back_band_ = -1;
       renderStatic(want_trails, canvas_, -1);
@@ -411,6 +417,8 @@ void RadarView::frame() {
       lv_canvas_set_draw_buf(back_canvas_, back_buf_);
       lv_obj_invalidate(canvas_);
       back_band_ = -1;
+      stats_.static_shown++;
+      totals_.static_shown++;
     }
   }
   if (need_static || back_band_ >= 0) {
