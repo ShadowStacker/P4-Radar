@@ -554,6 +554,7 @@ The page has tabs for:
   (saved for later, or connect now), move up, forget.
 - **Daily log**: today and the past week.
 - **Screenshots**: take one, and view or download the saved ones.
+- **Backup**: [download a backup, or restore one](#backup-and-restore).
 - **Update**: install a firmware file (the one that ends in `-ota.bin`). The
   radar checks the file first. It refuses the full USB image and files for
   another board, shows the same progress screen as an update from GitHub, then
@@ -599,6 +600,16 @@ devices apart, and some routers have an "AP isolation" or "client isolation"
 option that does the same), or use the radar's hotspot (above). If visits are counted but the page still
 doesn't show, send the serial log; every request is logged as
 `web: GET / from 192.168.1.23`.
+
+#### Backup and restore
+
+**Download a backup** on the Backup tab saves one text file with everything
+you've set up: all settings (with the saved Wi-Fi networks and their
+passwords), favorites and silenced aircraft. **Restore** reads such a file
+back, on the same radar or a new one (for example after a factory reset); the
+radar says what it restored. Keep the file private, since it holds your Wi-Fi
+passwords. It's plain text in the same form as `settings.txt` and
+`favorites.txt`, so you can also read or edit it on a computer.
 
 | Option | What it does | Default |
 |---|---|---|

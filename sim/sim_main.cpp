@@ -1566,8 +1566,27 @@ int main(int argc, char** argv) {
     ok = ok && r.status == 200 && r.type == "image/png" && r.body.compare(1, 3, "PNG") == 0;
     ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
     const bool shots_ok = ok;
-    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s\n", login_ok ? "OK" : "FAILED",
-                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED");
+    // Backup: download, change one value, restore it; a file that isn't one is refused.
+    std::string why;
+    r = web("GET", "/api/backup", "", cookie);
+    std::string backup = r.body;
+    if (!(backup.compare(0, 20, "# Plane Radar backup") == 0 && backup.find("[[favorites]]") != std::string::npos &&
+          backup.find("wifi_pass") != std::string::npos)) {
+      why += " download";
+    }
+    const size_t vol = backup.find("\nvolume = ");
+    if (vol != std::string::npos) backup.replace(vol + 10, backup.find('\n', vol + 1) - vol - 10, "33");
+    r = web("POST", "/api/restore", backup, cookie);
+    run(300);
+    if (!(r.body.find("\"ok\":true") != std::string::npos && app::settings().volume == 33)) why += " restore(" + r.body + ")";
+    r = web("POST", "/api/restore", "not a backup", cookie);
+    if (r.body.find("isn't a Plane Radar backup") == std::string::npos) why += " not-a-backup";
+    const bool backup_ok = why.empty();
+    if (!backup_ok) std::printf("backup checks failed:%s\n", why.c_str());
+    ok = ok && backup_ok;
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, backup %s\n", login_ok ? "OK" : "FAILED",
+                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
+                backup_ok ? "OK" : "FAILED");
     if (!ok) return 1;
     app::settings().volume = 60;
   }

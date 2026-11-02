@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "core/adsb.h"
+#include "core/backup.h"
 #include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
@@ -1319,6 +1320,62 @@ void setFavorites(const std::vector<core::Favorite>& favs) {
   }
   plat::favoritesSave(favs);
   queueFavoritesFile();
+}
+
+std::string backupText() {
+  core::backup::Parts parts;
+  parts.settings = core::settings_text::serialize(s_settings);
+  parts.favorites = core::settings_text::serializeFavorites(favorites(), unresolvedFavorites());
+  parts.silenced = core::settings_text::serializeFavorites(silenced());
+  std::string title = plat::firmwareVersion();
+  if (plat::timeValid()) {
+    const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
+    char date[24];
+    std::strftime(date, sizeof(date), "%Y-%m-%d %H:%M", &t);
+    title += std::string(", ") + date;
+  }
+  return core::backup::make(title, parts);
+}
+
+bool restoreBackup(const std::string& text, std::string* summary) {
+  core::backup::Parts parts;
+  if (!core::backup::split(text, &parts)) {
+    *summary = "That isn't a Plane Radar backup file";
+    return false;
+  }
+  std::string done;
+  if (parts.has_settings) {
+    std::vector<std::string> problems;
+    const int n = applySettingsText(parts.settings, &problems);
+    done += std::to_string(n) + " settings";
+    if (!problems.empty()) done += " (" + std::to_string(problems.size()) + " lines skipped)";
+    settingsFlush();
+  }
+  std::vector<core::Favorite> quiet;
+  if (parts.has_silenced) {
+    std::vector<std::string> tails;  // silenced aircraft are saved by address only
+    core::settings_text::parseFavorites(parts.silenced, &quiet, &tails);
+    {
+      std::lock_guard<std::mutex> lock(s_favorites_mu);
+      s_silenced = quiet;
+    }
+    plat::silencedSave(quiet);
+    done += (done.empty() ? "" : ", ") + std::to_string(quiet.size()) + " silenced";
+  }
+  if (parts.has_favorites) {
+    std::vector<core::Favorite> favs;
+    std::vector<std::string> tails;
+    core::settings_text::parseFavorites(parts.favorites, &favs, &tails);
+    favs.erase(std::remove_if(favs.begin(), favs.end(),
+                              [&](const core::Favorite& f) { return core::containsHex(quiet, f.hex); }),
+               favs.end());
+    setFavorites(favs);
+    for (const std::string& t : tails) lookupFavorite(t);
+    done += (done.empty() ? "" : ", ") + std::to_string(favs.size() + tails.size()) + " favorites";
+  }
+  std::printf("backup: restored %s\n", done.c_str());
+  *summary = "Restored " + done;
+  return true;
 }
 
 bool popNotice(std::string* out) {

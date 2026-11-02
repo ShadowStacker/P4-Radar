@@ -226,6 +226,12 @@ std::vector<std::string> screenshots();
 /** Full path of a screenshot file, or "" if the name isn't one. */
 std::string screenshotPath(const std::string& name);
 
+// --- Backup (UI task) -------------------------------------------------------------------
+/** Settings (with Wi-Fi), favorites and silenced aircraft in one text file. */
+std::string backupText();
+/** Applies a backup file. False if it isn't one; *summary says what was restored or why not. */
+bool restoreBackup(const std::string& text, std::string* summary);
+
 // --- Lookups kept on the SD card ------------------------------------------------------
 /** Deletes the saved airline/route lookups (network task, soon). */
 void clearLookupCache();

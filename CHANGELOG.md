@@ -10,6 +10,13 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.27.0] - 2026-11-02
+
+### Added
+- **Backup and restore.** A new **Backup** tab on the phone page downloads
+  one file with all settings, saved Wi-Fi networks, favorites and silenced
+  aircraft, and restores it on the same radar or a new one.
+
 ## [v1.26.3] - 2026-11-02
 
 ### Changed

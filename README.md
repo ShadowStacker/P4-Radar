@@ -74,7 +74,8 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   theme), with tiles saved on an optional microSD card for instant and offline use.
 - **Settings from your phone**: scan the QR code on the radar and change settings, favorites and Wi-Fi
   networks from a phone page served by the radar itself (on your network only).
-  It also shows the daily log and screenshots, and installs firmware files.
+  It also shows the daily log and screenshots, makes and restores a backup of everything (settings, Wi-Fi,
+  favorites, silenced aircraft), and installs firmware files.
 - **Watchlist alerts**: a notice and a sound when military aircraft, helicopters, fast jets, chosen
   types (A388, C17, ...) or callsigns (RCH*, N123AB) come near home.
 - **Silenced aircraft**: the opposite of favorites. A mute button on the info card stops the sounds
