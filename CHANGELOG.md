@@ -10,6 +10,15 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.1] - 2026-11-02
+
+### Fixed
+- **Card writes no longer hold up the live feed and the map.** Saving map
+  tiles, logbook lines, replay frames, the daily log, saved lookups and
+  screenshots now happens on its own low-priority task. A slow SD card no
+  longer pauses aircraft updates or tile downloads. If the card falls behind,
+  new map tiles are shown but not saved, and are downloaded again next time.
+
 ## [v1.32.0] - 2026-11-02
 
 ### Added

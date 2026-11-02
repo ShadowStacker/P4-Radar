@@ -2,7 +2,9 @@
 // ADS-B parsing, traffic store, traces, sound synthesis). Built by sim/CMakeLists.txt.
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <thread>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -13,6 +15,7 @@
 
 #include "core/adsb.h"
 #include "core/backup.h"
+#include "core/job_queue.h"
 #include "core/logbook.h"
 #include "core/replay.h"
 #include "core/clock.h"
@@ -448,6 +451,32 @@ void testPlaces() {
   CHECK(sw.sweep_rpm == 4);
   CHECK(core::settings_text::parse("sweep_rpm = 1\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);
   CHECK(core::settings_text::parse("sweep_rpm = 0\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);  // clamped
+}
+
+void testJobQueue() {
+  core::JobQueue q(1000);
+  std::vector<int> ran;
+  CHECK(q.push([&] { ran.push_back(1); }, 600, false));
+  CHECK(q.push([&] { ran.push_back(2); }, 300, true));
+  CHECK(!q.push([&] { ran.push_back(3); }, 200, true));  // a cache write over the cap: refused
+  CHECK(q.push([&] { ran.push_back(4); }, 500, false));  // a must-write goes in anyway
+  CHECK(q.pending() == 3 && q.bytes() == 1400 && q.dropped() == 1);
+  CHECK(q.waitForJob(0));
+  while (q.runOne()) {}
+  CHECK((ran == std::vector<int>{1, 2, 4}) && q.pending() == 0 && q.bytes() == 0 && !q.busy());
+  CHECK(!q.waitForJob(1));
+  // Another thread hands over work; it runs in order on the consumer.
+  std::atomic<int> sum{0};
+  std::thread producer([&] {
+    for (int i = 1; i <= 100; ++i) q.push([&sum, i] { sum += i; }, 10, false);
+  });
+  int done = 0;
+  while (done < 100) {
+    if (q.runOne()) ++done;
+    else q.waitForJob(10);
+  }
+  producer.join();
+  CHECK(sum == 5050);
 }
 
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
@@ -1775,6 +1804,7 @@ int main() {
   testZoomButtons();
   testAdsbParse();
   testBackup();
+  testJobQueue();
   testLogbook();
   testPlaces();
   testReplay();

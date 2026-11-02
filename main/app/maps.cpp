@@ -289,7 +289,11 @@ bool service(bool online) {
     std::printf("map: tile %d/%u/%u is not a 256 px PNG or JPEG\n", z, static_cast<unsigned>(x), static_cast<unsigned>(y));
     return true;
   }
-  if (from_net && sdUsable()) writeFile(core::tiles::sdPath(plat::sdRoot(), v, z, x, y), png);
+  if (from_net && sdUsable()) {
+    // The card task saves it; when it is backed up the tile is just fetched again next time.
+    std::string path = core::tiles::sdPath(plat::sdRoot(), v, z, x, y);
+    app::queueCardJob([path, png] { writeFile(path, png); }, png.size(), true);
+  }
 
   const int n = core::tiles::kTileSize * core::tiles::kTileSize;
   auto* pixels = static_cast<uint16_t*>(plat::allocLarge(n * sizeof(uint16_t)));

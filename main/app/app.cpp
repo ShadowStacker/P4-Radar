@@ -28,6 +28,7 @@
 #include "app/web.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
+#include "core/job_queue.h"
 #include "core/logbook.h"
 #include "core/lookup_cache.h"
 #include "core/png.h"
@@ -138,9 +139,17 @@ bool readText(const char* name, std::string* out) {
   return true;
 }
 
-void writeText(const char* name, const std::string& text) {
-  // Write a temporary file and rename it, so a power cut never leaves half a file.
-  const std::string path = sdPath(name), tmp = path + ".tmp";
+// SD card writes run on their own low-priority task ("card"), in order, so
+// the network task never waits for the card (a slow write used to hold up
+// the feed and the map, and the UI when it read the card at the same time).
+core::JobQueue s_card(4 * 1024 * 1024);  // at most this much data waiting (tile cache writes beyond it are dropped)
+
+/** Card task: writes a file (temporary file, then rename: a power cut never leaves half a file). */
+void writeTextNow(const std::string& name, const std::string& text) {
+  for (size_t p = name.find('/'); p != std::string::npos; p = name.find('/', p + 1)) {
+    mkdir(sdPath(name.substr(0, p).c_str()).c_str(), 0775);  // the folders on the way; EEXIST is fine
+  }
+  const std::string path = sdPath(name.c_str()), tmp = path + ".tmp";
   FILE* f = std::fopen(tmp.c_str(), "wb");
   bool ok = f != nullptr && std::fwrite(text.data(), 1, text.size(), f) == text.size();
   if (f != nullptr && std::fclose(f) != 0) ok = false;
@@ -150,7 +159,15 @@ void writeText(const char* name, const std::string& text) {
   } else {
     std::remove(tmp.c_str());
   }
-  std::printf("sd: %s %s (%u bytes)\n", ok ? "wrote" : "FAILED to write", name, static_cast<unsigned>(text.size()));
+  std::printf("sd: %s %s (%u bytes)\n", ok ? "wrote" : "FAILED to write", name.c_str(),
+              static_cast<unsigned>(text.size()));
+}
+
+/** Any task: writes a file on the card task (the folders on the way are made there too). */
+void writeText(const char* name, const std::string& text) {
+  std::string n = name;
+  const size_t bytes = text.size();
+  s_card.push([n, text] { writeTextNow(n, text); }, bytes, false);
 }
 
 /** UI task: settings.txt should match s_settings. */
@@ -186,7 +203,6 @@ constexpr uint32_t kDaySaveEveryMs = 10 * 60 * 1000;
 
 void saveDay(const core::daylog::Day& d) {
   if (maps::sdStatus().state != maps::SdState::Mounted || d.date == 0) return;
-  mkdir(sdPath("log").c_str(), 0775);  // EEXIST is fine
   writeText(("log/" + core::daylog::fileName(d.date)).c_str(), core::daylog::serialize(d));
 }
 
@@ -195,15 +211,24 @@ void saveDay(const core::daylog::Day& d) {
 constexpr char kLogbookFile[] = "logbook.csv";
 std::mutex s_book_mu;
 core::logbook::Book s_book;
-bool s_book_loaded = false;      // read from the card (or found missing)
+std::atomic<bool> s_book_loaded{false};  // read from the card (set by the card task)
+bool s_book_load_queued = false;          // network task      // read from the card (or found missing)
 std::string s_book_pending;      // CSV lines not on the card yet
 uint32_t s_book_saved_ms = 0;
 std::vector<core::logbook::Entry> s_book_firsts;  // this fetch's first-timers (network task)
 
 /** Network task: reads logbook.csv into the index once the card is there. */
+void loadLogbookNow();
+
+/** Network task: has the card task read logbook.csv into the index (once the card is there). */
 void loadLogbook() {
-  if (s_book_loaded || maps::sdStatus().state != maps::SdState::Mounted) return;
-  s_book_loaded = true;
+  if (s_book_load_queued || maps::sdStatus().state != maps::SdState::Mounted) return;
+  s_book_load_queued = true;
+  s_card.push(loadLogbookNow, 0, false);
+}
+
+/** Card task: reads logbook.csv (it can be large: off the network task). */
+void loadLogbookNow() {
   core::logbook::Book book;
   FILE* f = std::fopen(sdPath(kLogbookFile).c_str(), "rb");
   size_t lines = 0;
@@ -230,6 +255,7 @@ void loadLogbook() {
               static_cast<unsigned>(book.visits()), book.startDate(), static_cast<unsigned>(lines));
   std::lock_guard<std::mutex> lock(s_book_mu);
   std::swap(s_book, book);
+  s_book_loaded = true;
 }
 
 /** Network task: appends new visits to logbook.csv now and then. True if it wrote. */
@@ -243,14 +269,17 @@ bool serviceLogbook(bool now = false) {
     s_book_saved_ms = plat::millis();
   }
   if (maps::sdStatus().state != maps::SdState::Mounted) return false;
-  const std::string path = sdPath(kLogbookFile);
-  struct stat st;
-  const bool fresh = stat(path.c_str(), &st) != 0;
-  FILE* f = std::fopen(path.c_str(), "ab");
-  if (f == nullptr) return false;
-  if (fresh) std::fputs(core::logbook::csvHeader(), f);
-  std::fwrite(text.data(), 1, text.size(), f);
-  std::fclose(f);
+  const size_t bytes = text.size();
+  s_card.push([text] {
+    const std::string path = sdPath(kLogbookFile);
+    struct stat st;
+    const bool fresh = stat(path.c_str(), &st) != 0;
+    FILE* f = std::fopen(path.c_str(), "ab");
+    if (f == nullptr) return;
+    if (fresh) std::fputs(core::logbook::csvHeader(), f);
+    std::fwrite(text.data(), 1, text.size(), f);
+    std::fclose(f);
+  }, bytes, false);
   return true;
 }
 
@@ -343,26 +372,30 @@ void recordReplay(const std::vector<core::Aircraft>& all) {
     }
   }
   const int date = core::daylog::dateOf(core::localTime(now));
-  mkdir(sdPath("replay").c_str(), 0775);
-  if (date != s_replay_pruned_date) {
-    // A new day: the oldest days go.
-    s_replay_pruned_date = date;
-    const int oldest = core::replay::addDays(date, -(core::replay::kKeepDays - 1));
-    if (DIR* d = opendir(sdPath("replay").c_str())) {
-      std::vector<std::string> old;
-      while (dirent* e = readdir(d)) {
-        const int fd = core::replay::dateOfFile(e->d_name);
-        if (fd != 0 && fd < oldest) old.push_back(e->d_name);
+  const bool new_day = date != s_replay_pruned_date;
+  s_replay_pruned_date = date;
+  std::string frame = core::replay::encodeFrame(now, near);
+  const size_t bytes = frame.size();
+  s_card.push([date, new_day, frame] {
+    mkdir(sdPath("replay").c_str(), 0775);
+    if (new_day) {
+      // A new day: the oldest days go.
+      const int oldest = core::replay::addDays(date, -(core::replay::kKeepDays - 1));
+      if (DIR* d = opendir(sdPath("replay").c_str())) {
+        std::vector<std::string> old;
+        while (dirent* e = readdir(d)) {
+          const int fd = core::replay::dateOfFile(e->d_name);
+          if (fd != 0 && fd < oldest) old.push_back(e->d_name);
+        }
+        closedir(d);
+        for (const std::string& n : old) std::remove((sdPath("replay") + "/" + n).c_str());
       }
-      closedir(d);
-      for (const std::string& n : old) std::remove((sdPath("replay") + "/" + n).c_str());
     }
-  }
-  const std::string frame = core::replay::encodeFrame(now, near);
-  if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "ab")) {
-    std::fwrite(frame.data(), 1, frame.size(), f);
-    std::fclose(f);
-  }
+    if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "ab")) {
+      std::fwrite(frame.data(), 1, frame.size(), f);
+      std::fclose(f);
+    }
+  }, bytes, false);
 }
 
 struct ReplayCtl {
@@ -753,13 +786,6 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   return true;
 }
 
-/** Creates the directories on the way to a file under the card ("a/b/c.txt" makes a and a/b). */
-void makeDirsFor(const std::string& rel) {
-  for (size_t p = rel.find('/'); p != std::string::npos; p = rel.find('/', p + 1)) {
-    mkdir(sdPath(rel.substr(0, p).c_str()).c_str(), 0775);  // EEXIST is fine
-  }
-}
-
 bool cardReady() { return maps::sdStatus().state == maps::SdState::Mounted; }
 
 int today() { return plat::timeValid() ? core::daylog::dateOf(core::localTime(plat::unixTimeMs() / 1000)) : 0; }
@@ -821,12 +847,10 @@ void saveLookup(const char* hex, const char* callsign, const core::route::Info& 
   const int now = today();
   const std::string af = core::route::airframePath(hex);
   if (!af.empty() && airframe_known) {
-    makeDirsFor(af);
     writeText(af.c_str(), core::route::serializeAirframe(info, now));
   }
   const std::string rp = core::route::routePath(callsign);
   if (!rp.empty()) {
-    makeDirsFor(rp);
     writeText(rp.c_str(), core::route::serializeRoute(info, now));
   }
 }
@@ -849,9 +873,11 @@ void removeTree(const std::string& path) {
 
 bool serviceLookupClear() {
   if (!s_lookup_clear.exchange(false) || !cardReady()) return false;
-  removeTree(sdPath("lookups"));
-  std::lock_guard<std::mutex> lock(s_mu);
-  s_notices.push_back("Saved lookups deleted");
+  s_card.push([] {
+    removeTree(sdPath("lookups"));
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_notices.push_back("Saved lookups deleted");
+  }, 0, false);
   return true;
 }
 
@@ -862,26 +888,41 @@ int s_shot_w = 0, s_shot_h = 0, s_shot_stride = 0;
 std::string s_shot_name;
 std::function<bool()> s_take_screenshot;  // UI task
 
+bool s_shot_queued = false;  // network task: handed to the card task
+
+void saveScreenshotNow(std::vector<uint8_t>& px, const std::string& name, int w, int h, int stride);
+
 bool serviceScreenshot() {
-  std::vector<uint8_t> px;
+  auto px = std::make_shared<std::vector<uint8_t>>();
   std::string name;
   int w, h, stride;
   {
     std::lock_guard<std::mutex> lock(s_shot_mu);
-    if (s_shot_name.empty()) return false;
-    px.swap(s_shot_px);
+    if (s_shot_name.empty()) {
+      s_shot_queued = false;
+      return false;
+    }
+    if (s_shot_queued) return false;  // the card task is on it
+    px->swap(s_shot_px);
     name = s_shot_name;
     w = s_shot_w;
     h = s_shot_h;
     stride = s_shot_stride;
   }
+  s_shot_queued = true;
+  const size_t bytes = px->size();
+  s_card.push([px, name, w, h, stride] { saveScreenshotNow(*px, name, w, h, stride); }, bytes, false);
+  return true;
+}
+
+/** Card task: compresses and writes a screenshot. */
+void saveScreenshotNow(std::vector<uint8_t>& px, const std::string& name, int w, int h, int stride) {
   const uint32_t t0 = plat::millis();
   const std::string png = core::png::encodeRgb(px.data(), w, h, stride, true);
   px.clear();
   px.shrink_to_fit();
   const std::string rel = "screenshots/" + name;
-  makeDirsFor(rel);
-  writeText(rel.c_str(), png);
+  writeTextNow(rel, png);
   std::printf("screenshot: %s, %u KB in %u ms\n", name.c_str(), static_cast<unsigned>(png.size() / 1024),
               static_cast<unsigned>(plat::millis() - t0));
   {
@@ -890,7 +931,6 @@ bool serviceScreenshot() {
   }
   std::lock_guard<std::mutex> lock(s_mu);
   s_notices.push_back("Screenshot saved: " + rel);
-  return true;
 }
 
 // Work handed to the UI task by other tasks (see runOnUi).
@@ -1897,7 +1937,21 @@ bool serviceTrace() {
   return true;
 }
 
-void startNetworkTask() { plat::startTask("adsb", networkLoop, 16 * 1024, 4); }
+void startNetworkTask() {
+  plat::startTask("adsb", networkLoop, 16 * 1024, 4);
+  // Card writes run here, below the feed and the map, so a slow card never holds them up.
+  plat::startTask("card", [] {
+    for (;;) {
+      if (!s_card.runOne()) s_card.waitForJob(500);
+    }
+  }, 12 * 1024, 2);
+}
+
+void queueCardJob(std::function<void()> job, size_t bytes, bool droppable) {
+  s_card.push(std::move(job), bytes, droppable);
+}
+
+bool serviceCardQueue() { return s_card.runOne(); }
 
 void sound(core::Sound s) {
   const core::Settings& st = s_settings;

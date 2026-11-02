@@ -287,6 +287,10 @@ bool serviceReplay();
 void clearLookupCache();
 /** Network task: card work besides map tiles (screenshots, saved lookups). True if it did something. */
 bool serviceCardWork();
+/** Queues card writing for the card task. A droppable job is skipped when the queue is full. */
+void queueCardJob(std::function<void()> job, size_t bytes, bool droppable = false);
+/** Runs one queued card job (the sim drives the queue this way). True if it ran one. */
+bool serviceCardQueue();
 
 /** Feeds one HTTP response through parse -> traffic store -> sounds. */
 void ingest(int http_code, const std::string& body);

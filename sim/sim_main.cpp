@@ -153,6 +153,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     feedTraffic();
     // In the network task's order: card work first, then downloads.
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
+    while (app::serviceCardQueue()) {}
     app::serviceReplay();
     if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
     if (!card) app::maps::service(true);
