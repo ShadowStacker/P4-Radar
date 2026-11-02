@@ -514,6 +514,15 @@ aircraft as usual. While a replay plays, live traffic, alerts and sounds, the
 daily log and the logbook pause. **Record the traffic around home** on the same
 page turns recording off (`replay_record` in `settings.txt`).
 
+### Nearby aircraft
+
+**Settings → Nearby aircraft** lists the aircraft the radar has right now
+(what it receives for the area on screen), each with its type, distance from
+home, altitude and speed; favorites are in their own color. **Sort by**
+distance (nearest first), altitude (highest first) or speed (fastest first).
+Tap one to close the settings and see it on the radar, centered, with its info
+card open. The list shows the first 60 and doesn't update while it's open.
+
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.

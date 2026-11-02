@@ -10,6 +10,13 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.31.0] - 2026-11-02
+
+### Added
+- **Nearby aircraft.** A list in Settings of the aircraft around, with type,
+  distance from home, altitude and speed, sorted by distance, altitude or
+  speed. Tap one to see it on the radar, centered, with its info card.
+
 ## [v1.30.0] - 2026-11-02
 
 ### Added

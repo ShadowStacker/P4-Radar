@@ -307,6 +307,11 @@ void pageMain() {
   }
   navRowImage(sprites::star(sc(30) | 1), "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())),
               Page::Favorites);
+  {
+    std::vector<core::Track> all;
+    app::traffic().snapshot(all);
+    navRow(LV_SYMBOL_LIST, "Nearby aircraft", fmtStr("%u", static_cast<unsigned>(all.size())), Page::Nearby);
+  }
   navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
@@ -1506,6 +1511,79 @@ void pageLogbook() {
   lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
+/** Nearby aircraft: what the radar has now, sorted; a tap shows one on the radar. */
+int s_nearby_sort = 0;  // 0 distance, 1 altitude, 2 speed
+
+void pageNearby() {
+  const Palette& p = pal();
+  static const char* const kSorts[] = {"Distance", "Altitude", "Speed", ""};
+  choiceRow("Sort by", kSorts, s_nearby_sort, [](int v) {
+    s_nearby_sort = v;
+    lv_async_call([](void*) { showPage(Page::Nearby); }, nullptr);
+  });
+  std::vector<core::Track> tracks;
+  app::traffic().snapshot(tracks);
+  const auto& st = app::settings();
+  const core::LatLon home{st.home_lat, st.home_lon};
+  struct Item {
+    const core::Track* t;
+    double km;
+  };
+  std::vector<Item> items;
+  for (const core::Track& t : tracks) items.push_back({&t, core::distanceKm(home, {t.ac.lat, t.ac.lon})});
+  std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
+    if (s_nearby_sort == 1) {
+      // Highest first; unknown altitude and the ground last.
+      const int32_t aa = a.t->ac.on_ground || !a.t->ac.alt_valid ? -100000 : a.t->ac.alt_ft;
+      const int32_t ba = b.t->ac.on_ground || !b.t->ac.alt_valid ? -100000 : b.t->ac.alt_ft;
+      if (aa != ba) return aa > ba;
+    } else if (s_nearby_sort == 2) {
+      if (a.t->ac.gs_kt != b.t->ac.gs_kt) return a.t->ac.gs_kt > b.t->ac.gs_kt;
+    }
+    return a.km < b.km;
+  });
+  constexpr size_t kMaxRows = 60;  // a long menu gets slow to build and scroll
+  section(fmtStr("%u AIRCRAFT%s", static_cast<unsigned>(items.size()),
+                 items.size() > kMaxRows ? fmtStr(" (FIRST %u)", static_cast<unsigned>(kMaxRows)).c_str() : "")
+              .c_str());
+  if (items.empty()) {
+    lv_obj_t* l = label(s.list, "None at the moment (the list shows what the radar receives for the area on screen).",
+                        font(FontSize::M), p.text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
+  for (size_t i = 0; i < items.size() && i < kMaxRows; ++i) {
+    const core::Aircraft& a = items[i].t->ac;
+    const char* name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    char dist[24], alt[16];
+    app::formatDistance(items[i].km, dist, sizeof(dist));
+    if (a.on_ground) std::snprintf(alt, sizeof(alt), "ground");
+    else if (!a.alt_valid) std::snprintf(alt, sizeof(alt), "-");
+    else if (a.alt_ft >= 18000) std::snprintf(alt, sizeof(alt), "FL%03d", static_cast<int>((a.alt_ft + 50) / 100));
+    else std::snprintf(alt, sizeof(alt), "%d ft", static_cast<int>((a.alt_ft + 50) / 100 * 100));
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(r, p.panel_border, LV_STATE_PRESSED);
+    label(r, name, font(FontSize::M), app::isFavorite(a.hex) ? p.favorite : p.text);
+    growLabel(r, a.type, p.text_dim, FontSize::S);
+    label(r, fmtStr("%s  %s  %d kt", dist, alt, static_cast<int>(std::lround(a.gs_kt))).c_str(), font(FontSize::S),
+          p.text);
+    const std::string hex = a.hex;
+    onClick(r, [hex] {
+      closeSettings();
+      RadarView::get().selectAircraft(hex, true);
+    });
+  }
+  lv_obj_t* note = label(s.list,
+                         "Distances are from home. Tap one to show it on the radar with its info card. The list is "
+                         "what the radar receives for the area on screen, as it was when this page opened.",
+                         font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
 void pageDayLog() {
   lv_obj_t* date = infoRow("Today", "");
   lv_obj_t* count = infoRow("Aircraft", "");
@@ -1888,6 +1966,7 @@ const char* pageTitle(Page p) {
     case Page::DayLog: return "Daily log";
     case Page::Replay: return "Replay";
     case Page::Logbook: return "Logbook";
+    case Page::Nearby: return "Nearby aircraft";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -1926,6 +2005,7 @@ void showPage(Page page) {
     case Page::DayLog: pageDayLog(); break;
     case Page::Replay: pageReplay(); break;
     case Page::Logbook: pageLogbook(); break;
+    case Page::Nearby: pageNearby(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;

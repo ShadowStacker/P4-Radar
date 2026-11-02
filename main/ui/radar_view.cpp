@@ -303,6 +303,20 @@ const core::Track* RadarView::selected() const {
   return i < 0 ? nullptr : &tracks_[i];
 }
 
+void RadarView::selectAircraft(const std::string& hex, bool center) {
+  std::vector<core::Track> tracks;
+  app::traffic().snapshot(tracks);
+  for (const core::Track& t : tracks) {
+    if (hex != t.ac.hex) continue;
+    selected_hex_ = hex;
+    follow_ = false;
+    tracks_version_ = 0;  // take the traffic again on the next frame
+    if (center) vp_.flyTo(core::positionAt(t, plat::millis()), vp_.radiusKm(), plat::millis(), 700);
+    if (on_selection_changed) on_selection_changed();
+    return;
+  }
+}
+
 void RadarView::clearSelection() {
   if (selected_hex_.empty()) return;
   selected_hex_.clear();

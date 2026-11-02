@@ -43,6 +43,8 @@ class RadarView {
 
   const core::Track* selected() const;
   void clearSelection();
+  /** Selects an aircraft (its info card opens) and, with `center`, flies the view to it. */
+  void selectAircraft(const std::string& hex, bool center);
   void setFollow(bool on);
   bool following() const { return follow_; }
 

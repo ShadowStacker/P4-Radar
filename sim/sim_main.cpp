@@ -487,7 +487,7 @@ int runPages() {
   const ui::Page pages[] = {ui::Page::Main,    ui::Page::Display, ui::Page::Sound,   ui::Page::Traffic,
                             ui::Page::Filters, ui::Page::Updates, ui::Page::About,   ui::Page::Wifi,
                             ui::Page::Clock,   ui::Page::Map,     ui::Page::Sweep,   ui::Page::Power,
-                            ui::Page::Aircraft};
+                            ui::Page::Aircraft, ui::Page::Nearby};
   double total_open = 0, total_scroll = 0;
   for (ui::Page pg : pages) {
     ui::closeSettings();
@@ -1251,6 +1251,80 @@ int main(int argc, char** argv) {
     }
     app::settings().show_stats = false;
     run(300);
+  }
+
+  // Nearby aircraft: the list is sorted, and a tap shows the aircraft on the radar.
+  {
+    ui::RadarView& rv = ui::RadarView::get();
+    rv.clearSelection();
+    rv.goHome(false);
+    run(3000);
+    std::vector<core::Track> tracks;
+    app::traffic().snapshot(tracks);
+    const auto& st = app::settings();
+    const core::LatLon home{st.home_lat, st.home_lon};
+    const core::Track* nearest = nullptr;
+    const core::Track* highest = nullptr;
+    for (const core::Track& t : tracks) {
+      if (!nearest || core::distanceKm(home, {t.ac.lat, t.ac.lon}) < core::distanceKm(home, {nearest->ac.lat, nearest->ac.lon})) nearest = &t;
+      if (!t.ac.on_ground && t.ac.alt_valid && (!highest || t.ac.alt_ft > highest->ac.alt_ft)) highest = &t;
+    }
+    auto name = [](const core::Track* t) {
+      return std::string(t->ac.callsign[0] ? t->ac.callsign : (t->ac.reg[0] ? t->ac.reg : t->ac.hex));
+    };
+    // The first aircraft row: the first label after the section heading that names a tracked aircraft.
+    auto firstRowName = [&]() -> std::string {
+      std::string found;
+      std::function<void(lv_obj_t*)> walk = [&](lv_obj_t* o) {
+        if (!found.empty()) return;
+        if (lv_obj_check_type(o, &lv_label_class)) {
+          const char* tx = lv_label_get_text(o);
+          for (const core::Track& t : tracks) {
+            if (name(&t) == tx) {
+              found = tx;
+              return;
+            }
+          }
+        }
+        for (uint32_t i = 0; i < lv_obj_get_child_count(o); ++i) walk(lv_obj_get_child(o, static_cast<int32_t>(i)));
+      };
+      walk(lv_screen_active());
+      return found;
+    };
+    ui::openSettings(ui::Page::Nearby);
+    run(600);
+    const std::string by_distance = firstRowName();
+    shot((p + "87_nearby_aircraft").c_str());
+    // Sort by altitude: tap the "Altitude" choice.
+    {
+      lv_obj_t* bm = nullptr;
+      std::function<void(lv_obj_t*)> find = [&](lv_obj_t* o) {
+        if (!bm && lv_obj_check_type(o, &lv_buttonmatrix_class)) bm = o;
+        for (uint32_t i = 0; !bm && i < lv_obj_get_child_count(o); ++i) find(lv_obj_get_child(o, static_cast<int32_t>(i)));
+      };
+      find(lv_screen_active());
+      if (bm) {
+        lv_buttonmatrix_set_selected_button(bm, 1);  // "Altitude"
+        lv_buttonmatrix_set_button_ctrl(bm, 1, LV_BUTTONMATRIX_CTRL_CHECKED);
+        lv_obj_send_event(bm, LV_EVENT_VALUE_CHANGED, nullptr);
+      }
+    }
+    run(600);
+    const std::string by_altitude = firstRowName();
+    const bool sorted = nearest && highest && by_distance == name(nearest) && by_altitude == name(highest);
+    // Tap the first row: the radar shows it, selected.
+    std::string picked = by_altitude;
+    if (lv_obj_t* row = findLabel(lv_screen_active(), picked.c_str())) lv_obj_send_event(lv_obj_get_parent(row), LV_EVENT_CLICKED, nullptr);
+    run(1500);
+    const core::Track* sel = rv.selected();
+    const bool shown = !ui::settingsOpen() && sel != nullptr && name(sel) == picked;
+    shot((p + "88_nearby_selected").c_str());
+    std::printf("nearby aircraft (%u): sorted %s (%s, %s), tap shows it %s\n", static_cast<unsigned>(tracks.size()),
+                sorted ? "OK" : "FAILED", by_distance.c_str(), by_altitude.c_str(), shown ? "OK" : "FAILED");
+    if (!sorted || !shown) return 1;
+    rv.clearSelection();
+    rv.goHome(false);
+    run(1000);
   }
 
   // Saved places: one from settings.txt is listed on the Location page, and
