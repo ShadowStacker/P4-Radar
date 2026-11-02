@@ -117,37 +117,6 @@ void drawCircle(lv_layer_t* layer, float x, float y, float r, lv_color_t c, lv_o
   lv_draw_rect(layer, &d, &a);
 }
 
-/**
- * A full-circle arc. LVGL's circle mask writes past its buffer for some radii
- * from about 920 px up (in 9.2 to 9.6), so big rings are drawn as short
- * straight pieces instead, only where they cross the screen (W x H).
- */
-void drawRing(lv_layer_t* layer, float x, float y, float r, lv_draw_arc_dsc_t arc, float W, float H) {
-  constexpr float kMaskSafeRadius = 900.0f;
-  if (r < kMaskSafeRadius) {
-    arc.center = {static_cast<int32_t>(x), static_cast<int32_t>(y)};
-    arc.radius = static_cast<uint16_t>(r);
-    lv_draw_arc(layer, &arc);
-    return;
-  }
-  // Pieces short enough to look round: at most a quarter pixel off the circle.
-  const float step = 2.0f * std::acos(1.0f - 0.25f / r);
-  const int n = std::min(20000, static_cast<int>(std::ceil(2.0f * 3.14159265f / step)));
-  const float margin = static_cast<float>(arc.width) + 2.0f;
-  auto on = [&](float px, float py) { return px > -margin && py > -margin && px < W + margin && py < H + margin; };
-  float px = x + r, py = y;
-  bool pin = on(px, py);
-  for (int i = 1; i <= n; ++i) {
-    const float a = 2.0f * 3.14159265f * i / n;
-    const float qx = x + r * std::cos(a), qy = y + r * std::sin(a);
-    const bool qin = on(qx, qy);
-    if (pin || qin) drawLine(layer, px, py, qx, qy, arc.color, arc.width, arc.opa, true);
-    px = qx;
-    py = qy;
-    pin = qin;
-  }
-}
-
 void drawText(lv_layer_t* layer, const char* txt, int32_t x, int32_t y, const lv_font_t* f,
               lv_color_t c, lv_opa_t opa = LV_OPA_COVER, lv_text_align_t align = LV_TEXT_ALIGN_LEFT,
               int32_t w = 0) {
@@ -278,11 +247,6 @@ void RadarView::zoomStep(double factor) { vp_.zoomStep(factor, plat::millis()); 
 
 void RadarView::setZoomRate(double octaves_per_s) { vp_.setZoomRate(octaves_per_s, plat::millis()); }
 
-void RadarView::goTo(core::LatLon where, double radius_km) {
-  follow_ = false;
-  vp_.flyTo(where, radius_km, plat::millis(), 800);
-}
-
 bool RadarView::atHome() const {
   const auto& st = app::settings();
   const double d = core::distanceKm(vp_.center(), {st.home_lat, st.home_lon});
@@ -308,12 +272,6 @@ void RadarView::clearSelection() {
   selected_hex_.clear();
   follow_ = false;
   if (on_selection_changed) on_selection_changed();
-}
-
-void RadarView::selectWhenSeen(const std::string& hex) {
-  pending_select_ = hex;
-  pending_select_ms_ = plat::millis();
-  tracks_version_ = 0;  // look at the traffic again on the next frame
 }
 
 void RadarView::setFollow(bool on) { follow_ = on && findSelected() >= 0; }
@@ -344,18 +302,6 @@ void RadarView::frame() {
   favorites_ = app::favorites();
   if (app::traffic().version() != tracks_version_) {
     tracks_version_ = app::traffic().snapshot(tracks_);
-    if (!pending_select_.empty()) {
-      for (const core::Track& t : tracks_) {
-        if (pending_select_ == t.ac.hex) {
-          selected_hex_ = pending_select_;
-          follow_ = true;
-          pending_select_.clear();
-          if (on_selection_changed) on_selection_changed();
-          break;
-        }
-      }
-      if (!pending_select_.empty() && plat::millis() - pending_select_ms_ > 60000) pending_select_.clear();
-    }
     if (!selected_hex_.empty() && findSelected() < 0) {
       // Selected aircraft dropped out of the feed.
       selected_hex_.clear();
@@ -442,7 +388,6 @@ void RadarView::frame() {
     totals_.static_us += us;
   }
 
-  clock_ms_ = plat::unixTimeMs();  // hands drawn and marked for redrawing at the same moment
   prepareBlips(now);
   placeLabels();
   if (!busy) updateQueryArea(true);
@@ -574,7 +519,8 @@ void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
       const float r = static_cast<float>(k * step_px);
       if (r > home_dist + R) break;
       if (r < home_dist - R || r > 30000.0f) continue;  // ring doesn't cross the screen
-      drawRing(&layer, home.x, home.y, r, arc, W, H);
+      arc.radius = static_cast<uint16_t>(r);
+      lv_draw_arc(&layer, &arc);
 
       char txt[16];
       const double v = k * step_units;
@@ -905,16 +851,6 @@ void RadarView::prepareBlips(uint32_t now) {
   // Draw selected/emergency on top: move them to the end.
   std::stable_partition(blips_.begin(), blips_.end(),
                         [](const Blip& b) { return !(b.selected || b.emergency || b.favorite); });
-  // Whole pixels: an aircraft that moved less than one is drawn exactly as
-  // before, so it needn't be redrawn (see overlayAreas()).
-  for (Blip& b : blips_) {
-    b.x = std::round(b.x);
-    b.y = std::round(b.y);
-    b.hx = std::round(b.hx);
-    b.hy = std::round(b.hy);
-    b.vx = std::round(b.vx);
-    b.vy = std::round(b.vy);
-  }
 }
 
 void RadarView::placeLabels() {
@@ -992,44 +928,18 @@ void RadarView::placeLabels() {
   }
 }
 
-namespace {
-
-/** FNV-1a over a few values. */
-struct KeyHash {
-  uint64_t h = 1469598103934665603ULL;
-  KeyHash& add(const void* data, size_t n) {
-    const auto* b = static_cast<const uint8_t*>(data);
-    for (size_t i = 0; i < n; ++i) h = (h ^ b[i]) * 1099511628211ULL;
-    return *this;
-  }
-  KeyHash& i(int64_t v) { return add(&v, sizeof(v)); }
-  KeyHash& px(float v) { return i(std::lround(v)); }
-  KeyHash& str(const char* s) { return add(s, std::strlen(s) + 1); }
-};
-
-}  // namespace
-
 void RadarView::overlayAreas(OverlayShapes* out) const {
-  uint64_t item = 0;  // what the shapes being added belong to, and how it looks
-  auto box = [out, &item](const lv_area_t& a) {
-    out->boxes.push_back({a.x1, a.y1, a.x2, a.y2});
-    out->box_keys.push_back(KeyHash{item}.i(a.x1).i(a.y1).i(a.x2).i(a.y2).h);
-  };
-  auto seg = [out, &item](float x1, float y1, float x2, float y2, float pad) {
-    out->segs.push_back({x1, y1, x2, y2, pad});
-    out->seg_keys.push_back(KeyHash{item}.px(x1).px(y1).px(x2).px(y2).h);
-  };
+  auto box = [out](const lv_area_t& a) { out->boxes.push_back({a.x1, a.y1, a.x2, a.y2}); };
+  auto seg = [out](float x1, float y1, float x2, float y2, float pad) { out->segs.push_back({x1, y1, x2, y2, pad}); };
   const auto& st = app::settings();
   if (st.clock_mode) {
     const float cx = screenW() / 2.0f, cy = screenH() / 2.0f, R = vp_.radiusPx();
     if (!plat::timeValid()) {
-      item = 1;
       box(boxAround(cx, cy + sc(70), sc(200)));
     } else {
-      const int64_t ms = clock_ms_;
+      const int64_t ms = plat::unixTimeMs();
       const std::tm t = core::localTime(ms / 1000);
       const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), st.clock_smooth_seconds);
-      item = 2;
       auto hand = [&](float deg, float len, float tail, float w) {
         const float rad = static_cast<float>(core::degToRad(deg));
         const float sx = std::sin(rad), sy = -std::cos(rad);
@@ -1039,33 +949,15 @@ void RadarView::overlayAreas(OverlayShapes* out) const {
       hand(a.hour, R * 0.48f, R * 0.06f, sc(10));
       hand(a.minute, R * 0.72f, R * 0.06f, sc(6));
       if (st.clock_seconds) hand(a.second, R * 0.80f, R * 0.15f, sc(4));
-      // The middle, where the hands meet: redrawn with them.
-      item = KeyHash{3}.i(std::lround(a.hour * 10)).i(std::lround(a.minute * 10)).i(std::lround(a.second * 10)).h;
       box(boxAround(cx, cy, sc(12)));
       if (st.clock_show_date) {
-        item = KeyHash{4}.i(t.tm_yday).i(t.tm_year).h;
         const float dx = cx + R * 0.60f;
         box({static_cast<int32_t>(dx - sc(80)), static_cast<int32_t>(cy - sc(24)), static_cast<int32_t>(dx + sc(80)),
              static_cast<int32_t>(cy + sc(24))});
       }
     }
   }
-  const lv_color_t pal_key[] = {pal().label, pal().label_dim, pal().favorite, pal().select, pal().danger, pal().vector};
   for (const Blip& b : blips_) {
-    // Everything drawOverlay() draws for the aircraft (its coordinates are whole pixels).
-    KeyHash k;
-    k.add(pal_key, sizeof(pal_key)).px(b.x).px(b.y).i(b.kind).add(&b.color, sizeof(b.color));
-    const uint8_t flags[] = {b.opa, b.selected, b.favorite, b.small, b.label, b.has_head, b.has_vector, light_map_};
-    k.add(flags, sizeof(flags));
-    if (b.kind != 0xFF) {
-      const lv_draw_buf_t* img = sprites::get(static_cast<sprites::Kind>(b.kind), b.heading, b.small);
-      k.add(&img, sizeof(img));
-    }
-    if (b.has_head) k.px(b.hx).px(b.hy);
-    if (b.has_vector) k.px(b.vx).px(b.vy);
-    if (b.label) k.add(&b.label_area, sizeof(b.label_area)).str(b.line1).str(b.line2);
-    if (b.emergency) k.i(overlay_frame_);  // its ring pulses: new every frame
-    item = k.h;
     if (b.kind == 0xFF) {
       box(boxAround(b.x, b.y, sc(8)));
       continue;
@@ -1086,16 +978,12 @@ void RadarView::overlayAreas(OverlayShapes* out) const {
     if (b.has_vector) seg(b.x, b.y, b.vx, b.vy, 4);
     if (b.label) box({b.label_area.x1 - sc(4), b.label_area.y1 - 1, b.label_area.x2 + sc(3), b.label_area.y2 + 1});
   }
-  if (pick_mode_) {
-    item = 5;
-    box(boxAround(vp_.cx(), vp_.cy(), sc(44)));
-  }
+  if (pick_mode_) box(boxAround(vp_.cx(), vp_.cy(), sc(44)));
 }
 
 void RadarView::invalidateOverlay() {
   const auto& st = app::settings();
   const bool sweep = st.sweep_enabled;
-  ++overlay_frame_;
   OverlayShapes cur;
   overlayAreas(&cur);
   if (overlay_full_ || sweep != prev_sweep_on_) {
@@ -1104,33 +992,10 @@ void RadarView::invalidateOverlay() {
     // A grid of 20 x 20 tiles (36-40 px): fine enough to skip most of the
     // screen; rects() keeps the list of areas short.
     core::DirtyTiles tiles(static_cast<int>(screenW()), static_cast<int>(screenH()), 32);
-    // Only shapes that look different: where they were (to erase them) and
-    // where they are now. Aircraft that haven't moved by a whole pixel, and
-    // whose label is the same, are left alone.
-    auto sorted = [](std::vector<uint64_t> v) {
-      std::sort(v.begin(), v.end());
-      return v;
-    };
-    const std::vector<uint64_t> prev_boxes = sorted(overlay_prev_.box_keys), prev_segs = sorted(overlay_prev_.seg_keys);
-    const std::vector<uint64_t> cur_boxes = sorted(cur.box_keys), cur_segs = sorted(cur.seg_keys);
-    auto in = [](const std::vector<uint64_t>& v, uint64_t k) { return std::binary_search(v.begin(), v.end(), k); };
-    int changed = 0;
-    auto addChanged = [&](const OverlayShapes& from, const std::vector<uint64_t>& other_boxes,
-                          const std::vector<uint64_t>& other_segs) {
-      for (size_t i = 0; i < from.boxes.size(); ++i) {
-        if (i < from.box_keys.size() && in(other_boxes, from.box_keys[i])) continue;
-        tiles.add(from.boxes[i]);
-        ++changed;
-      }
-      for (size_t i = 0; i < from.segs.size(); ++i) {
-        if (i < from.seg_keys.size() && in(other_segs, from.seg_keys[i])) continue;
-        const OverlayShapes::Seg& l = from.segs[i];
-        tiles.addSegment(l.x1, l.y1, l.x2, l.y2, l.pad);
-        ++changed;
-      }
-    };
-    addChanged(overlay_prev_, cur_boxes, cur_segs);
-    addChanged(cur, prev_boxes, prev_segs);
+    for (const OverlayShapes* s : {&overlay_prev_, &cur}) {  // where things were (to erase), and are
+      for (const core::Box& b : s->boxes) tiles.add(b);
+      for (const OverlayShapes::Seg& l : s->segs) tiles.addSegment(l.x1, l.y1, l.x2, l.y2, l.pad);
+    }
     if (sweep) {
       // Every slice of the trail changes brightness as the beam moves, so the
       // whole wedge from the old trail's end to the new beam is redrawn.
@@ -1139,10 +1004,6 @@ void RadarView::invalidateOverlay() {
       if (moved < 0) moved += 360.0f;
       tiles.addSector(sweep_center_.x, sweep_center_.y, prev_sweep_deg_ - tail - 1.0f, tail + moved + 2.0f,
                       static_cast<float>(sc(8)));
-    } else if (changed == 0) {
-      // Resting: nothing moved by a whole pixel, nothing else changed.
-      stats_.rested++;
-      totals_.rested++;
     }
     for (const core::Box& r : tiles.rects(26)) {  // LVGL keeps 32 areas; leave room for the buttons
       const lv_area_t a = {r.x1, r.y1, r.x2, r.y2};
@@ -1217,7 +1078,7 @@ void RadarView::drawClockHands(lv_layer_t* layer) {
     drawTextCentered(layer, "Waiting for the time...", cx, cy + sc(70), font(FontSize::S), p.text_dim);
     return;
   }
-  const int64_t ms = clock_ms_;
+  const int64_t ms = plat::unixTimeMs();
   const std::tm t = core::localTime(ms / 1000);
   const core::HandAngles a = core::handAngles(t, static_cast<int>(ms % 1000), st.clock_smooth_seconds);
 
@@ -1246,10 +1107,7 @@ void RadarView::drawClockHands(lv_layer_t* layer) {
   auto hand = [&](float deg, float len, float tail, int32_t w, lv_color_t c, lv_opa_t opa) {
     const float rad = static_cast<float>(core::degToRad(deg));
     const float sx = std::sin(rad), sy = -std::cos(rad);
-    // At whole pixels: a hand that moved less than a pixel looks exactly the
-    // same, so it needn't be redrawn (see overlayAreas()).
-    drawLine(layer, std::round(cx - sx * tail), std::round(cy - sy * tail), std::round(cx + sx * len),
-             std::round(cy + sy * len), c, w, opa, true);
+    drawLine(layer, cx - sx * tail, cy - sy * tail, cx + sx * len, cy + sy * len, c, w, opa, true);
   };
   // Hand colors from Clock settings; saturation 0 is white (or the Night
   // theme's red, so the clock doesn't spoil night vision).

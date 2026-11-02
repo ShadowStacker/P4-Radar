@@ -28,8 +28,6 @@ class FakeTraffic {
   std::string routeJson(const std::string& key) const;
   /** Moves the military aircraft back near home (for screenshots). */
   void recallMilitary();
-  /** A new aircraft close to home, slow, at 5000 ft (first-time visitor tests). */
-  void addVisitor(const std::string& hex, const std::string& flight, const std::string& type);
 
  private:
   struct Plane {

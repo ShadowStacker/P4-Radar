@@ -17,7 +17,6 @@ enum class Sound : uint8_t {
   FavoriteNear,  // insistent two-tone "ding-dong", repeated
   Alarm,         // alarm clock: two bursts of four quick beeps
   Watch,         // watchlist aircraft nearby: falling then rising pair, twice
-  FirstTime,     // never seen near home before: four rising sparkly notes
   kCount
 };
 

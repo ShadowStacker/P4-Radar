@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <chrono>
-#include <ctime>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -20,7 +19,6 @@
 #include <zlib.h>
 
 #include "app/app.h"
-#include "core/syslog.h"
 #include "platform/platform.h"
 #include "sim_state.h"
 
@@ -32,7 +30,6 @@ bool g_update_available = false;
 std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
 std::function<std::string(const std::string&)> g_route_server;
-std::function<std::string(const std::string& kind, const std::string& value)> g_find_server;
 plat::WebHandler g_web_handler;
 size_t g_firmware_written = 0;
 bool g_firmware_committed = false;
@@ -60,7 +57,6 @@ const char* soundName(core::Sound s) {
     case core::Sound::FavoriteNear: return "favorite_nearby";
     case core::Sound::Alarm: return "alarm";
     case core::Sound::Watch: return "watchlist";
-    case core::Sound::FirstTime: return "first_time";
     default: return "unknown";
   }
 }
@@ -251,14 +247,6 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     body->append(fakeTile(topo || sat, z, x, y, osm, faa));  // (satellite: the topo look will do)
     return 200;
   }
-  for (const char* kind : {"/v2/callsign/", "/v2/reg/", "/v2/registration/", "/v2/hex/"}) {
-    if (const char* at = std::strstr(url, kind)) {
-      if (!sim::g_find_server) return -1;
-      const std::string k(kind + 4, std::strlen(kind) - 5);
-      *body = sim::g_find_server(k == "registration" ? "reg" : k, at + std::strlen(kind));
-      return 200;
-    }
-  }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
     if (!sim::g_route_server) return -1;
     std::string hex(ac + std::strlen("adsbdb.com/v0/aircraft/"));
@@ -316,12 +304,6 @@ void playSound(core::Sound s) {
 }
 
 void setVolume(int percent) { s_volume = percent; }
-
-int soundSampleRate() { return 22050; }
-void setSoundClip(core::Sound s, std::vector<int16_t> pcm) {
-  std::printf("[sound] %s: %s\n", soundName(s),
-              pcm.empty() ? "built-in" : ("custom, " + std::to_string(pcm.size()) + " samples").c_str());
-}
 
 void startTask(const char*, std::function<void()> fn, size_t, int) { std::thread(std::move(fn)).detach(); }
 
@@ -395,16 +377,6 @@ void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }
 size_t freePsram() { return 28 * 1024 * 1024; }
-MemoryInfo memoryInfo() {
-  MemoryInfo m;
-  const bool low = std::getenv("SIM_LOW_MEM") != nullptr;
-  m.ram_free = low ? 9 * 1024 : 412 * 1024;
-  m.ram_largest = low ? 3 * 1024 : 280 * 1024;
-  m.psram_free = 28 * 1024 * 1024;
-  m.psram_largest = 20 * 1024 * 1024;
-  return m;
-}
-void restartFresh() { std::printf("[sim] fresh start requested\n"); }
 Health sampleHealth(int) {
   Health h;
   h.cpu[0] = 23;
@@ -416,40 +388,6 @@ Health sampleHealth(int) {
   h.top = "adsb 18%, lvgl 35%";
   return h;
 }
-namespace {
-FILE* s_real_stdout = nullptr;
-ssize_t simTee(void*, const char* buf, size_t n) {
-  std::fwrite(buf, 1, n, s_real_stdout);
-  std::fflush(s_real_stdout);
-  const time_t t = time(nullptr);
-  std::tm lt;
-  localtime_r(&t, &lt);
-  char st[16];
-  std::strftime(st, sizeof(st), "%H:%M:%S ", &lt);
-  core::syslog::append(buf, n, st);
-  return static_cast<ssize_t>(n);
-}
-}  // namespace
-
-void logCaptureStart(bool) {
-  if (s_real_stdout != nullptr) return;
-  s_real_stdout = fdopen(dup(1), "w");
-  cookie_io_functions_t io = {nullptr, simTee, nullptr, nullptr};
-  FILE* tee = fopencookie(nullptr, "w", io);
-  if (tee == nullptr) return;
-  setvbuf(tee, nullptr, _IOLBF, 1024);
-  stdout = tee;
-}
-
-void logDrain() {}  // the simulator's tee adds to the log as it prints
-
-std::string takeCrashLog() {
-  static bool taken = false;
-  if (taken || std::getenv("SIM_CRASH") == nullptr) return "";
-  taken = true;
-  return "12:00:01 I (5000) adsb: 212 aircraft\n12:00:02 E (5100) lvgl: out of memory\n";
-}
-
 BootInfo bootInfo() {
   BootInfo b;
   b.reset_reason = "Power on";

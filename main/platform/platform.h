@@ -123,10 +123,6 @@ int touchPoints(TouchPoint* out, int max);
 // --- Audio -------------------------------------------------------------------
 /** Queues a sound; never blocks. Ignored when audio is unavailable. */
 void playSound(core::Sound s);
-/** The rate sounds are played at (Hz). */
-int soundSampleRate();
-/** Replaces a sound (mono 16-bit at soundSampleRate()); an empty clip brings back the built-in one. */
-void setSoundClip(core::Sound s, std::vector<int16_t> pcm);
 void setVolume(int percent);
 
 // --- Tasks / system ------------------------------------------------------------
@@ -218,19 +214,6 @@ WebStats webStats();
 size_t freeInternalHeap();
 size_t freePsram();
 
-/** Free memory now (cheap to ask). */
-struct MemoryInfo {
-  size_t ram_free = 0, ram_largest = 0;      // internal RAM: free, largest free block
-  size_t psram_free = 0, psram_largest = 0;
-};
-MemoryInfo memoryInfo();
-
-/**
- * Restarts for a fresh start (the memory watch, at night): the next start
- * says so in BootInfo, and it's counted.
- */
-void restartFresh();
-
 /** Memory and CPU use, for the serial log and the on-screen stats. */
 struct Health {
   int cpu[2] = {-1, -1};  // % busy per core since the previous sample in the same slot; -1 = unknown
@@ -241,20 +224,6 @@ struct Health {
 /** Takes a sample. `slot` (0 or 1) keeps separate CPU baselines for separate users. */
 Health sampleHealth(int slot);
 
-/**
- * Copies everything printed (printf and ESP-IDF's log) into core::syslog,
- * still printing it on the serial port. Call first thing at startup.
- */
-void logCaptureStart(bool capture = true);
-/** Moves what was printed since the last call into core::syslog, with the time. UI task, often. */
-void logDrain();
-/**
- * The last lines printed before an unexpected restart (crash, watchdog),
- * kept in RAM that survives the restart; "" after a normal start. Taking it
- * clears it.
- */
-std::string takeCrashLog();
-
 /** Why and how often the board has started (kept in flash). */
 struct BootInfo {
   const char* reset_reason = "";   // why it last restarted, in words
@@ -262,9 +231,6 @@ struct BootInfo {
   uint32_t boots = 0;              // starts counted since the last factory reset
   uint32_t unexpected_resets = 0;  // of which crashes, watchdogs or power dips
   char rolled_back_from[32] = "";  // version left after three quick restarts ("" = none)
-  bool refreshed = false;          // this start was a planned fresh start (restartFresh())
-  uint8_t quick_start = 0;         // starts in a row less than 20 s apart, this one included
-  uint32_t refreshes = 0;          // fresh starts the memory watch asked for, ever
 };
 BootInfo bootInfo();
 /**

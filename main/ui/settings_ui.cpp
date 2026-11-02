@@ -307,18 +307,10 @@ void pageMain() {
   }
   navRowImage(sprites::star(sc(30) | 1), "Favorites", fmtStr("%u", static_cast<unsigned>(app::favorites().size())),
               Page::Favorites);
-  actionRow(LV_SYMBOL_EYE_OPEN, "Find an aircraft", [] {
-    textInput("Callsign, tail number or hex code", "", InputKind::Text, [](const std::string& q) {
-      if (q.empty()) return;
-      closeSettings();
-      app::findAircraft(q);
-    });
-  }, pal().text);
   navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
   navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
-  navRow(LV_SYMBOL_PLAY, "Replay a day", app::replayActive() ? "Playing" : "", Page::Replay);
   navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
 }
@@ -521,56 +513,6 @@ void pageLocation() {
       setHome(a->lat_e7 * 1e-7, a->lon_e7 * 1e-7, a->name);
     });
   }, pal().text);
-
-  section("SAVED PLACES");
-  int used = 0;
-  for (int i = 0; i < core::kMaxPlaces; ++i) {
-    const core::Place& pl = st.places[i];
-    if (pl.name[0] == '\0') continue;
-    ++used;
-    actionRow(LV_SYMBOL_GPS, pl.name, [i] {
-      const core::Place& p = app::settings().places[i];
-      closeSettings();
-      RadarView::get().goTo({p.lat, p.lon}, p.radius_km);
-    }, pal().text);
-    actionRow(LV_SYMBOL_TRASH, fmtStr("Remove %s", pl.name).c_str(), [i] {
-      const std::string name = app::settings().places[i].name;
-      confirm(fmtStr("Remove %s?", name.c_str()).c_str(), "The place is taken off the list. Home stays as it is.",
-              "Remove", [i] {
-                app::settings().places[i] = core::Place();
-                changed();
-                showPage(Page::Location);
-              });
-    }, pal().text_dim);
-  }
-  if (used < core::kMaxPlaces) {
-    actionRow(LV_SYMBOL_PLUS, "Save the radar's view as a place", [] {
-      textInput("Name of this place", "", InputKind::Text, [](const std::string& name) {
-        if (name.empty()) return;
-        for (core::Place& p : app::settings().places) {
-          if (p.name[0] != '\0') continue;
-          const core::Viewport& vp = RadarView::get().viewport();
-          std::snprintf(p.name, sizeof(p.name), "%s", name.c_str());
-          p.lat = vp.center().lat;
-          p.lon = vp.center().lon;
-          p.radius_km = static_cast<float>(std::min(400.0, std::max(2.0, vp.radiusKm())));
-          changed();
-          toast((std::string(LV_SYMBOL_OK "  Saved ") + p.name).c_str(), 2000);
-          break;
-        }
-        showPage(Page::Location);
-      });
-    }, pal().accent);
-  }
-  {
-    lv_obj_t* note = label(s.list,
-                           "A place is the view the radar shows when you save it: pan and zoom to it first. Places "
-                           "can also be typed on the phone page (Location).",
-                           font(FontSize::S), pal().text_dim);
-    lv_obj_set_width(note, lv_pct(90));
-    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(note, sc(16), 0);
-  }
 
   section("HOME VIEW");
   sliderRow("Home zoom (radius)", 2, 250, static_cast<int>(app::kmToUnits(st.home_radius_km) + 0.5),
@@ -1190,36 +1132,6 @@ void pageSound() {
   actionRow(LV_SYMBOL_PLAY, "Favorite nearby", [] { plat::playSound(core::Sound::FavoriteNear); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Emergency", [] { plat::playSound(core::Sound::Emergency); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Watchlist", [] { plat::playSound(core::Sound::Watch); }, pal().text);
-  actionRow(LV_SYMBOL_PLAY, "First time here", [] { plat::playSound(core::Sound::FirstTime); }, pal().text);
-
-  section("YOUR OWN SOUNDS (SD CARD)");
-  const std::vector<std::string> custom = app::customSounds();
-  for (const std::string& line : custom) {
-    lv_obj_t* l = label(s.list, line.c_str(), font(FontSize::M), pal().text);
-    lv_obj_set_width(l, lv_pct(90));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(l, sc(16), 0);
-  }
-  actionRow(LV_SYMBOL_REFRESH, "Load them again", [] {
-    app::reloadSounds();
-    toast(LV_SYMBOL_REFRESH "  Reading sounds/ on the card...", 2000);
-    lv_timer_create([](lv_timer_t* t) {
-      lv_timer_delete(t);
-      if (settingsOpen() && currentPage() == Page::Sound) refresh();
-    }, 2500, nullptr);
-  }, pal().text);
-  lv_obj_t* note = label(s.list,
-                         custom.empty()
-                             ? "None found. Put WAV files in a sounds folder on the SD card, named click, ping, "
-                               "new_aircraft, close, emergency, startup, home, favorite_seen, favorite_near, alarm, "
-                               "watchlist or first_time (.wav), then tap Load them again. Missing ones keep the "
-                               "built-in sound."
-                             : "WAV files in the card's sounds folder replace the built-in sounds; delete one and "
-                               "load again to get the built-in sound back.",
-                         font(FontSize::S), pal().text_dim);
-  lv_obj_set_width(note, lv_pct(90));
-  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
 void pageFavorites() {
@@ -1449,158 +1361,6 @@ std::string recordText(const core::daylog::Record& r, const std::string& what) {
   return fmtStr("%s%s%s, %s, %s", r.label, r.type[0] ? " " : "", r.type, what.c_str(), hm);
 }
 
-/**
- * 24 bars, one per hour of the day, with 0 / 6 / 12 / 18 under them. Returns
- * the bars, for hourBars() to set.
- */
-std::vector<lv_obj_t*> hourChart() {
-  const Palette& p = pal();
-  const int32_t h = sc(100), w = sc(14), gap = sc(4);
-  lv_obj_t* box = lv_obj_create(s.list);
-  lv_obj_remove_style_all(box);
-  lv_obj_set_size(box, 24 * (w + gap), h + sc(26));
-  lv_obj_set_style_margin_left(box, sc(16), 0);
-  lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
-  std::vector<lv_obj_t*> bars;
-  for (int i = 0; i < 24; ++i) {
-    lv_obj_t* b = lv_obj_create(box);
-    lv_obj_remove_style_all(b);
-    lv_obj_set_style_bg_color(b, p.accent, 0);
-    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(b, sc(2), 0);
-    lv_obj_set_size(b, w, 1);
-    lv_obj_set_pos(b, i * (w + gap), h - 1);
-    bars.push_back(b);
-    if (i % 6 == 0) {
-      lv_obj_t* t = label(box, fmtStr("%d", i).c_str(), font(FontSize::S), p.text_dim);
-      lv_obj_set_pos(t, i * (w + gap), h + sc(4));
-    }
-  }
-  return bars;
-}
-
-/** Sets the bars to the counts (scaled to the largest); the busiest hour stands out. */
-void hourBars(const std::vector<lv_obj_t*>& bars, const int* counts) {
-  if (bars.size() != 24) return;
-  int top = 0, best = -1;
-  for (int i = 0; i < 24; ++i) {
-    if (counts[i] > top) {
-      top = counts[i];
-      best = i;
-    }
-  }
-  const int32_t h = sc(100);
-  for (int i = 0; i < 24; ++i) {
-    const int32_t bh = top > 0 ? std::max<int32_t>(1, static_cast<int32_t>(static_cast<int64_t>(h) * counts[i] / top)) : 1;
-    if (lv_obj_get_height(bars[i]) != bh) {
-      lv_obj_set_height(bars[i], bh);
-      lv_obj_set_y(bars[i], h - bh);
-    }
-    lv_obj_set_style_bg_opa(bars[i], i == best ? LV_OPA_COVER : LV_OPA_60, 0);
-  }
-}
-
-std::string shortDate(int date) {
-  static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-  return fmtStr("%s %d", kMonths[(date / 100 % 100 + 11) % 12], date % 100);
-}
-
-std::string hourText(int h) {
-  char a[16], b[16];
-  core::formatTime(h, 0, app::settings().clock_24h, a, sizeof(a));
-  core::formatTime((h + 1) % 24, 0, app::settings().clock_24h, b, sizeof(b));
-  return std::string(a) + "-" + b;
-}
-
-void pageReplay() {
-  const std::vector<int> days = app::replayDays();
-  if (app::replayActive()) {
-    actionRow(LV_SYMBOL_CLOSE, "Back to live traffic", [] {
-      app::replayStop();
-      closeSettings();
-    }, pal().accent);
-  }
-  section("RECORDED DAYS");
-  if (days.empty()) {
-    lv_obj_t* l = label(s.list,
-                        app::maps::sdStatus().state == app::maps::SdState::Mounted
-                            ? "Nothing recorded yet. The radar records the traffic around home while it shows it."
-                            : "Replays need an SD card.",
-                        font(FontSize::M), pal().text_dim);
-    lv_obj_set_width(l, lv_pct(90));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(l, sc(16), 0);
-  }
-  const int today = days.empty() ? 0 : core::daylog::dateOf(core::localTime(plat::unixTimeMs() / 1000));
-  for (int d : days) {
-    const std::string name = d == today ? "Today" : shortDate(d);
-    actionRow(LV_SYMBOL_PLAY, name.c_str(), [d] {
-      app::replayStart(d);
-      closeSettings();
-    }, pal().text);
-  }
-  section("RECORDING");
-  switchRow("Record the traffic around home", &app::settings().replay_record);
-  lv_obj_t* note = label(s.list,
-                         "Every 15 seconds the aircraft within 150 km of home (while the radar shows that area) go "
-                         "into replay/ on the SD card, about 2-5 MB a day; a week is kept. While a replay plays, "
-                         "live traffic, alerts and the logs pause. Drag the bar to move in time, tap the speed to "
-                         "change it, and X to go back to live traffic.",
-                         font(FontSize::S), pal().text_dim);
-  lv_obj_set_width(note, lv_pct(90));
-  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_pad_left(note, sc(16), 0);
-}
-
-void pageLogbook() {
-  const app::LogbookSummary b = app::logbookSummary(5);
-  if (!b.loaded) {
-    lv_obj_t* l = label(s.list,
-                        "The logbook needs an SD card: it keeps every aircraft seen near home in logbook.csv on the "
-                        "card.",
-                        font(FontSize::M), pal().text_dim);
-    lv_obj_set_width(l, lv_pct(90));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(l, sc(16), 0);
-  } else {
-    infoRow("Aircraft", fmtStr("%u different", static_cast<unsigned>(b.aircraft)));
-    infoRow("Visits", fmtStr("%llu", static_cast<unsigned long long>(b.visits)));
-    if (b.start_date) infoRow("Since", fmtStr("%s, %d", shortDate(b.start_date).c_str(), b.start_date / 10000));
-  }
-  section("FIRST TIME HERE");
-  switchRow("Announce new aircraft", &app::settings().first_time_alert);
-  switchRow("With a sound", &app::settings().sound_first_time);
-  actionRow(LV_SYMBOL_PLAY, "Test the sound", [] { plat::playSound(core::Sound::FirstTime); }, pal().text);
-  if (b.loaded && b.learning) {
-    lv_obj_t* l = label(s.list, "Still learning: announcements start two days after the logbook began.",
-                        font(FontSize::S), pal().text_dim);
-    lv_obj_set_width(l, lv_pct(90));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_pad_left(l, sc(16), 0);
-  }
-  auto list = [](const char* title, const std::vector<core::logbook::Entry>& v, bool visits) {
-    if (v.empty()) return;
-    section(title);
-    for (const core::logbook::Entry& e : v) {
-      const std::string name = std::string(e.label) + (e.type[0] ? std::string("  ") + e.type : "");
-      infoRow(name.c_str(), visits ? fmtStr("%u visits", static_cast<unsigned>(e.visits))
-                                   : shortDate(static_cast<int>(e.first_date)));
-    }
-  };
-  list("MOST FREQUENT", b.frequent, true);
-  list("NEWEST", b.newest, false);
-  lv_obj_t* note = label(s.list,
-                         "Every airborne aircraft within the daily log's distance of home is written down, one line "
-                         "per visit (seen again after half an hour away), in logbook.csv on the SD card. The phone "
-                         "page downloads it.",
-                         font(FontSize::S), pal().text_dim);
-  lv_obj_set_width(note, lv_pct(90));
-  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_pad_left(note, sc(16), 0);
-}
-
 void pageDayLog() {
   lv_obj_t* date = infoRow("Today", "");
   lv_obj_t* count = infoRow("Aircraft", "");
@@ -1611,27 +1371,10 @@ void pageDayLog() {
   lv_obj_t* special = infoRow("Military / emergencies", "");
   lv_obj_t* favs = infoRow("Favorites seen", "");
   for (lv_obj_t* l : {closest, highest, fastest, favs}) lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-  section("TODAY BY HOUR");
-  lv_obj_t* busiest_hour = infoRow("Busiest hour", "");
-  const std::vector<lv_obj_t*> today_bars = hourChart();
-  navRow(LV_SYMBOL_DIRECTORY, "Logbook", fmtStr("%u aircraft", static_cast<unsigned>(app::logbookSummary(0).aircraft)),
-         Page::Logbook);
   auto& st = app::settings();
   sliderRow("Count aircraft within", 1, 100, static_cast<int>(app::kmToUnits(st.log_radius_km) + 0.5),
             [](int v) { app::settings().log_radius_km = static_cast<float>(app::unitsToKm(v)); },
             [](int v) { return fmtStr("%d %s", v, app::unitSuffix()); });
-
-  for (int days : {7, 30}) {
-    const app::DayLogTotals t = app::dayLogTotals(days);
-    if (t.days < 2) break;
-    section(days == 7 ? "LAST 7 DAYS" : "LAST 30 DAYS");
-    infoRow("Aircraft", fmtStr("%d different (%d a day)", t.unique, t.sum / t.days));
-    infoRow("Busiest day", fmtStr("%s, %d", shortDate(t.best_date).c_str(), t.best_count));
-    int best = 0;
-    for (int h = 1; h < 24; ++h) best = t.hourly[h] > t.hourly[best] ? h : best;
-    if (t.hourly[best] > 0) infoRow("Busiest hour", hourText(best));
-    if (days == 7) hourBars(hourChart(), t.hourly);
-  }
 
   section("EARLIER DAYS");
   const std::vector<core::daylog::Day> history = app::dayLogHistory(7);
@@ -1657,13 +1400,8 @@ void pageDayLog() {
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_pad_left(note, sc(16), 0);
 
-  s.tick = [date, count, busiest, closest, highest, fastest, special, favs, busiest_hour, today_bars] {
+  s.tick = [date, count, busiest, closest, highest, fastest, special, favs] {
     const core::daylog::Day d = app::dayLogToday();
-    int hours[24];
-    for (int h = 0; h < 24; ++h) hours[h] = d.hourly[h];
-    hourBars(today_bars, hours);
-    const int bh = core::daylog::busiestHour(d);
-    setLabelText(busiest_hour, bh < 0 ? "-" : fmtStr("%s, %d aircraft", hourText(bh).c_str(), d.hourly[bh]).c_str());
     if (d.date == 0) {
       setLabelText(date, "Waiting for the time (needs internet)");
       return;
@@ -1757,21 +1495,22 @@ void pageAbout() {
   infoRow("Last restart", boot.reset_reason);
   infoRow("Starts", fmtStr("%u (%u unexpected)", static_cast<unsigned>(boot.boots),
                            static_cast<unsigned>(boot.unexpected_resets)));
-  if (boot.refreshes > 0) infoRow("Fresh starts (memory)", fmtStr("%u", static_cast<unsigned>(boot.refreshes)));
   switchRow("On-screen stats", &app::settings().show_stats);
   lv_obj_t* note = label(s.list,
                          "Unexpected restarts are crashes, watchdog resets and power dips. On-screen stats show "
                          "frame rate, CPU, memory and more in the lower left corner.\n"
                          "Power-cycling three times in a row within 20 seconds of starting goes back to the "
-                         "previously installed version. If memory stays low for half an hour, the radar starts "
-                         "afresh between 3 and 5 AM while nobody is using it.",
+                         "previously installed version.",
                          font(FontSize::S), pal().text_dim);
   lv_obj_set_width(note, lv_pct(90));
   lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_pad_left(note, sc(16), 0);
 
   section("MAINTENANCE");
-  actionRow(LV_SYMBOL_REFRESH, "Restart", [] { app::restartSoon(); }, pal().text);
+  actionRow(LV_SYMBOL_REFRESH, "Restart", [] {
+    app::settingsFlush();
+    plat::restart();
+  }, pal().text);
   actionRow(LV_SYMBOL_TRASH, "Factory reset", [] {
     confirm("Factory reset?",
             "Erases Wi-Fi, location and all settings (also settings.txt on the SD card), then restarts. "
@@ -2000,8 +1739,6 @@ const char* pageTitle(Page p) {
     case Page::Filters: return "Filters";
     case Page::Favorites: return "Favorites";
     case Page::DayLog: return "Daily log";
-    case Page::Logbook: return "Logbook";
-    case Page::Replay: return "Replay";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -2038,8 +1775,6 @@ void showPage(Page page) {
     case Page::Filters: pageFilters(); break;
     case Page::Favorites: pageFavorites(); break;
     case Page::DayLog: pageDayLog(); break;
-    case Page::Logbook: pageLogbook(); break;
-    case Page::Replay: pageReplay(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
@@ -2092,7 +1827,6 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
     }
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
     else if (s.page == Page::Silenced) showPage(Page::Sound);
-    else if (s.page == Page::Logbook) showPage(Page::DayLog);
     else showPage(Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));

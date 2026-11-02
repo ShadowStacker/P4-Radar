@@ -9,35 +9,27 @@
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
-#include <iterator>
 #include <memory>
 #include <deque>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <ctime>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "core/adsb.h"
-#include "core/backup.h"
 #include "core/failover.h"
 #include "core/filter.h"
 #include "app/maps.h"
 #include "app/web.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
-#include "core/logbook.h"
 #include "core/lookup_cache.h"
-#include "core/memwatch.h"
 #include "core/png.h"
 #include "core/sun.h"
-#include "core/syslog.h"
 #include "core/watch.h"
-#include "core/wav.h"
-#include "core/replay.h"
 #include "core/route.h"
 #include "core/settings_text.h"
 #include "core/trace.h"
@@ -194,87 +186,6 @@ void saveDay(const core::daylog::Day& d) {
   writeText(("log/" + core::daylog::fileName(d.date)).c_str(), core::daylog::serialize(d));
 }
 
-// Logbook (logbook.csv on the card). Network task, except the UI's read-only
-// queries, which lock s_book_mu.
-constexpr char kLogbookFile[] = "logbook.csv";
-std::mutex s_book_mu;
-core::logbook::Book s_book;
-bool s_book_loaded = false;      // read from the card (or found missing)
-std::string s_book_pending;      // CSV lines not on the card yet
-uint32_t s_book_saved_ms = 0;
-std::vector<core::logbook::Entry> s_book_firsts;  // this fetch's first-timers (network task)
-
-/** Network task: reads logbook.csv into the index once the card is there. */
-void loadLogbook() {
-  if (s_book_loaded || maps::sdStatus().state != maps::SdState::Mounted) return;
-  s_book_loaded = true;
-  core::logbook::Book book;
-  FILE* f = std::fopen(sdPath(kLogbookFile).c_str(), "rb");
-  size_t lines = 0;
-  if (f != nullptr) {
-    std::string line;
-    char buf[1024];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) {
-      for (size_t i = 0; i < n; ++i) {
-        if (buf[i] == '\n') {
-          book.loadLine(line);
-          line.clear();
-          ++lines;
-        } else {
-          line.push_back(buf[i]);
-        }
-      }
-    }
-    if (!line.empty()) book.loadLine(line);
-    std::fclose(f);
-  }
-  book.loaded();
-  std::printf("logbook: %u aircraft, %u visits since %d (%u lines)\n", static_cast<unsigned>(book.aircraft()),
-              static_cast<unsigned>(book.visits()), book.startDate(), static_cast<unsigned>(lines));
-  std::lock_guard<std::mutex> lock(s_book_mu);
-  std::swap(s_book, book);
-}
-
-/** Network task: appends new visits to logbook.csv now and then. True if it wrote. */
-bool serviceLogbook(bool now = false) {
-  std::string text;
-  {
-    std::lock_guard<std::mutex> lock(s_book_mu);
-    if (!s_book_loaded || s_book_pending.empty()) return false;
-    if (!now && plat::millis() - s_book_saved_ms < 60000 && s_book_pending.size() < 4096) return false;
-    text.swap(s_book_pending);
-    s_book_saved_ms = plat::millis();
-  }
-  if (maps::sdStatus().state != maps::SdState::Mounted) return false;
-  const std::string path = sdPath(kLogbookFile);
-  struct stat st;
-  const bool fresh = stat(path.c_str(), &st) != 0;
-  FILE* f = std::fopen(path.c_str(), "ab");
-  if (f == nullptr) return false;
-  if (fresh) std::fputs(core::logbook::csvHeader(), f);
-  std::fwrite(text.data(), 1, text.size(), f);
-  std::fclose(f);
-  return true;
-}
-
-/** Network task, each fetch: the logbook's visits, and who's here for the first time. */
-void logbookObserve(const std::vector<core::Aircraft>& all, const std::tm& t, int date) {
-  s_book_firsts.clear();
-  loadLogbook();
-  if (!s_book_loaded) return;  // no card (yet): nothing to compare with
-  std::vector<core::Aircraft> near;
-  const core::LatLon home{s_settings.home_lat, s_settings.home_lon};
-  for (const core::Aircraft& a : all) {
-    if (!a.on_ground && core::distanceKm(home, {a.lat, a.lon}) <= s_settings.log_radius_km) near.push_back(a);
-  }
-  std::lock_guard<std::mutex> lock(s_book_mu);
-  const bool learning = s_book.learning(date);
-  std::vector<core::logbook::Entry> firsts =
-      s_book.observe(near, plat::unixTimeMs() / 1000, date, t.tm_hour * 100 + t.tm_min, &s_book_pending);
-  if (!learning) s_book_firsts = std::move(firsts);
-}
-
 /** Network task, each fetch: counts what's near home today. */
 void dayLogObserve(const std::vector<core::Aircraft>& all) {
   if (!plat::timeValid()) return;
@@ -306,7 +217,6 @@ void dayLogObserve(const std::vector<core::Aircraft>& all) {
       std::printf("daylog: continuing %s (%d aircraft)\n", core::daylog::fileName(date).c_str(), s_day.count());
     }
   }
-  logbookObserve(all, t, date);
   std::lock_guard<std::mutex> lock(s_day_mu);
   core::daylog::observe(&s_day, all, {s_settings.home_lat, s_settings.home_lon}, s_settings.log_radius_km, date,
                         t.tm_hour * 60 + t.tm_min, &isFavorite);
@@ -324,269 +234,6 @@ bool serviceDayLog() {
     copy = s_day;
   }
   saveDay(copy);
-  return true;
-}
-
-// System log (core::syslog) on the card. Network task.
-constexpr uint32_t kLogSaveEveryMs = 60 * 1000;
-uint32_t s_log_saved_ms = 0;
-std::mutex s_crash_mu;
-std::string s_crash_log;        // the previous run's last lines, if it crashed
-bool s_crash_saved = false;     // written to the card (or nothing to write)
-
-/** Network task: adds new log lines to log/system.log now and then. True if it wrote. */
-bool serviceSystemLog() {
-  const bool card = maps::sdStatus().state == maps::SdState::Mounted;
-  bool wrote = false;
-  if (card && !s_crash_saved) {
-    s_crash_saved = true;
-    std::string crash;
-    {
-      std::lock_guard<std::mutex> lock(s_crash_mu);
-      crash = s_crash_log;
-    }
-    if (!crash.empty()) {
-      mkdir(sdPath("log").c_str(), 0775);
-      char name[48];
-      std::snprintf(name, sizeof(name), "log/crash-%u.log", static_cast<unsigned>(plat::bootInfo().boots));
-      const plat::BootInfo boot = plat::bootInfo();
-      writeText(name, std::string("Restart reason: ") + boot.reset_reason + "\nLast lines before it:\n\n" + crash);
-      wrote = true;
-    }
-  }
-  const uint32_t now = plat::millis();
-  if (now - s_log_saved_ms < kLogSaveEveryMs) return wrote;
-  s_log_saved_ms = now;
-  const std::string text = core::syslog::takePending();
-  if (!card || text.empty()) return wrote;  // without a card the lines only stay in RAM
-  mkdir(sdPath("log").c_str(), 0775);
-  const std::string path = sdPath("log/system.log");
-  struct stat st;
-  if (stat(path.c_str(), &st) == 0 && static_cast<size_t>(st.st_size) + text.size() > core::syslog::kFileBytes) {
-    const std::string old = sdPath("log/system.1.log");
-    std::remove(old.c_str());
-    std::rename(path.c_str(), old.c_str());
-  }
-  FILE* f = std::fopen(path.c_str(), "ab");
-  if (f == nullptr) return wrote;
-  std::fwrite(text.data(), 1, text.size(), f);
-  std::fclose(f);
-  return true;
-}
-
-// Flight replay: recording (network task) and playing back (network task,
-// steered from the UI through s_replay_mu).
-int64_t s_replay_recorded_s = 0;
-int s_replay_pruned_date = 0;
-constexpr double kReplayRadiusKm = 150.0;
-
-/** Network task, each fetch: a snapshot of the traffic around home, every kFrameEveryS. */
-void recordReplay(const std::vector<core::Aircraft>& all) {
-  if (!s_settings.replay_record || !plat::timeValid() || maps::sdStatus().state != maps::SdState::Mounted) return;
-  const int64_t now = plat::unixTimeMs() / 1000;
-  if (now - s_replay_recorded_s < core::replay::kFrameEveryS) return;
-  s_replay_recorded_s = now;
-  const core::LatLon home{s_settings.home_lat, s_settings.home_lon};
-  std::vector<core::Aircraft> near;
-  for (const core::Aircraft& a : all) {
-    if (near.size() < core::TrafficStore::kMaxTracks && core::distanceKm(home, {a.lat, a.lon}) <= kReplayRadiusKm) {
-      near.push_back(a);
-    }
-  }
-  const int date = core::daylog::dateOf(core::localTime(now));
-  mkdir(sdPath("replay").c_str(), 0775);
-  if (date != s_replay_pruned_date) {
-    // A new day: the oldest days go.
-    s_replay_pruned_date = date;
-    const int oldest = core::logbook::addDays(date, -(core::replay::kKeepDays - 1));
-    if (DIR* d = opendir(sdPath("replay").c_str())) {
-      std::vector<std::string> old;
-      while (dirent* e = readdir(d)) {
-        const int fd = core::replay::dateOfFile(e->d_name);
-        if (fd != 0 && fd < oldest) old.push_back(e->d_name);
-      }
-      closedir(d);
-      for (const std::string& n : old) std::remove((sdPath("replay") + "/" + n).c_str());
-    }
-  }
-  const std::string frame = core::replay::encodeFrame(now, near);
-  if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "ab")) {
-    std::fwrite(frame.data(), 1, frame.size(), f);
-    std::fclose(f);
-  }
-}
-
-struct ReplayCtl {
-  bool active = false;
-  int date = 0;
-  int64_t pos_s = 0;      // the moment shown
-  double pos = 0;         // the same, with the fraction
-  bool playing = false;
-  int speed = 10;
-  uint32_t tick_ms = 0;   // when pos_s last moved on
-  std::vector<std::pair<int64_t, uint32_t>> index;  // frame time, file offset
-  int loaded_date = 0;
-  int shown = -1;         // index of the frame in the traffic
-  uint32_t shown_ms = 0;
-};
-std::mutex s_replay_mu;
-ReplayCtl s_replay;
-
-/** Network task: plays the replay on. True if it read a frame. */
-bool serviceReplayImpl() {
-  int date;
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active) return false;
-    date = s_replay.date;
-    if (s_replay.loaded_date == date) date = 0;
-  }
-  if (date != 0) {
-    // The day's frames: where each one starts.
-    std::vector<std::pair<int64_t, uint32_t>> index;
-    if (FILE* f = std::fopen(sdPath(core::replay::fileName(date).c_str()).c_str(), "rb")) {
-      uint8_t head[core::replay::kHeaderBytes];
-      long off = 0;
-      while (std::fread(head, 1, sizeof(head), f) == sizeof(head)) {
-        core::replay::FrameHeader h;
-        if (!core::replay::readHeader(head, &h)) break;
-        index.emplace_back(h.time_s, static_cast<uint32_t>(off));
-        off += static_cast<long>(sizeof(head) + h.packed);
-        if (std::fseek(f, off, SEEK_SET) != 0) break;
-      }
-      std::fclose(f);
-    }
-    std::printf("replay: %d has %u frames\n", date, static_cast<unsigned>(index.size()));
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    s_replay.index = std::move(index);
-    s_replay.loaded_date = date;
-    s_replay.shown = -1;
-    if (!s_replay.index.empty() &&
-        (s_replay.pos_s < s_replay.index.front().first || s_replay.pos_s > s_replay.index.back().first)) {
-      s_replay.pos_s = s_replay.index.front().first;
-    }
-    s_replay.pos = static_cast<double>(s_replay.pos_s);
-  }
-  int want;
-  uint32_t offset;
-  int load_date;
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    ReplayCtl& r = s_replay;
-    if (r.index.empty()) return false;
-    const uint32_t now = plat::millis();
-    if (r.playing) {
-      r.pos += r.speed * (now - r.tick_ms) / 1000.0;
-      if (r.pos >= r.index.back().first) {
-        r.pos = static_cast<double>(r.index.back().first);
-        r.playing = false;
-      }
-    }
-    r.tick_ms = now;
-    r.pos_s = static_cast<int64_t>(r.pos);
-    auto it = std::upper_bound(r.index.begin(), r.index.end(), r.pos_s,
-                               [](int64_t t, const std::pair<int64_t, uint32_t>& e) { return t < e.first; });
-    want = it == r.index.begin() ? 0 : static_cast<int>(it - r.index.begin()) - 1;
-    // The same frame again now and then, so paused aircraft don't time out.
-    if (want == r.shown && now - r.shown_ms < 10000) return false;
-    offset = r.index[static_cast<size_t>(want)].second;
-    load_date = r.loaded_date;
-  }
-  std::vector<core::Aircraft> frame;
-  if (FILE* f = std::fopen(sdPath(core::replay::fileName(load_date).c_str()).c_str(), "rb")) {
-    uint8_t head[core::replay::kHeaderBytes];
-    core::replay::FrameHeader h;
-    if (std::fseek(f, static_cast<long>(offset), SEEK_SET) == 0 && std::fread(head, 1, sizeof(head), f) == sizeof(head) &&
-        core::replay::readHeader(head, &h)) {
-      std::vector<uint8_t> packed(h.packed);
-      if (std::fread(packed.data(), 1, packed.size(), f) == packed.size()) core::replay::decodeFrame(h, packed.data(), &frame);
-    }
-    std::fclose(f);
-  }
-  const std::vector<core::Favorite> favs = favorites();
-  frame.erase(std::remove_if(frame.begin(), frame.end(),
-                             [&](const core::Aircraft& a) {
-                               return !core::passesFilters(a, s_settings) && !core::containsHex(favs, a.hex);
-                             }),
-              frame.end());
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active || s_replay.loaded_date != load_date) return true;  // stopped meanwhile
-    s_replay.shown = want;
-    s_replay.shown_ms = plat::millis();
-  }
-  core::AlertZone quiet;
-  quiet.radius_km = 0;
-  s_traffic.update(frame, plat::millis(), quiet);
-  return true;
-}
-
-// Custom sounds (sounds/*.wav on the card). Network task, except the status.
-std::atomic<bool> s_sounds_requested{true};  // (re)load them once the card is there
-std::mutex s_sounds_mu;
-std::vector<std::string> s_sounds_status;   // "first_time.wav: OK (1.2 s)" etc.
-bool s_sounds_custom[static_cast<int>(core::Sound::kCount)] = {};
-
-/** Network task: reads the custom sounds from the card. True if it looked. */
-bool serviceSounds() {
-  if (!s_sounds_requested.load() || maps::sdStatus().state != maps::SdState::Mounted) return false;
-  s_sounds_requested = false;
-  std::vector<std::string> status;
-  const int rate = plat::soundSampleRate();
-  for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) {
-    const core::Sound snd = static_cast<core::Sound>(i);
-    const char* name = core::wav::fileName(snd);
-    if (name == nullptr) continue;
-    const std::string path = sdPath("sounds") + "/" + name;
-    FILE* f = std::fopen(path.c_str(), "rb");
-    if (f == nullptr) {
-      if (s_sounds_custom[i]) plat::setSoundClip(snd, {});  // removed from the card: the built-in one again
-      s_sounds_custom[i] = false;
-      continue;
-    }
-    std::vector<uint8_t> data;
-    uint8_t buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0 && data.size() < 8 * 1024 * 1024) data.insert(data.end(), buf, buf + n);
-    std::fclose(f);
-    std::vector<int16_t> pcm;
-    std::string err;
-    if (core::wav::decode(data.data(), data.size(), rate, core::wav::maxSeconds(snd), &pcm, &err) && !pcm.empty()) {
-      char line[96];
-      std::snprintf(line, sizeof(line), "%s: OK, %.1f s", name, static_cast<double>(pcm.size()) / rate);
-      status.push_back(line);
-      plat::setSoundClip(snd, std::move(pcm));
-      s_sounds_custom[i] = true;
-    } else {
-      status.push_back(std::string(name) + ": " + (err.empty() ? "empty" : err));
-      if (s_sounds_custom[i]) plat::setSoundClip(snd, {});
-      s_sounds_custom[i] = false;
-    }
-  }
-  for (const std::string& l : status) std::printf("sounds: %s\n", l.c_str());
-  std::lock_guard<std::mutex> lock(s_sounds_mu);
-  s_sounds_status = std::move(status);
-  return true;
-}
-
-// Before a restart: the day log and system log go to the card first.
-std::atomic<bool> s_flush_now{false};
-std::atomic<bool> s_flushed{false};
-
-/** Network task: saves what's only in RAM when a restart is coming. True if it did. */
-bool serviceRestartFlush() {
-  if (!s_flush_now.load() || s_flushed.load()) return false;
-  core::daylog::Day copy;
-  {
-    std::lock_guard<std::mutex> lock(s_day_mu);
-    copy = s_day;
-    s_day_dirty = false;
-  }
-  saveDay(copy);
-  serviceLogbook(true);
-  s_log_saved_ms = plat::millis() - kLogSaveEveryMs;
-  serviceSystemLog();
-  s_flushed = true;
   return true;
 }
 
@@ -772,7 +419,6 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
-  if (ok) recordReplay(*parsed);
   if (ok) {
     const std::vector<core::Favorite> favs = favorites();
     const bool watching = core::watchActive(s_settings);
@@ -842,14 +488,6 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       else if (w.reason == w.name) what = w.type.empty() ? "" : w.type;
       s_notices.push_back("Watchlist: " + w.name + (what.empty() ? "" : " (" + what + ")") + ", " + dist);
     }
-    if (s_settings.first_time_alert) {
-      for (const core::logbook::Entry& e : s_book_firsts) {
-        char hex[8];
-        std::snprintf(hex, sizeof(hex), "%06x", static_cast<unsigned>(e.hex));
-        if (isSilenced(hex)) continue;
-        s_notices.push_back(std::string("First time here: ") + e.label + (e.type[0] ? std::string(" (") + e.type + ")" : ""));
-      }
-    }
     while (s_notices.size() > 4) s_notices.pop_front();
   }
 
@@ -862,8 +500,6 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     sound(core::Sound::FavoriteNear);
   } else if (!ev.favorites_seen.empty() && s_settings.sound_favorite_seen) {
     sound(core::Sound::FavoriteSeen);
-  } else if (!s_book_firsts.empty() && s_settings.first_time_alert && s_settings.sound_first_time) {
-    sound(core::Sound::FirstTime);
   } else if (ev.new_close_approaches > 0 && s_settings.sound_proximity) {
     sound(core::Sound::Alert);
   } else if (ev.new_aircraft > 0 && ev.new_aircraft <= 3) {
@@ -1067,19 +703,13 @@ void networkLoop() {
     const bool menu = s_menu_open.load();  // radar hidden: no tiles or flight history needed
     // The SD card and saved map tiles work without Wi-Fi.
     if (maps::serviceSd() || serviceSdFiles() || serviceDayLog() || serviceCardWork()) continue;
-    if (replayActive()) {
-      // Replaying: no live traffic (the map still fills in).
-      const bool online = plat::wifiStatus().state == plat::WifiState::Connected;
-      if (!serviceReplay() && (menu || !maps::service(online))) plat::sleepMs(50);
-      continue;
-    }
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }
     if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
-        (serviceFind() || serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
+        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
@@ -1137,11 +767,6 @@ void init() {
     plat::wifiConnect(s_settings.wifi_ssid, s_settings.wifi_pass);
   }
   const plat::BootInfo boot = plat::bootInfo();
-  {
-    std::lock_guard<std::mutex> lock(s_crash_mu);
-    s_crash_log = plat::takeCrashLog();
-    if (!s_crash_log.empty()) std::printf("log: the last run ended with \"%s\"; its last lines are kept\n", boot.reset_reason);
-  }
   if (boot.rolled_back_from[0] != '\0') {
     std::lock_guard<std::mutex> lock(s_mu);
     s_notices.push_back(std::string("Went back to ") + plat::firmwareVersion() + ": " + boot.rolled_back_from +
@@ -1190,37 +815,6 @@ std::vector<core::daylog::Day> dayLogHistory(int days) {
       out.push_back(d);
     }
   }
-  return out;
-}
-
-DayLogTotals dayLogTotals(int days) {
-  DayLogTotals out;
-  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
-  all.insert(all.begin(), dayLogToday());
-  std::vector<uint32_t> unique;
-  for (const core::daylog::Day& d : all) {
-    if (d.date == 0) continue;
-    ++out.days;
-    out.sum += d.count();
-    if (d.count() > out.best_count) {
-      out.best_count = d.count();
-      out.best_date = d.date;
-    }
-    std::vector<uint32_t> merged;
-    std::set_union(unique.begin(), unique.end(), d.seen.begin(), d.seen.end(), std::back_inserter(merged));
-    unique.swap(merged);
-    for (int h = 0; h < 24; ++h) out.hourly[h] += d.hourly[h];
-  }
-  out.unique = static_cast<int>(unique.size());
-  return out;
-}
-
-std::string dayLogCsv(int days) {
-  std::vector<core::daylog::Day> all = dayLogHistory(days - 1);
-  std::string out = core::daylog::csvHeader();
-  for (auto it = all.rbegin(); it != all.rend(); ++it) out += core::daylog::csvLine(*it);  // oldest first
-  const core::daylog::Day today = dayLogToday();
-  if (today.date != 0) out += core::daylog::csvLine(today);
   return out;
 }
 
@@ -1305,63 +899,6 @@ bool serviceSdFiles() {
   return true;
 }
 
-namespace {
-
-core::memwatch::Watch s_mem_watch;
-uint32_t s_restart_requested_ms = 0;  // UI task: restarting once the card is written (0 = not)
-bool s_restart_fresh = false;
-
-/** UI task: once a minute, how much memory is left; a fresh start at night if it stays low. */
-void serviceMemoryWatch(uint32_t now_ms) {
-  if (s_restart_requested_ms != 0) {
-    if (s_flushed.load() || now_ms - s_restart_requested_ms > 10000) {
-      settingsFlush();
-      s_restart_requested_ms = 0;  // (the simulator carries on)
-      s_flush_now = false;
-      if (s_restart_fresh) plat::restartFresh();
-      else plat::restart();
-    }
-    return;
-  }
-  static uint32_t s_sample_ms = 0;
-  if (now_ms - s_sample_ms < 60000) return;
-  s_sample_ms = now_ms;
-  const plat::MemoryInfo m = plat::memoryInfo();
-  const bool was_due = s_mem_watch.due();
-  s_mem_watch.add({m.ram_free, m.ram_largest, m.psram_largest});
-  if (s_mem_watch.lowRun() == 1) {
-    std::printf("memory: low (%s): RAM %u KB free, largest block %u KB, PSRAM largest %u KB\n", s_mem_watch.reason(),
-                static_cast<unsigned>(m.ram_free / 1024), static_cast<unsigned>(m.ram_largest / 1024),
-                static_cast<unsigned>(m.psram_largest / 1024));
-  }
-  if (!s_mem_watch.due()) return;
-  if (!was_due) std::printf("memory: low for %d minutes; a fresh start is due at night\n", core::memwatch::kLowSamples);
-  core::memwatch::Moment mo;
-  mo.time_valid = plat::timeValid();
-  if (mo.time_valid) mo.local = core::localTime(plat::unixTimeMs() / 1000);
-  const plat::WebStats ws = plat::webStats();
-  uint32_t idle = now_ms - s_last_activity;
-  if (ws.last_ms != 0) idle = std::min(idle, now_ms - ws.last_ms);
-  mo.idle_ms = idle;
-  mo.alarm_active = s_ringing >= 0 || s_snoozed >= 0;
-  mo.updating = updating();
-  mo.alarms = s_settings.alarms;
-  mo.alarm_count = core::kMaxAlarms;
-  if (!core::memwatch::restartAllowed(mo)) return;
-  std::printf("memory: fresh start now (%s low for %d minutes)\n", s_mem_watch.reason(), s_mem_watch.lowRun());
-  restartSoon(true);
-}
-
-}  // namespace
-
-void restartSoon(bool fresh) {
-  if (s_restart_requested_ms != 0) return;
-  s_restart_fresh = fresh;
-  s_restart_requested_ms = plat::millis() | 1;
-  s_flushed = false;
-  s_flush_now = true;
-}
-
 void tick(uint32_t now_ms) {
   // A fresh update has run a minute without crashing: keep it (otherwise the
   // next reset goes back to the previous version).
@@ -1374,7 +911,6 @@ void tick(uint32_t now_ms) {
     s_confirmed = true;
     plat::confirmFirmware();
   }
-  plat::logDrain();
   runUiJobs();
   applySettingsFile();
   serviceWifi(now_ms);
@@ -1388,9 +924,7 @@ void tick(uint32_t now_ms) {
     s_night_check_ms = now_ms;
     const int night = isNight() ? 1 : 0;
     if (night != s_night) {
-      // Just started: don't put it to sleep under someone's fingers (unless
-      // this is the memory watch's fresh start, in the middle of the night).
-      const bool first = s_night < 0 && !plat::bootInfo().refreshed;
+      const bool first = s_night < 0;  // just started: don't put it to sleep under someone's fingers
       s_night = night;
       if (s_settings.night_sleep && night && !first && !s_sleeping) {
         setSleeping(true);
@@ -1408,7 +942,6 @@ void tick(uint32_t now_ms) {
     }
   }
   checkAlarms(now_ms);
-  serviceMemoryWatch(now_ms);
   if (s_dirty && !s_menu_open.load() && now_ms - s_dirty_since >= kSaveDebounceMs) settingsFlush();
 
   if (s_settings.dim_after_min > 0 && !s_dimmed && !s_sleeping &&
@@ -1514,147 +1047,7 @@ std::string screenshotPath(const std::string& name) {
 
 void clearLookupCache() { s_lookup_clear = true; }
 
-LogbookSummary logbookSummary(size_t top) {
-  LogbookSummary out;
-  std::lock_guard<std::mutex> lock(s_book_mu);
-  out.loaded = s_book_loaded;
-  out.aircraft = s_book.aircraft();
-  out.visits = s_book.visits();
-  out.start_date = s_book.startDate();
-  out.learning = s_book.learning(today());
-  out.frequent = s_book.frequent(top);
-  out.newest = s_book.newest(top);
-  return out;
-}
-
-std::string logbookPath() { return cardReady() ? sdPath(kLogbookFile) : ""; }
-
-bool serviceReplay() { return serviceReplayImpl(); }
-
-bool replayActive() {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  return s_replay.active;
-}
-
-std::vector<int> replayDays() {
-  std::vector<int> out;
-  if (!cardReady()) return out;
-  if (DIR* d = opendir(sdPath("replay").c_str())) {
-    while (dirent* e = readdir(d)) {
-      const int date = core::replay::dateOfFile(e->d_name);
-      if (date != 0) out.push_back(date);
-    }
-    closedir(d);
-  }
-  std::sort(out.rbegin(), out.rend());
-  return out;
-}
-
-void replayStart(int date) {
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    s_replay = ReplayCtl();
-    s_replay.active = true;
-    s_replay.date = date;
-    s_replay.tick_ms = plat::millis();
-  }
-  s_traffic.clear();
-  std::printf("replay: start %d\n", date);
-}
-
-void replayStop() {
-  {
-    std::lock_guard<std::mutex> lock(s_replay_mu);
-    if (!s_replay.active) return;
-    s_replay = ReplayCtl();
-  }
-  s_traffic.clear();
-  requestRefresh();
-  std::printf("replay: back to live traffic\n");
-}
-
-ReplayState replayState() {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  ReplayState st;
-  st.active = s_replay.active;
-  st.date = s_replay.date;
-  st.ready = s_replay.loaded_date == s_replay.date && !s_replay.index.empty();
-  st.loading = s_replay.active && s_replay.loaded_date != s_replay.date;
-  st.pos_s = s_replay.pos_s;
-  if (!s_replay.index.empty()) {
-    st.first_s = s_replay.index.front().first;
-    st.last_s = s_replay.index.back().first;
-  }
-  st.playing = s_replay.playing;
-  st.speed = s_replay.speed;
-  return st;
-}
-
-void replaySeek(int64_t t) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  s_replay.pos_s = t;
-  s_replay.pos = static_cast<double>(t);
-  s_replay.tick_ms = plat::millis();
-}
-
-void replayPlay(bool on) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  if (on && !s_replay.index.empty() && s_replay.pos_s >= s_replay.index.back().first) {
-    s_replay.pos_s = s_replay.index.front().first;  // from the start again
-    s_replay.pos = static_cast<double>(s_replay.pos_s);
-  }
-  s_replay.playing = on;
-  s_replay.tick_ms = plat::millis();
-}
-
-void replaySpeed(int x) {
-  std::lock_guard<std::mutex> lock(s_replay_mu);
-  s_replay.speed = std::max(1, std::min(600, x));
-}
-
-void reloadSounds() { s_sounds_requested = true; }
-
-std::vector<std::string> customSounds() {
-  std::lock_guard<std::mutex> lock(s_sounds_mu);
-  return s_sounds_status;
-}
-
-std::string crashLog() {
-  std::lock_guard<std::mutex> lock(s_crash_mu);
-  return s_crash_log;
-}
-
-std::vector<std::string> logFiles() {
-  std::vector<std::string> out;
-  if (!cardReady()) return out;
-  DIR* d = opendir(sdPath("log").c_str());
-  if (d == nullptr) return out;
-  while (dirent* e = readdir(d)) {
-    const std::string n = e->d_name;
-    if (!logFilePath(n).empty()) out.push_back(n);
-  }
-  closedir(d);
-  std::sort(out.begin(), out.end(), [](const std::string& a, const std::string& b) {
-    const bool sa = a.compare(0, 6, "system") == 0, sb = b.compare(0, 6, "system") == 0;
-    if (sa != sb) return sa;  // system.log first, then the crashes, newest first
-    if (a.size() != b.size()) return sa ? a.size() < b.size() : a.size() > b.size();
-    return sa ? a < b : a > b;
-  });
-  return out;
-}
-
-std::string logFilePath(const std::string& name) {
-  const bool system = name == "system.log" || name == "system.1.log";
-  bool crash = name.size() > 10 && name.size() < 30 && name.compare(0, 6, "crash-") == 0 &&
-               name.compare(name.size() - 4, 4, ".log") == 0;
-  for (size_t i = 6; crash && i < name.size() - 4; ++i) crash = std::isdigit(static_cast<unsigned char>(name[i])) != 0;
-  if (!system && !crash) return "";
-  return sdPath("log") + "/" + name;
-}
-
-bool serviceCardWork() {
-  return serviceRestartFlush() || serviceLogbook() || serviceSounds() || serviceScreenshot() || serviceRouteCache() || serviceLookupClear() || serviceSystemLog();
-}
+bool serviceCardWork() { return serviceScreenshot() || serviceRouteCache() || serviceLookupClear(); }
 
 void timeZoneChanged() {
   core::applyTimeZone(s_settings.time_zone);
@@ -1862,101 +1255,6 @@ void lookupFavorite(const std::string& q) {
   s_fav_lookups.emplace_back(q, false);
 }
 
-namespace {
-std::mutex s_find_mu;
-FindState s_find;
-bool s_find_pending = false;  // the network task should look online
-}  // namespace
-
-FindState findState() {
-  std::lock_guard<std::mutex> lock(s_find_mu);
-  return s_find;
-}
-
-void findAircraft(const std::string& query) {
-  std::string q;
-  for (char c : query) {
-    if (!std::isspace(static_cast<unsigned char>(c))) q.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
-  }
-  FindState st;
-  st.query = q;
-  {
-    std::lock_guard<std::mutex> lock(s_find_mu);
-    st.version = s_find.version + 1;
-  }
-  if (q.empty()) return;
-  // On the radar already?
-  std::vector<core::Track> tracks;
-  s_traffic.snapshot(tracks);
-  for (const core::Track& t : tracks) {
-    const core::Aircraft& a = t.ac;
-    if (core::adsb::sameIdent(a.callsign, q) || core::adsb::sameIdent(a.reg, q) || core::adsb::sameIdent(a.hex, q)) {
-      st.status = FindStatus::Found;
-      st.hex = a.hex;
-      st.label = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
-      st.where = {a.lat, a.lon};
-      std::lock_guard<std::mutex> lock(s_find_mu);
-      s_find = st;
-      s_find_pending = false;
-      return;
-    }
-  }
-  st.status = FindStatus::Searching;
-  std::lock_guard<std::mutex> lock(s_find_mu);
-  s_find = st;
-  s_find_pending = true;
-}
-
-/** Network task: looks for the aircraft asked for with the feed (anywhere in the world). */
-bool serviceFind() {
-  std::string q;
-  {
-    std::lock_guard<std::mutex> lock(s_find_mu);
-    if (!s_find_pending) return false;
-    s_find_pending = false;
-    q = s_find.query;
-  }
-  using core::adsb::FindBy;
-  std::vector<FindBy> order;
-  if (core::settings_text::isIcaoHex(q.c_str())) order.push_back(FindBy::Hex);
-  order.push_back(FindBy::Callsign);
-  order.push_back(FindBy::Registration);
-  core::adsb::ParseOptions opt;
-  opt.include_ground = true;
-  opt.min_alt_ft = -100000;
-  opt.max_alt_ft = 1000000;
-  FindState done;
-  done.query = q;
-  done.status = FindStatus::NotFound;
-  int last_code = 0;
-  for (FindBy by : order) {
-    const std::string url = core::adsb::findUrl(s_failover.active(), by, q);
-    if (url.empty()) continue;
-    std::string body;
-    std::vector<core::Aircraft> found;
-    last_code = plat::httpGet(url.c_str(), &body, 10000);
-    std::printf("find: %s -> %d\n", url.c_str(), last_code);
-    if (last_code == 200 && core::adsb::parse(body.data(), body.size(), opt, &found) && !found.empty()) {
-      const core::Aircraft& a = found.front();
-      done.status = FindStatus::Found;
-      done.hex = a.hex;
-      done.label = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
-      done.where = {a.lat, a.lon};
-      break;
-    }
-    if (last_code != 200 && last_code != 404) {
-      done.status = FindStatus::Failed;
-      break;
-    }
-    plat::sleepMs(kMinFetchSpacingMs);  // the feeds ask for a gap between requests
-  }
-  std::lock_guard<std::mutex> lock(s_find_mu);
-  if (s_find.query != q) return true;  // a newer search took over
-  done.version = s_find.version + 1;
-  s_find = done;
-  return true;
-}
-
 bool serviceFavoriteLookup() {
   std::string q;
   bool from_file;
@@ -2021,62 +1319,6 @@ void setFavorites(const std::vector<core::Favorite>& favs) {
   }
   plat::favoritesSave(favs);
   queueFavoritesFile();
-}
-
-std::string backupText() {
-  core::backup::Parts parts;
-  parts.settings = core::settings_text::serialize(s_settings);
-  parts.favorites = core::settings_text::serializeFavorites(favorites(), unresolvedFavorites());
-  parts.silenced = core::settings_text::serializeFavorites(silenced());
-  std::string title = plat::firmwareVersion();
-  if (plat::timeValid()) {
-    const std::tm t = core::localTime(plat::unixTimeMs() / 1000);
-    char date[24];
-    std::strftime(date, sizeof(date), "%Y-%m-%d %H:%M", &t);
-    title += std::string(", ") + date;
-  }
-  return core::backup::make(title, parts);
-}
-
-bool restoreBackup(const std::string& text, std::string* summary) {
-  core::backup::Parts parts;
-  if (!core::backup::split(text, &parts)) {
-    *summary = "That isn't a Plane Radar backup file";
-    return false;
-  }
-  std::string done;
-  if (parts.has_settings) {
-    std::vector<std::string> problems;
-    const int n = applySettingsText(parts.settings, &problems);
-    done += std::to_string(n) + " settings";
-    if (!problems.empty()) done += " (" + std::to_string(problems.size()) + " lines skipped)";
-    settingsFlush();
-  }
-  std::vector<core::Favorite> quiet;
-  if (parts.has_silenced) {
-    std::vector<std::string> tails;  // silenced aircraft are saved by address only
-    core::settings_text::parseFavorites(parts.silenced, &quiet, &tails);
-    {
-      std::lock_guard<std::mutex> lock(s_favorites_mu);
-      s_silenced = quiet;
-    }
-    plat::silencedSave(quiet);
-    done += (done.empty() ? "" : ", ") + std::to_string(quiet.size()) + " silenced";
-  }
-  if (parts.has_favorites) {
-    std::vector<core::Favorite> favs;
-    std::vector<std::string> tails;
-    core::settings_text::parseFavorites(parts.favorites, &favs, &tails);
-    favs.erase(std::remove_if(favs.begin(), favs.end(),
-                              [&](const core::Favorite& f) { return core::containsHex(quiet, f.hex); }),
-               favs.end());
-    setFavorites(favs);
-    for (const std::string& t : tails) lookupFavorite(t);
-    done += (done.empty() ? "" : ", ") + std::to_string(favs.size() + tails.size()) + " favorites";
-  }
-  std::printf("backup: restored %s\n", done.c_str());
-  *summary = "Restored " + done;
-  return true;
 }
 
 bool popNotice(std::string* out) {

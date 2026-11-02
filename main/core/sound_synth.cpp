@@ -130,12 +130,6 @@ std::vector<int16_t> synthesize(Sound sound, int rate) {
       }
       return b.toPcm();
     }
-    case Sound::FirstTime: {
-      Buffer b(rate, 0.9);
-      static const double kNotes[] = {1318.5, 1568.0, 1975.5, 2637.0};  // E6 G6 B6 E7
-      for (int i = 0; i < 4; ++i) b.tone(i * 0.11, 0.35, kNotes[i], kNotes[i], 0.32, 0.22, 0.003, true);
-      return b.toPcm();
-    }
     default:
       return {};
   }

@@ -64,12 +64,6 @@ button:disabled{opacity:.5}
 #toast.show{opacity:1}
 .hidden{display:none!important}
 .sig{color:var(--dim);font-size:13px;white-space:nowrap}
-.hours{display:flex;align-items:flex-end;gap:2px;height:90px;margin:10px 0 2px}
-.hours i{flex:1;background:var(--acc);opacity:.6;border-radius:2px 2px 0 0;min-height:1px}
-.hours i.top{opacity:1}
-.hlab{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
-pre{white-space:pre-wrap;word-break:break-word;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;max-height:60vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px;margin:8px 0 0}
-a.sec{display:inline-block;color:var(--acc);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:15px;text-decoration:none}
 </style></head><body>
 <header><h1><span class="dot"></span>Plane Radar<small id="ver"></small></h1>
 <nav id="tabs"></nav></header>
@@ -89,7 +83,7 @@ async function api(path,body){
   if(!r.ok&&!j.error)j.error='Error '+r.status;
   return j;
 }
-const TABS=[['settings','Settings'],['watch','Watchlist'],['favorites','Favorites'],['wifi','Wi-Fi'],['log','Daily log'],['shots','Screenshots'],['system','System'],['update','Update']];
+const TABS=[['settings','Settings'],['watch','Watchlist'],['favorites','Favorites'],['wifi','Wi-Fi'],['log','Daily log'],['shots','Screenshots'],['update','Update']];
 let tab='settings',status={};
 function nav(){
   $('#tabs').innerHTML=TABS.map(([k,n])=>`<button class="${k==tab?'on':''}" onclick="go('${k}')">${n}</button>`).join('');
@@ -101,7 +95,7 @@ async function start(){
   try{if(localStorage.tab)tab=localStorage.tab}catch(e){}
   nav();render();
 }
-function render(){({settings:viewSettings,watch:viewWatch,favorites:viewFavorites,wifi:viewWifi,log:viewLog,shots:viewShots,system:viewSystem,update:viewUpdate})[tab]()}
+function render(){({settings:viewSettings,watch:viewWatch,favorites:viewFavorites,wifi:viewWifi,log:viewLog,shots:viewShots,update:viewUpdate})[tab]()}
 const LABELS={home_lat:'Home latitude',home_lon:'Home longitude',home_radius_km:'Home zoom radius (km)',home_set:'Home location set',
   show_trails:'Trails',extended_trail:'Flight history on tap',show_speed_vectors:'Speed vectors',show_rings:'Range rings',show_runways:'Runways',
   show_airport_labels:'Airport codes',airport_codes:'Airport code style',show_route_info:'Airline and route on tap',autohide_buttons:'Auto-hide buttons',
@@ -143,7 +137,7 @@ function field(f){
       ctl=`<div class="val"><input type="number" value="${shown}" min="${f.min}" max="${f.max}" step="${f.type=='int'?1:'any'}" oninput="convUpd('${f.key}',this.value)" onchange="save('${f.key}',this.value)"><br>${conv(f)}</div>`;break;}
     case 'time':ctl=`<input type="time" value="${v}" onchange="save('${f.key}',this.value)">`;break;
     case 'text':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" maxlength="${f.maxlen}" onchange="save('${f.key}','&quot;'+this.value+'&quot;')"></div></div>`;
-    case 'alarm':case 'place':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" onchange="save('${f.key}',this.value)"></div></div>`;
+    case 'alarm':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" onchange="save('${f.key}',this.value)"></div></div>`;
     case 'categories':{
       const on=f.value=='all'?f.options:f.value.split(/[ ,]+/);
       return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b><span>${esc(f.help)}</span><div class="cats" id="${id}">`+
@@ -166,9 +160,7 @@ async function viewWatch(){
 }
 async function viewFavorites(){
   const j=await api('/api/favorites');
-  $('#view').innerHTML=`<div class="card"><b>Find on the radar</b><p class="muted">Callsign, tail number or hex code. The radar flies there and follows it.</p>
-  <div class="flex"><input id="findq" placeholder="UAL123" autocapitalize="characters" style="flex:1"><button class="btn" onclick="findGo()">Find</button></div><p id="findmsg" class="muted"></p></div>
-  <div class="card"><b>Add a favorite</b><p class="muted">Tail number (N123AB) or ICAO hex code. The radar looks it up online.</p>
+  $('#view').innerHTML=`<div class="card"><b>Add a favorite</b><p class="muted">Tail number (N123AB) or ICAO hex code. The radar looks it up online.</p>
   <div class="flex"><input id="favq" placeholder="N123AB" autocapitalize="characters" style="flex:1"><button class="btn" onclick="favAdd()">Add</button></div></div>
   <div class="card"><b>${j.list.length} of ${j.max} saved</b>`+
   (j.list.length?j.list.map(f=>`<div class="row"><div class="lbl"><input value="${esc(f.label)}" maxlength="11" style="width:130px" onchange="favRename('${f.hex}',this.value)"><span>${esc(f.type||'?')} · ${f.hex}${f.in_range?' · in range':''}</span></div><button class="bad" data-n="${esc(f.label)}" onclick="favDel('${f.hex}',this.dataset.n)">Remove</button></div>`).join(''):'<p class="muted">None yet.</p>')+
@@ -211,24 +203,9 @@ async function wifiAdd(now){
 async function wifiUse(s){if(!confirm('Switch the radar to '+s+' now?'))return;await api('/api/wifi/use',{ssid:s});toast('Connecting to '+s+'...')}
 async function wifiForget(s,first){if(!confirm('Forget '+s+'?'+(first?' The radar is using it: it moves on to the next saved network.':'')))return;await api('/api/wifi/forget',{ssid:s});viewWifi()}
 async function wifiUp(s,first){if(first&&!confirm(s+' becomes the network used first, and the radar switches to it now.'))return;await api('/api/wifi/up',{ssid:s});viewWifi()}
-async function findGo(){
-  const q=$('#findq').value.trim();if(!q)return;
-  let j=await api('/api/find',{q});$('#findmsg').textContent='Looking for '+q+'...';
-  for(let i=0;i<20&&j.status=='searching';i++){await new Promise(r=>setTimeout(r,1500));j=await api('/api/find')}
-  $('#findmsg').textContent=j.error||({found:'Found '+j.label+': the radar is on it.',not_found:q+" isn't flying now (or not sending a position).",failed:"Couldn't look it up (no internet?)",searching:'Still looking...'})[j.status]||'';
-}
-function bars(h){const top=Math.max(...h);return `<div class="hours">${h.map(v=>`<i class="${v==top&&v>0?'top':''}" style="height:${top?Math.max(1,90*v/top):1}px" title="${v}"></i>`).join('')}</div><div class="hlab"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>`}
 async function viewLog(){
-  const [j,b]=await Promise.all([api('/api/daylog'),api('/api/logbook')]);
-  const lst=(v,f)=>v.map(e=>`<div class="row"><div class="lbl"><b>${esc(e.label)}</b><span>${esc(e.type||'')} · ${e.hex}</span></div><div class="val">${f(e)}</div></div>`).join('');
-  $('#view').innerHTML=`<div class="card"><b>Today</b>${j.today.map(([k,v])=>`<div class="row"><div class="lbl"><span>${esc(k)}</span></div><div class="val">${esc(v)}</div></div>`).join('')}
-  <p class="muted" style="margin:12px 0 0">Aircraft by hour</p>${bars(j.hourly)}</div>
-  ${j.totals.map(t=>`<div class="card"><b>Last ${t.days} days</b><div class="row"><div class="lbl"><span>Aircraft</span></div><div class="val">${t.unique} different (${Math.round(t.sum/t.logged)} a day)</div></div>
-  <div class="row"><div class="lbl"><span>Busiest day</span></div><div class="val">${t.best_date}, ${t.best_count}</div></div>${bars(t.hourly)}</div>`).join('')}
-  <div class="card"><b>Logbook</b>${b.loaded?`<p class="muted">${b.aircraft} different aircraft, ${b.visits} visits since ${String(b.since).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3')}.${b.learning?' Still learning: "first time here" alerts start after two days.':''}</p>
-  ${b.frequent.length?'<p class="muted">Most frequent</p>'+lst(b.frequent,e=>e.visits+' visits'):''}${b.newest.length?'<p class="muted">Newest</p>'+lst(b.newest,e=>e.first):''}
-  <div class="flex" style="margin-top:8px"><a class="sec" href="/api/logbook.csv" download="logbook.csv">Download logbook.csv</a></div>`:'<p class="muted">Needs an SD card in the radar.</p>'}</div>
-  <div class="card flex"><a class="sec" href="/api/daylog.csv" download="daily-log.csv">Download daily counts (CSV)</a><span class="muted">The last 90 days, one line a day with the hourly counts.</span></div>
+  const j=await api('/api/daylog');
+  $('#view').innerHTML=`<div class="card"><b>Today</b>${j.today.map(([k,v])=>`<div class="row"><div class="lbl"><span>${esc(k)}</span></div><div class="val">${esc(v)}</div></div>`).join('')}</div>
   <div class="card"><b>Earlier days</b>${j.days.length?j.days.map(d=>`<p>${esc(d)}</p>`).join(''):'<p class="muted">'+(j.sd?'Nothing saved yet.':'With an SD card, every day is kept.')+'</p>'}</div>`;
 }
 async function viewShots(){
@@ -237,24 +214,6 @@ async function viewShots(){
   <div class="grid">${j.files.map(f=>`<a href="/shots/${encodeURIComponent(f)}" target="_blank"><img loading="lazy" src="/shots/${encodeURIComponent(f)}">${esc(f.replace('.png',''))}</a>`).join('')}</div>`+(j.files.length?'':'<p class="muted">No screenshots yet.</p>');
 }
 async function shoot(){const j=await api('/api/screenshot',{});toast(j.ok?'Saving...':j.error);setTimeout(viewShots,3000)}
-async function viewSystem(){
-  const j=await api('/api/log');
-  $('#view').innerHTML=`<div class="card"><b>Backup</b><p class="muted">Settings, saved Wi-Fi networks, favorites and silenced aircraft in one file. It holds your Wi-Fi passwords: keep it private.</p>
-  <div class="flex"><a class="sec" href="/api/backup" download="plane-radar-backup.txt">Download a backup</a></div>
-  <p class="muted" style="margin-top:14px">Restore one (on this radar or a new one):</p>
-  <div class="flex"><input type="file" id="rf" accept=".txt,text/plain" style="flex:1"><button class="btn" onclick="restore()">Restore</button></div></div>
-  ${j.crash?`<div class="card"><b>Last crash</b><p class="muted">The radar restarted unexpectedly. These are the last lines it printed before.</p><pre>${esc(j.crash)}</pre></div>`:''}
-  <div class="card"><div class="flex"><b style="flex:1">System log</b><button class="sec" onclick="viewSystem()">Refresh</button><a class="sec" href="/api/log.txt" download="plane-radar-log.txt">Save</a></div><pre id="logtext">${esc(j.text)||'Nothing yet.'}</pre></div>
-  <div class="card"><b>Logs on the SD card</b>${j.files.length?j.files.map(f=>`<p><a href="/api/logs/${encodeURIComponent(f)}" target="_blank" style="color:var(--acc)">${esc(f)}</a></p>`).join(''):'<p class="muted">'+(j.sd?'Nothing saved yet (it is written every minute).':'With an SD card, the log is kept in log/system.log.')+'</p>'}</div>`;
-  const pre=$('#logtext');pre.scrollTop=pre.scrollHeight;
-}
-async function restore(){
-  const f=$('#rf').files[0];if(!f){toast('Choose a backup file first');return}
-  if(!confirm('Replace the settings, favorites and silenced aircraft with the ones in '+f.name+'?'))return;
-  const r=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'text/plain'},body:await f.text()});
-  const j=await r.json().catch(()=>({ok:false,error:'Bad answer from the radar'}));
-  toast(j.ok?j.summary:j.error,4000);
-}
 function viewUpdate(){
   $('#view').innerHTML=`<div class="card"><b>Installed</b><p>${esc(status.version)} for the ${esc(status.board)} board</p></div>
   <div class="card"><b>Install a firmware file</b><p class="muted">Pick the file that ends in <b>-ota.bin</b> for this board (<b>${esc(status.board)}</b>). Your settings and favorites are kept. The radar checks the file and refuses one for another board.</p>

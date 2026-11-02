@@ -373,7 +373,6 @@ void updateStats() {
   const uint32_t radar_frames = rt.frames - s_radar0.frames;
   const double overlay_ms = radar_frames ? (rt.overlay_us - s_radar0.overlay_us) / 1000.0 / radar_frames : 0.0;
   const uint32_t statics = rt.static_renders - s_radar0.static_renders;
-  const int rested = radar_frames ? static_cast<int>(100.0 * (rt.rested - s_radar0.rested) / radar_frames + 0.5) : 0;
   const double static_ms = (rt.static_us - s_radar0.static_us) / 1000.0;
   const double screen_px = static_cast<double>(screenW()) * screenH();
   const int redrawn = s_frames ? static_cast<int>(100.0 * s_redrawn_px / (screen_px * frames) + 0.5) : 0;
@@ -383,13 +382,13 @@ void updateStats() {
   std::snprintf(text, sizeof(text),
                 "%.0f fps, frame %.1f ms (max %.0f), %d%% redrawn\n"
                 "draw %.1f + panel %.1f ms (rotate %.1f)\n"
-                "radar %.1f ms, background %.0f ms (%u), rest %d%%\n"
+                "radar %.1f ms, background %.0f ms (%u)\n"
                 "CPU %d%% net, %d%% UI\n"
                 "RAM %u K (low %u K), PSRAM %.1f M\n"
                 "%d aircraft (decode %.0f ms), %s\n"
                 "up %u:%02u:%02u, UI pause %u ms",
                 s_frames / secs, frame_ms, s_draw_max_us / 1000.0, redrawn, std::max(0.0, frame_ms - flush_ms), flush_ms,
-                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), rested, h.cpu[0], h.cpu[1],
+                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), h.cpu[0], h.cpu[1],
                 static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
                 h.psram_free / 1048576.0, fs.last_count, fs.parse_us / 1000.0,
                 ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",
@@ -403,148 +402,8 @@ void updateStats() {
   s_stats_gap_ms = 0;
 }
 
-// Flight replay bar: time, slider, play/pause, speed, and back to live.
-lv_obj_t* s_replay_bar = nullptr;
-lv_obj_t* s_replay_time = nullptr;
-lv_obj_t* s_replay_slider = nullptr;
-lv_obj_t* s_replay_play = nullptr;
-lv_obj_t* s_replay_speed = nullptr;
-
-std::string replayClock(int64_t t) {
-  const std::tm tm = core::localTime(t);
-  char buf[16];
-  core::formatTime(tm.tm_hour, tm.tm_min, app::settings().clock_24h, buf, sizeof(buf));
-  return buf;
-}
-
-void replayBarDelete() {
-  if (s_replay_bar != nullptr) lv_obj_delete(s_replay_bar);
-  s_replay_bar = s_replay_time = s_replay_slider = s_replay_play = s_replay_speed = nullptr;
-}
-
-void replayBarCreate() {
-  const Palette& p = pal();
-  s_replay_bar = lv_obj_create(lv_layer_top());
-  lv_obj_remove_style_all(s_replay_bar);
-  lv_obj_set_size(s_replay_bar, sc(520), sc(132));
-  lv_obj_align(s_replay_bar, LV_ALIGN_BOTTOM_MID, 0, -sc(118));
-  lv_obj_set_style_bg_color(s_replay_bar, p.panel, 0);
-  lv_obj_set_style_bg_opa(s_replay_bar, 225, 0);
-  lv_obj_set_style_border_color(s_replay_bar, p.panel_border, 0);
-  lv_obj_set_style_border_width(s_replay_bar, sc(2), 0);
-  lv_obj_set_style_radius(s_replay_bar, sc(22), 0);
-  lv_obj_remove_flag(s_replay_bar, LV_OBJ_FLAG_SCROLLABLE);
-
-  s_replay_time = label(s_replay_bar, "", font(FontSize::M), p.text);
-  lv_obj_align(s_replay_time, LV_ALIGN_TOP_MID, 0, sc(10));
-
-  s_replay_play = iconButton(s_replay_bar, LV_SYMBOL_PLAY, sc(60), [] {
-    app::replayPlay(!app::replayState().playing);
-  });
-  lv_obj_align(s_replay_play, LV_ALIGN_LEFT_MID, sc(10), sc(10));
-
-  s_replay_slider = lv_slider_create(s_replay_bar);
-  lv_obj_set_size(s_replay_slider, sc(240), sc(14));
-  lv_obj_align(s_replay_slider, LV_ALIGN_LEFT_MID, sc(96), sc(12));
-  lv_obj_set_style_bg_color(s_replay_slider, p.panel_border, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(s_replay_slider, p.accent, LV_PART_INDICATOR);
-  lv_obj_set_style_bg_color(s_replay_slider, p.accent, LV_PART_KNOB);
-  lv_obj_set_ext_click_area(s_replay_slider, sc(20));
-  lv_obj_add_event_cb(s_replay_slider, [](lv_event_t*) {
-    const app::ReplayState st = app::replayState();
-    app::replaySeek(st.first_s + lv_slider_get_value(s_replay_slider));
-  }, LV_EVENT_VALUE_CHANGED, nullptr);
-
-  s_replay_speed = lv_label_create(s_replay_bar);
-  lv_obj_set_style_text_font(s_replay_speed, font(FontSize::M), 0);
-  lv_obj_set_style_text_color(s_replay_speed, p.accent, 0);
-  lv_obj_align(s_replay_speed, LV_ALIGN_RIGHT_MID, -sc(84), sc(12));
-  lv_obj_add_flag(s_replay_speed, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_ext_click_area(s_replay_speed, sc(16));
-  lv_obj_add_event_cb(s_replay_speed, [](lv_event_t*) {
-    static const int kSpeeds[] = {1, 10, 60, 300};
-    const int cur = app::replayState().speed;
-    int next = kSpeeds[0];
-    for (size_t i = 0; i < 4; ++i) {
-      if (kSpeeds[i] == cur) next = kSpeeds[(i + 1) % 4];
-    }
-    app::replaySpeed(next);
-  }, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t* live = iconButton(s_replay_bar, LV_SYMBOL_CLOSE, sc(56), [] {
-    app::replayStop();
-    replayBarDelete();
-    toast(LV_SYMBOL_OK "  Back to live traffic");
-  });
-  lv_obj_align(live, LV_ALIGN_RIGHT_MID, -sc(10), sc(10));
-}
-
-/** Shows the replay bar while a replay runs (not over the settings). */
-void updateReplayBar() {
-  const app::ReplayState st = app::replayState();
-  if (!st.active || settingsOpen()) {
-    if (s_replay_bar != nullptr && !st.active) replayBarDelete();
-    if (s_replay_bar != nullptr) lv_obj_add_flag(s_replay_bar, LV_OBJ_FLAG_HIDDEN);
-    return;
-  }
-  if (s_replay_bar == nullptr) replayBarCreate();
-  lv_obj_remove_flag(s_replay_bar, LV_OBJ_FLAG_HIDDEN);
-  static const char* const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-  std::string text;
-  if (st.loading) {
-    text = "Reading the recording...";
-  } else if (!st.ready) {
-    text = "Nothing recorded that day";
-  } else {
-    text = std::string("Replay ") + kMonths[(st.date / 100 % 100 + 11) % 12] + " " + std::to_string(st.date % 100) +
-           ", " + replayClock(st.pos_s);
-  }
-  setLabelText(s_replay_time, text.c_str());
-  const int32_t span = static_cast<int32_t>(std::max<int64_t>(1, st.last_s - st.first_s));
-  if (lv_slider_get_max_value(s_replay_slider) != span) lv_slider_set_range(s_replay_slider, 0, span);
-  if (!lv_obj_has_state(s_replay_slider, LV_STATE_PRESSED)) {
-    lv_slider_set_value(s_replay_slider, static_cast<int32_t>(st.pos_s - st.first_s), LV_ANIM_OFF);
-  }
-  lv_obj_t* icon = lv_obj_get_child(s_replay_play, 0);
-  if (icon != nullptr && lv_obj_check_type(icon, &lv_label_class)) {
-    setLabelText(icon, st.playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
-  }
-  setLabelText(s_replay_speed, (std::to_string(st.speed) + "x").c_str());
-}
-
-/** Find an aircraft: follows the search (app::findAircraft) and flies to what it finds. */
-void updateFind() {
-  static uint32_t s_version = 0;
-  const app::FindState f = app::findState();
-  if (f.version == s_version) return;
-  s_version = f.version;
-  switch (f.status) {
-    case app::FindStatus::Searching:
-      toast((std::string(LV_SYMBOL_EYE_OPEN "  Looking for ") + f.query + "...").c_str(), 4000);
-      break;
-    case app::FindStatus::Found: {
-      if (settingsOpen()) closeSettings();
-      RadarView& rv = RadarView::get();
-      rv.goTo(f.where, std::min(rv.viewport().radiusKm(), 60.0));
-      rv.selectWhenSeen(f.hex);
-      toast((std::string(LV_SYMBOL_OK "  Found ") + f.label).c_str(), 2500);
-      break;
-    }
-    case app::FindStatus::NotFound:
-      toast((std::string(LV_SYMBOL_WARNING "  ") + f.query + " isn't flying now (or not sending a position)").c_str(), 4000);
-      break;
-    case app::FindStatus::Failed:
-      toast(LV_SYMBOL_WARNING "  Couldn't look it up (no internet?)", 3000);
-      break;
-    case app::FindStatus::Idle: break;
-  }
-}
-
 void onAppTimer(lv_timer_t*) {
   logHealth();
-  updateFind();
-  updateReplayBar();
   updateStats();
   announceWifi();
   updateSleepLayer();

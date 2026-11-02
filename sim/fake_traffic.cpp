@@ -110,23 +110,6 @@ void FakeTraffic::recallMilitary() {
   }
 }
 
-void FakeTraffic::addVisitor(const std::string& hex, const std::string& flight, const std::string& type) {
-  Plane p;
-  p.hex = hex;
-  p.flight = flight;
-  p.reg = "N1ST";
-  p.type = type;
-  p.category = "A5";
-  p.squawk = "1200";
-  p.pos = core::destination(home_, 45.0, 3.0);
-  p.track = 90;
-  p.gs = 120;
-  p.alt = 5000;
-  p.vrate = 0;
-  p.turn = 0;
-  planes_.push_back(p);
-}
-
 void FakeTraffic::setEmergency(bool on) {
   if (planes_.size() <= 5) return;
   Plane& p = planes_[5];

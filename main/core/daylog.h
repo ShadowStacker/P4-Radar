@@ -31,10 +31,6 @@ struct Day {
   int peak = 0;                 // most aircraft at once
   int16_t peak_minute = -1;
   Record closest, highest, fastest;
-  uint16_t hourly[24] = {};     // different aircraft seen in each local hour
-  // The hour being counted (not saved; after a restart the hour counts on from its saved number).
-  int hour_now = -1;
-  std::vector<uint32_t> hour_seen;
 
   int count() const { return static_cast<int>(seen.size()); }
 };
@@ -53,13 +49,6 @@ bool observe(Day* day, const std::vector<Aircraft>& aircraft, const LatLon& home
 /** "date = 2026-10-29\naircraft = 143\n..." with every seen address at the end. */
 std::string serialize(const Day& d);
 bool parse(const std::string& text, Day* out);
-/** One CSV line for a day: date, aircraft, busiest, military, emergencies, then the 24 hourly counts. */
-std::string csvLine(const Day& d);
-/** The header for csvLine(). */
-const char* csvHeader();
-/** The busiest hour (0-23), or -1 if nothing was seen. */
-int busiestHour(const Day& d);
-
 /** File name for a day: "2026-10-29.txt". */
 std::string fileName(int date);
 /** "Oct 29: 143 aircraft, closest N123AB 0.4 km" (distance in the caller's units). */

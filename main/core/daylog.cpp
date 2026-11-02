@@ -85,11 +85,6 @@ bool observe(Day* day, const std::vector<Aircraft>& aircraft, const LatLon& home
     day->date = date;
     new_day = true;
   }
-  const int hour = (minute / 60) % 24;
-  if (hour != day->hour_now) {
-    day->hour_now = hour;
-    day->hour_seen.clear();
-  }
   int now_count = 0;
   for (const Aircraft& a : aircraft) {
     if (a.on_ground) continue;
@@ -98,9 +93,6 @@ bool observe(Day* day, const std::vector<Aircraft>& aircraft, const LatLon& home
     ++now_count;
     const uint32_t id = icao(a.hex);
     if (id != 0) addSorted(&day->seen, id);
-    if (id != 0 && addSorted(&day->hour_seen, id) && day->hour_seen.size() > day->hourly[hour]) {
-      day->hourly[hour] = static_cast<uint16_t>(std::min<size_t>(day->hour_seen.size(), 65535));
-    }
     if (id != 0 && a.military) addSorted(&day->military, id);
     if (id != 0 && a.emergency) addSorted(&day->emergencies, id);
     if (is_favorite != nullptr && is_favorite(a.hex)) {
@@ -120,29 +112,6 @@ bool observe(Day* day, const std::vector<Aircraft>& aircraft, const LatLon& home
     day->peak_minute = static_cast<int16_t>(minute);
   }
   return new_day;
-}
-
-const char* csvHeader() {
-  return "date,aircraft,busiest,busiest_at,military,emergencies,h00,h01,h02,h03,h04,h05,h06,h07,h08,h09,h10,h11,"
-         "h12,h13,h14,h15,h16,h17,h18,h19,h20,h21,h22,h23\n";
-}
-
-std::string csvLine(const Day& d) {
-  char buf[96];
-  std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d,%d,%d,%s,%d,%d", d.date / 10000, d.date / 100 % 100, d.date % 100,
-                d.count(), d.peak, d.peak_minute >= 0 ? hhmm(d.peak_minute).c_str() : "",
-                static_cast<int>(d.military.size()), static_cast<int>(d.emergencies.size()));
-  std::string out = buf;
-  for (int h = 0; h < 24; ++h) out += "," + std::to_string(d.hourly[h]);
-  return out + "\n";
-}
-
-int busiestHour(const Day& d) {
-  int best = -1;
-  for (int h = 0; h < 24; ++h) {
-    if (d.hourly[h] > 0 && (best < 0 || d.hourly[h] > d.hourly[best])) best = h;
-  }
-  return best;
 }
 
 std::string fileName(int date) {
@@ -177,9 +146,6 @@ std::string serialize(const Day& d) {
     }
     out += "\n";
   };
-  out += "hourly =";
-  for (int h = 0; h < 24; ++h) out += " " + std::to_string(d.hourly[h]);
-  out += "\n";
   list("seen", d.seen);
   list("seen_military", d.military);
   list("seen_emergencies", d.emergencies);
@@ -204,16 +170,6 @@ bool parse(const std::string& text, Day* out) {
       out->peak = n;
       out->peak_minute = static_cast<int16_t>(h * 60 + m);
     } else if (key == "closest") parseRecord(v, &out->closest);
-    else if (key == "hourly") {
-      const char* c = v;
-      char* e = nullptr;
-      for (int h = 0; h < 24; ++h) {
-        const unsigned long x = std::strtoul(c, &e, 10);
-        if (e == c) break;
-        out->hourly[h] = static_cast<uint16_t>(std::min<unsigned long>(x, 65535));
-        c = e;
-      }
-    }
     else if (key == "highest") parseRecord(v, &out->highest);
     else if (key == "fastest") parseRecord(v, &out->fastest);
     else if (key == "favorites") {

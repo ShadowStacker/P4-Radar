@@ -273,14 +273,9 @@ others).
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
 | Use an airport | Jump home to an airport by ICAO (`KRDM`), IATA (`RDM`) or FAA code (`S39`, `BDN`) | |
 | Home zoom (radius) | How far the view reaches when you press Home, from the center to the edge of the screen | 25 km |
-| Saved places | Up to four more places. Tap one to fly there (at its zoom); **Remove** takes it off the list | |
-| Save the radar's view as a place | Pan and zoom the radar to the spot first, then name it here | |
 
 Home is the center of the range rings and the sweep, and the reference for
-proximity and favorite alerts. Saved places are just views to jump to: home
-stays where it is. In `settings.txt` (and on the phone page) they're lines like
-`place1 = Cabin, 44.05000, -121.31000, 15` (name, latitude, longitude, zoom
-radius in km); an empty value frees the slot.
+proximity and favorite alerts.
 
 ### Display
 
@@ -392,32 +387,6 @@ switches itself off.
 
 See [Alerts explained](#alerts-explained) for exactly when each one fires.
 
-#### Your own sounds
-
-Any sound can be replaced with a WAV file of your own: put it in a `sounds`
-folder on the SD card, named after the sound, and tap **Load them again** at
-the bottom of the Sound page (they're also read at startup).
-
-| File | Plays for |
-|---|---|
-| `click.wav` | Touches (cut to 1 s) |
-| `ping.wav` | Each sweep (cut to 1 s) |
-| `new_aircraft.wav` | New aircraft |
-| `close.wav` | Proximity alert |
-| `emergency.wav` | Emergency squawks |
-| `startup.wav` | Start |
-| `home.wav` | The Home button |
-| `favorite_seen.wav` / `favorite_near.wav` | Favorite detected / nearby |
-| `alarm.wav` | Alarm clock (up to 20 s) |
-| `watchlist.wav` | Watchlist alerts |
-| `first_time.wav` | First time here |
-
-Any ordinary WAV works: 8, 16, 24 or 32-bit, or 32-bit float, mono or stereo,
-any sample rate (it's converted to mono at 22 kHz). Sounds are cut to 8
-seconds unless noted. The page lists each file it found and whether it worked
-(*not a WAV file*, *unsupported format* for compressed ones like ADPCM or MP3).
-Delete a file and load again to get the built-in sound back.
-
 ### Traffic & data
 
 | Option | What it does | Default |
@@ -525,31 +494,6 @@ If you change settings on the screen while no card is inserted and then insert
 one, the radar's settings win and are written to the card. *Factory reset*
 deletes `settings.txt` but keeps `favorites.txt`.
 
-### Flight replay
-
-With an SD card, the radar records the traffic around home: every 15 seconds,
-the aircraft within 150 km of home (while it's showing that area) go into
-`replay/YYYY-MM-DD.rpl`, about 2 to 5 MB a day. A week is kept; older days are
-deleted.
-
-**Settings → Replay a day** lists the recorded days. Pick one and the radar
-plays it back instead of live traffic, with a bar at the bottom: the time,
-play/pause, a slider to move through the day, the speed (tap it: 1×, 10×, 60×
-or 300×) and **X** to go back to live traffic. You can pan, zoom and tap
-aircraft as usual. While a replay plays, live traffic, alerts and sounds, the
-daily log and the logbook pause. **Record the traffic around home** on the same
-page turns recording off (`replay_record` in `settings.txt`).
-
-### Find an aircraft
-
-**Settings → Find an aircraft** (or the Favorites tab of the phone page):
-type a callsign (`UAL123`), tail number (`N123AB`, `PH-BXA`) or hex code. If
-it's on the radar, it's selected and followed. If not, the radar asks the
-data source where it is anywhere in the world, flies there and picks it up as
-soon as the traffic for that area arrives. Spaces, dashes and upper or lower
-case don't matter. *isn't flying now* means the data source doesn't see it
-(on the ground, or not sending a position).
-
 ### Favorites
 
 Save an aircraft by tapping it and pressing ★ on its info card, up to 32.
@@ -610,8 +554,6 @@ The page has tabs for:
   (saved for later, or connect now), move up, forget.
 - **Daily log**: today and the past week.
 - **Screenshots**: take one, and view or download the saved ones.
-- **System**: [backup and restore](#backup-and-restore), the
-  [system log](#system-log) and the last crash, if there was one.
 - **Update**: install a firmware file (the one that ends in `-ota.bin`). The
   radar checks the file first. It refuses the full USB image and files for
   another board, shows the same progress screen as an update from GitHub, then
@@ -658,29 +600,6 @@ option that does the same), or use the radar's hotspot (above). If visits are co
 doesn't show, send the serial log; every request is logged as
 `web: GET / from 192.168.1.23`.
 
-#### Backup and restore
-
-**Download a backup** on the System tab saves one text file with everything
-you've set up: all settings (with the saved Wi-Fi networks and their
-passwords), favorites and silenced aircraft. **Restore** reads such a file
-back, on the same radar or a new one; the radar confirms what it restored.
-Keep the file private, since it holds your Wi-Fi passwords. It's plain text in
-the same form as `settings.txt` and `favorites.txt`, so you can also look
-into it or edit it on a computer.
-
-#### System log
-
-Everything the radar prints on its serial port also goes into its system log,
-with the time in front of each line. The System tab shows the latest part
-(**Save** downloads it), so a problem can be looked into without a USB cable.
-With an SD card, the log is also written to `log/system.log` once a minute;
-past 512 KB it moves to `log/system.1.log` and a new one starts.
-
-If the radar restarted because of a crash or watchdog, the System tab shows
-**Last crash**: the last lines it printed before, kept in memory that survives
-the restart. With a card they're also saved as `log/crash-N.log` (N counts
-the starts). That's the most useful thing to attach to a bug report.
-
 | Option | What it does | Default |
 |---|---|---|
 | QR code | Opens the page on a phone | |
@@ -698,35 +617,10 @@ aircraft, how many were **military** or squawked an **emergency**, and which
 within** (default 25 mi) of home count, and only while the radar is showing
 the area around home (it only receives traffic for the area on screen).
 
-**Today by hour** shows how many different aircraft came by in each hour of
-the day, as bars; the busiest hour is the bright one.
-
 With an SD card, each day is saved as `log/YYYY-MM-DD.txt` (readable on a
 computer), the count carries on after a restart, and **Earlier days** lists
-the last week. **Last 7 days** and **Last 30 days** add the days up: different
-aircraft over the whole period (each counted once), the average a day, the
-busiest day and hour, and for the week the hours as bars. The phone page's
-Daily log tab shows the same, and **Download daily counts** saves the last 90
-days as a spreadsheet file (one line a day, with the 24 hourly counts). The
-count needs the time from the internet to know when a day starts.
-
-#### Logbook
-
-With an SD card, the radar also keeps a **logbook** of every aircraft ever
-seen near home (within the same distance as the daily log), in
-`logbook.csv`: one line per **visit** (an aircraft seen again after half an
-hour away is a new visit), with the date, time, hex code, callsign,
-registration and type. It opens in any spreadsheet. The **Logbook** page
-(from Daily log) shows how many different aircraft and visits it holds, the
-most frequent visitors and the newest ones; the phone page shows the same and
-downloads the file.
-
-**First time here.** When an aircraft the logbook has never seen comes by,
-the radar says *First time here: N123AB (B738)*, with its own sound. Turn
-either off on the Logbook page (or `first_time_alert` / `sound_first_time` in
-`settings.txt`). For the first two days of a new logbook everything is new, so
-the announcements only start after that. Silenced aircraft are never
-announced.
+the last week. The count needs the time from the internet to know when a day
+starts.
 
 ### Updates
 
@@ -748,22 +642,12 @@ announced.
 | Feed | Aircraft count and seconds since the last successful update, or the last error |
 | Free memory | Internal RAM and PSRAM free (useful for bug reports) |
 | Running for | Time since the radar started |
-| Last restart | Why it last started: power on, restarted by the radar, reset button, a fresh start at night (see below), or a problem (crash, watchdog, power dip) |
+| Last restart | Why it last started: power on, restarted by the radar, reset button, or a problem (crash, watchdog, power dip) |
 | Starts | How many times it has started, and how many of those were unexpected (crashes, watchdogs, power dips) |
-| Fresh starts (memory) | How many times the memory watch restarted the radar (only shown once it has) |
 | On-screen stats | Small live numbers in the lower left, see below. Off by default. |
 | What's new | The notes for this version and the two before it. They're also shown once, by themselves, after an update. |
-| Restart | Reboot the device (after saving today's log and the system log to the card) |
+| Restart | Reboot the device |
 | Factory reset | Erase Wi-Fi, location, settings and favorites, then reboot |
-
-**Memory watch.** The radar checks its free memory once a minute. If it stays
-unusually low for half an hour (a leak, or memory too broken up into small
-pieces), it starts afresh at the next quiet moment: between 3 and 5 AM, when
-nobody has touched it or used the phone page for 15 minutes, no alarm is
-ringing or due within half an hour, and no update is running. Today's log and
-the system log are saved first, and at night it goes straight back to sleep
-(or night dimming). The serial log and system log say `memory: low ...` when
-it starts counting.
 
 **On-screen stats**, line by line (times are per frame, averaged over the last second):
 
@@ -771,7 +655,7 @@ it starts counting.
 |---|---|
 | `30 fps, frame 9.2 ms (max 14), 35% redrawn` | Frames drawn per second; time per frame, and the slowest one; how much of the screen each frame redraws (only what changed is redrawn) |
 | `draw 6.1 + panel 3.1 ms (rotate 1.4)` | The frame split into drawing the picture and handing it to the screen (turning it for the screen's orientation, then copying it) |
-| `radar 2.3 ms, background 12 ms (1), rest 80%` | The radar's own drawing (sweep, aircraft, labels), and rebuilding its background layer (map, rings, trails) in the last second, with how many times; *rest* is the share of radar frames with nothing to redraw at all (with the sweep off). Aircraft that haven't moved by a whole pixel are never redrawn, so *redrawn* drops too |
+| `radar 2.3 ms, background 12 ms (1)` | The radar's own drawing (sweep, aircraft, labels), and rebuilding its background layer (map, rings, trails) in the last second, with how many times |
 | `CPU 23% net, 41% UI` | How busy each processor core is |
 | `RAM ... PSRAM ...` | Free memory (and the lowest it has been) |
 | `16 aircraft (decode 9 ms), -54 dBm` | Aircraft shown, time to decode the last traffic update, Wi-Fi signal |
