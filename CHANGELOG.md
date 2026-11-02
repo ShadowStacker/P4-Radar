@@ -10,6 +10,15 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.26.2] - 2026-11-02
+
+### Fixed
+- **Thin black lines between map tiles.** Tiles were scaled and placed with
+  rounding that could leave them a pixel short of each other, and the soft
+  edge of a scaled tile let the black background through. Tiles now meet on
+  whole pixels, and each one's edge pixels are covered by its neighbor. The
+  simulator checks every tile edge at several zooms for dark lines.
+
 ## [v1.26.1] - 2026-11-02
 
 v1.23.0 to v1.26.0 didn't stay installed on the board (they went back to

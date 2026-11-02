@@ -191,32 +191,42 @@ void MapLayer::drawTile(lv_layer_t* layer, const core::Viewport& vp, uint64_t ke
   const int T = core::tiles::kTileSize;
   const float xl = vp.project({0, core::tiles::tileLon(x, z)}).x;
   const float xr = vp.project({0, core::tiles::tileLon(x + 1, z)}).x;
+  // Tiles meet on whole pixels: each covers [L, R) and the next one starts at
+  // its R, so there's no gap. A tile is 256 px wide, so LVGL's scale (in
+  // 1/256) is simply its drawn size in pixels. It's drawn a pixel bigger on
+  // every side and clipped to its own area: the soft, half-transparent edge
+  // pixels of a scaled image (they showed as thin dark seams on the black
+  // background) fall outside it.
+  static_assert(core::tiles::kTileSize == 256, "scale in 1/256 = size in px");
+  const int32_t L = static_cast<int32_t>(std::lround(xl)), R = static_cast<int32_t>(std::lround(xr));
+  if (R <= L) return;
   // Mercator rows aren't evenly spaced in latitude: at small scales draw the
   // tile in horizontal strips, each placed by its own latitudes.
   const int strips = z >= 6 ? 1 : (z == 5 ? 2 : 4);  // keeps the error around 1-2 px
   for (int s = 0; s < strips; ++s) {
     const double ry0 = static_cast<double>(s) / strips, ry1 = static_cast<double>(s + 1) / strips;
-    const float yt = vp.project({core::tiles::tileLat(y + ry0, z), 0}).y;
-    const float yb = vp.project({core::tiles::tileLat(y + ry1, z), 0}).y;
-    lv_area_t strip = {static_cast<int32_t>(std::floor(xl)), static_cast<int32_t>(std::floor(yt)),
-                       static_cast<int32_t>(std::ceil(xr)) - 1, static_cast<int32_t>(std::ceil(yb)) - 1};
+    const int32_t top = static_cast<int32_t>(std::lround(vp.project({core::tiles::tileLat(y + ry0, z), 0}).y));
+    const int32_t bottom = static_cast<int32_t>(std::lround(vp.project({core::tiles::tileLat(y + ry1, z), 0}).y));
+    if (bottom <= top) continue;
+    lv_area_t strip = {L, top, R - 1, bottom - 1};
     // Never widen the layer's own clip: tiles reach past the screen edges.
     lv_area_t c, c2;
     if (!intersect(strip, clip, &c) || !intersect(c, layer->_clip_area, &c2)) continue;
     c = c2;
-    const float sx = (xr - xl) / T;
-    const float sy = (yb - yt) / (static_cast<float>(T) / strips);
+    // Drawn size of the whole tile (this strip's part of it, scaled up to a tile).
+    const int32_t w = (R - L) + 2;
+    const int32_t h = static_cast<int32_t>(std::lround((bottom - top) * static_cast<double>(strips))) + 2 * strips;
 
     lv_draw_image_dsc_t d;
     lv_draw_image_dsc_init(&d);
     d.src = it->second.buf;
-    d.scale_x = static_cast<int32_t>(std::lround(sx * 256));
-    d.scale_y = static_cast<int32_t>(std::lround(sy * 256));
+    d.scale_x = w;
+    d.scale_y = h;
     d.pivot.x = 0;
     d.pivot.y = 0;
     d.antialias = 1;
-    const int32_t ix = static_cast<int32_t>(std::lround(xl));
-    const int32_t iy = static_cast<int32_t>(std::lround(yt - ry0 * T * sy));
+    const int32_t ix = L - 1;
+    const int32_t iy = top - 1 - static_cast<int32_t>(std::lround(ry0 * h));
     lv_area_t area = {ix, iy, ix + T - 1, iy + T - 1};
     const lv_area_t saved = layer->_clip_area;
     layer->_clip_area = c;

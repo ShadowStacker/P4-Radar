@@ -26,6 +26,8 @@
 #include "app/web.h"
 #include "core/png.h"
 #include "core/clock.h"
+#include "core/tiles.h"
+#include "core/geo.h"
 #include "platform/platform.h"
 #include "core/filter.h"
 #include "core/traffic.h"
@@ -288,6 +290,86 @@ std::string readFile(const std::string& path) {
 }
 
 }  // namespace
+
+
+/**
+ * Background map tiles must meet without a seam: at several zooms, the
+ * screen along each tile edge may not be darker than the map next to it.
+ * Returns the number of zooms with a seam.
+ */
+int mapSeamCheck(const std::string& p) {
+  auto& st = app::settings();
+  st.map_style = 4;  // satellite (the simulator draws it like topo: bright, detailed)
+  st.map_tint = false;
+  st.map_brightness = 100;
+  st.show_rings = false;
+  st.sweep_enabled = false;
+  st.show_trails = false;
+  st.show_runways = false;
+  st.show_airport_labels = false;
+  ui::RadarView& rv = ui::RadarView::get();
+  int total = 0;
+  for (double radius : {6.3, 11.7, 23.1, 37.9, 61.3, 97.7, 160.0}) {
+    rv.viewport().setCenter({st.home_lat + 0.0123, st.home_lon - 0.0217});
+    rv.viewport().setRadiusKm(radius);
+    rv.markStaticDirty();
+    run(6000);
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(g_disp);
+    const core::Viewport& vp = rv.viewport();
+    const int z = core::tiles::zoomFor(rv.mapVariant(), vp.kmPerPx(), vp.center().lat);
+    auto lum = [](uint16_t c) { return ((c >> 11) & 31) * 2 + ((c >> 5) & 63) + (c & 31) * 2; };
+    auto at = [](int x, int y) { return g_fb[static_cast<size_t>(y) * g_size + x]; };
+    int seams = 0;
+    const double n = std::ldexp(1.0, z);
+    // Columns between tiles.
+    const double x0 = (vp.center().lon + 180.0) / 360.0 * n;
+    for (int k = -4; k <= 5; ++k) {
+      const uint32_t tx = static_cast<uint32_t>(std::floor(x0)) + k;
+      const float bx = vp.project({vp.center().lat, core::tiles::tileLon(tx, z)}).x;
+      for (int col : {static_cast<int>(std::floor(bx)) - 1, static_cast<int>(std::floor(bx)), static_cast<int>(std::ceil(bx))}) {
+        if (col < 3 || col > g_size - 4) continue;
+        int line = 0;
+        for (int y = g_size / 4; y < g_size * 3 / 4; ++y) {
+          const int l = lum(at(col, y)), a = lum(at(col - 2, y)), b = lum(at(col + 2, y));
+          if (std::min(a, b) > 40 && l * 3 < std::min(a, b) * 2) ++line;
+        }
+        seams = std::max(seams, line);
+      }
+    }
+    // Rows between tiles.
+    for (int k = -6; k <= 6; ++k) {
+      double lat_y = 0;
+      {
+        const double lr = core::degToRad(vp.center().lat);
+        lat_y = (1.0 - std::log(std::tan(lr) + 1.0 / std::cos(lr)) / M_PI) / 2.0 * n;
+      }
+      const double ty = std::floor(lat_y) + k;
+      const float by = vp.project({core::tiles::tileLat(ty, z), vp.center().lon}).y;
+      for (int row : {static_cast<int>(std::floor(by)) - 1, static_cast<int>(std::floor(by)), static_cast<int>(std::ceil(by))}) {
+        if (row < 3 || row > g_size - 4) continue;
+        int line = 0;
+        for (int x = g_size / 4; x < g_size * 3 / 4; ++x) {
+          const int l = lum(at(x, row)), a = lum(at(x, row - 2)), b = lum(at(x, row + 2));
+          if (std::min(a, b) > 40 && l * 3 < std::min(a, b) * 2) ++line;
+        }
+        seams = std::max(seams, line);
+      }
+    }
+    // Map details (contour lines, labels, aircraft) give short dark runs; a
+    // seam runs the whole way along the tile edge.
+    const bool seam = seams > g_size / 8;
+    std::printf("map seams at %.1f km (zoom %d): longest dark run on a tile edge %d px: %s\n", radius, z, seams,
+                seam ? "FAILED" : "OK");
+    if (seam) {
+      char name[64];
+      std::snprintf(name, sizeof(name), "seams_%.0fkm", radius);
+      shot((p + name).c_str());
+    }
+    total += seam ? 1 : 0;
+  }
+  return total;
+}
 
 /** Serves the phone page on http://localhost:8080 in real time: --web. */
 int runWeb() {
@@ -590,6 +672,7 @@ int main(int argc, char** argv) {
   ui::closeSettings();
   run(150000);  // 2.5 minutes of traffic so trails build up
   shot((p + "03_radar_home").c_str());
+  if (std::getenv("SIM_ONLY_SEAMS")) return mapSeamCheck(p) == 0 ? 0 : 1;  // (debugging)
 
   if (g_size == 800) {
     // Sweep animation frames for a GIF.
@@ -973,6 +1056,15 @@ int main(int argc, char** argv) {
     st.map_style = 4;  // satellite
     run(4000);
     shot((p + "62_map_satellite").c_str());
+    {
+      const core::Settings before = st;
+      const int bad = mapSeamCheck(p);
+      st = before;
+      ui::RadarView::get().goHome(false);
+      ui::RadarView::get().markStaticDirty();
+      run(2000);
+      if (bad > 0) return 1;
+    }
     st.map_style = 3;
     st.map_style = 2;
     st.map_tint = false;
