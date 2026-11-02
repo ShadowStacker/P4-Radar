@@ -373,6 +373,7 @@ void updateStats() {
   const uint32_t radar_frames = rt.frames - s_radar0.frames;
   const double overlay_ms = radar_frames ? (rt.overlay_us - s_radar0.overlay_us) / 1000.0 / radar_frames : 0.0;
   const uint32_t statics = rt.static_renders - s_radar0.static_renders;
+  const int rested = radar_frames ? static_cast<int>(100.0 * (rt.rested - s_radar0.rested) / radar_frames + 0.5) : 0;
   const double static_ms = (rt.static_us - s_radar0.static_us) / 1000.0;
   const double screen_px = static_cast<double>(screenW()) * screenH();
   const int redrawn = s_frames ? static_cast<int>(100.0 * s_redrawn_px / (screen_px * frames) + 0.5) : 0;
@@ -382,13 +383,13 @@ void updateStats() {
   std::snprintf(text, sizeof(text),
                 "%.0f fps, frame %.1f ms (max %.0f), %d%% redrawn\n"
                 "draw %.1f + panel %.1f ms (rotate %.1f)\n"
-                "radar %.1f ms, background %.0f ms (%u)\n"
+                "radar %.1f ms, background %.0f ms (%u), rest %d%%\n"
                 "CPU %d%% net, %d%% UI\n"
                 "RAM %u K (low %u K), PSRAM %.1f M\n"
                 "%d aircraft (decode %.0f ms), %s\n"
                 "up %u:%02u:%02u, UI pause %u ms",
                 s_frames / secs, frame_ms, s_draw_max_us / 1000.0, redrawn, std::max(0.0, frame_ms - flush_ms), flush_ms,
-                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), h.cpu[0], h.cpu[1],
+                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), rested, h.cpu[0], h.cpu[1],
                 static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
                 h.psram_free / 1048576.0, fs.last_count, fs.parse_us / 1000.0,
                 ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",

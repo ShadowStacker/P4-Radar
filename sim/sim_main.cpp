@@ -1213,6 +1213,18 @@ int main(int argc, char** argv) {
       ok &= check("selected aircraft");
       ui::RadarView::get().clearSelection();
     }
+    // Resting: aircraft that haven't moved by a whole pixel aren't redrawn,
+    // and the screen still matches a full redraw.
+    st.sweep_enabled = false;
+    ui::RadarView::get().markStaticDirty();
+    run(1000);
+    const uint32_t f0 = ui::RadarView::get().totals().frames, r0 = ui::RadarView::get().totals().rested;
+    run(8000);
+    const uint32_t frames = ui::RadarView::get().totals().frames - f0;
+    const uint32_t rested = ui::RadarView::get().totals().rested - r0;
+    std::printf("resting: %u of %u frames redrew nothing\n", static_cast<unsigned>(rested), static_cast<unsigned>(frames));
+    ok &= frames > 0 && check("after resting");
+    st.sweep_enabled = true;
     ui::RadarView::get().markStaticDirty();
     run(500);
     if (!ok) return 1;

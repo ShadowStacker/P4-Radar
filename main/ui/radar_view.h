@@ -67,6 +67,7 @@ class RadarView {
     uint64_t overlay_us = 0;  // drawOverlay()
     uint32_t blips = 0;       // aircraft drawn (summed over frames)
     uint32_t labels = 0;      // labels drawn (summed over frames)
+    uint32_t rested = 0;      // frames with nothing to redraw (nothing moved by a pixel)
   };
   Stats& stats() { return stats_; }
   /** The same, never reset (for the on-screen stats, which take differences). */
@@ -125,6 +126,9 @@ class RadarView {
     };
     std::vector<core::Box> boxes;
     std::vector<Seg> segs;  // lines (marked along their length, not by their bounding box)
+    // Per shape: what it shows, rounded to whole pixels. A shape whose key is
+    // in both frames looks the same and needn't be redrawn.
+    std::vector<uint64_t> box_keys, seg_keys;
   };
   void overlayAreas(OverlayShapes* out) const;
   /** Marks for redrawing what changed since the last frame, instead of the whole screen. */
@@ -178,6 +182,8 @@ class RadarView {
   OverlayShapes overlay_prev_;
   float prev_sweep_deg_ = 0;
   bool prev_sweep_on_ = false;
+  int64_t clock_ms_ = 0;       // the time the clock hands show (set once per frame)
+  uint32_t overlay_frame_ = 0;  // counts frames (keys of shapes that change every frame)
   bool overlay_full_ = true;  // redraw it all next frame (first frame, settings changed, ...)
 
   // Downloaded flight history of the selected aircraft
