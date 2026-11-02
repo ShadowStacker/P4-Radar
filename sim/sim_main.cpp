@@ -504,6 +504,7 @@ int runSoak(int cycles) {
 }
 
 int main(int argc, char** argv) {
+  plat::logCaptureStart();
   bool bench = false;
   int soak = 0;
   bool page_timing = false;
@@ -1454,8 +1455,29 @@ int main(int argc, char** argv) {
     ok = ok && r.status == 200 && r.type == "image/png" && r.body.compare(1, 3, "PNG") == 0;
     ok = ok && web("GET", "/shots/..%2Fsettings.txt", "", cookie).status == 404;
     const bool shots_ok = ok;
-    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s\n", login_ok ? "OK" : "FAILED",
-                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED");
+    // System tab: the log, a backup, and restoring it (with one change).
+    r = web("GET", "/api/log", "", cookie);
+    bool system_ok = r.status == 200 && r.body.find("\"text\":\"") != std::string::npos && r.body.find("web:") != std::string::npos;
+    r = web("GET", "/api/backup", "", cookie);
+    std::string backup = r.body;
+    system_ok = system_ok && backup.compare(0, 20, "# Plane Radar backup") == 0 && backup.find("[[favorites]]") != std::string::npos;
+    const size_t vol = backup.find("\nvolume = ");
+    if (vol != std::string::npos) backup.replace(vol + 10, backup.find('\n', vol + 1) - vol - 10, "33");
+    plat::WebRequest rr;
+    rr.method = "POST";
+    rr.path = "/api/restore";
+    rr.body = backup;
+    rr.content_length = backup.size();
+    r = sim::g_web_handler(rr);
+    run(300);
+    system_ok = system_ok && r.body.find("\"ok\":true") != std::string::npos && app::settings().volume == 33;
+    rr.body = "not a backup";
+    rr.content_length = rr.body.size();
+    system_ok = system_ok && sim::g_web_handler(rr).body.find("isn't a Plane Radar backup") != std::string::npos;
+    ok = ok && system_ok;
+    std::printf("phone page: page %s, settings %s, wifi %s, screenshots %s, log and backup %s\n", login_ok ? "OK" : "FAILED",
+                settings_ok ? "OK" : "FAILED", wifi_ok ? "OK" : "FAILED", shots_ok ? "OK" : "FAILED",
+                system_ok ? "OK" : "FAILED");
     if (!ok) return 1;
     app::settings().volume = 60;
   }

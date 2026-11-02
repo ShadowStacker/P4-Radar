@@ -18,6 +18,7 @@
 #include "core/daylog.h"
 #include "core/fwcheck.h"
 #include "core/settings_text.h"
+#include "core/syslog.h"
 #include "core/web.h"
 #include "platform/platform.h"
 
@@ -282,6 +283,64 @@ plat::WebResponse getShot(const std::string& name) {
   return r;
 }
 
+plat::WebResponse text(std::string body) {
+  plat::WebResponse r;
+  r.type = "text/plain; charset=utf-8";
+  r.body = std::move(body);
+  return r;
+}
+
+plat::WebResponse getLog() {
+  std::string files;
+  for (const std::string& n : logFiles()) files += (files.empty() ? "" : ",") + jsonString(n);
+  return json("{\"sd\":" + boolJson(maps::sdStatus().state == maps::SdState::Mounted) +
+              ",\"crash\":" + jsonString(crashLog()) + ",\"files\":[" + files +
+              "],\"text\":" + jsonString(core::syslog::recent()) + "}");
+}
+
+/** A log file from the card (the newest 256 KB of it). */
+plat::WebResponse getLogFile(const std::string& name) {
+  const std::string path = logFilePath(core::web::urlDecode(name));
+  FILE* f = path.empty() ? nullptr : std::fopen(path.c_str(), "rb");
+  if (f == nullptr) return error("No such log file", 404);
+  constexpr long kMax = 256 * 1024;
+  std::fseek(f, 0, SEEK_END);
+  const long size = std::ftell(f);
+  std::fseek(f, size > kMax ? size - kMax : 0, SEEK_SET);
+  std::string body;
+  char buf[4096];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) body.append(buf, n);
+  std::fclose(f);
+  return text(std::move(body));
+}
+
+plat::WebResponse getBackup() {
+  std::string body;
+  if (!runOnUi([&] { body = backupText(); })) return busy();
+  return text(std::move(body));
+}
+
+plat::WebResponse postRestore(plat::WebRequest& r) {
+  std::string body = std::move(r.body);
+  if (r.read) {  // too big to be read up front
+    constexpr size_t kMax = 128 * 1024;
+    if (r.content_length > kMax) return error("That file is too big to be a backup");
+    body.resize(r.content_length);
+    size_t got = 0;
+    while (got < body.size()) {
+      const int n = r.read(&body[got], body.size() - got);
+      if (n <= 0) return error("The upload stopped");
+      got += static_cast<size_t>(n);
+    }
+  }
+  bool done = false;
+  std::string summary;
+  if (!runOnUi([&] { done = restoreBackup(body, &summary); }, 5000)) return busy();
+  if (!done) return error(summary);
+  return ok(",\"summary\":" + jsonString(summary));
+}
+
 plat::WebResponse takeShot() {
   bool taken = false;
   if (!runOnUi([&] { taken = requestScreenshot(); })) return busy();
@@ -366,6 +425,11 @@ plat::WebResponse handle(plat::WebRequest& r) {
   if (p == "/api/shots") return getShots();
   if (p.compare(0, 7, "/shots/") == 0) return getShot(p.substr(7));
   if (post && p == "/api/screenshot") return takeShot();
+  if (p == "/api/log") return getLog();
+  if (p == "/api/log.txt") return text(core::syslog::recent());
+  if (p.compare(0, 10, "/api/logs/") == 0) return getLogFile(p.substr(10));
+  if (p == "/api/backup") return getBackup();
+  if (post && p == "/api/restore") return postRestore(r);
   if (post && p == "/api/firmware") return firmware(r);
   if (post && p == "/api/restart") {
     runOnUi([] { s_restart_at_ms = plat::millis() + 1500; });

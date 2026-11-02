@@ -64,6 +64,8 @@ button:disabled{opacity:.5}
 #toast.show{opacity:1}
 .hidden{display:none!important}
 .sig{color:var(--dim);font-size:13px;white-space:nowrap}
+pre{white-space:pre-wrap;word-break:break-word;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;max-height:60vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px;margin:8px 0 0}
+a.sec{display:inline-block;color:var(--acc);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:15px;text-decoration:none}
 </style></head><body>
 <header><h1><span class="dot"></span>Plane Radar<small id="ver"></small></h1>
 <nav id="tabs"></nav></header>
@@ -83,7 +85,7 @@ async function api(path,body){
   if(!r.ok&&!j.error)j.error='Error '+r.status;
   return j;
 }
-const TABS=[['settings','Settings'],['watch','Watchlist'],['favorites','Favorites'],['wifi','Wi-Fi'],['log','Daily log'],['shots','Screenshots'],['update','Update']];
+const TABS=[['settings','Settings'],['watch','Watchlist'],['favorites','Favorites'],['wifi','Wi-Fi'],['log','Daily log'],['shots','Screenshots'],['system','System'],['update','Update']];
 let tab='settings',status={};
 function nav(){
   $('#tabs').innerHTML=TABS.map(([k,n])=>`<button class="${k==tab?'on':''}" onclick="go('${k}')">${n}</button>`).join('');
@@ -95,7 +97,7 @@ async function start(){
   try{if(localStorage.tab)tab=localStorage.tab}catch(e){}
   nav();render();
 }
-function render(){({settings:viewSettings,watch:viewWatch,favorites:viewFavorites,wifi:viewWifi,log:viewLog,shots:viewShots,update:viewUpdate})[tab]()}
+function render(){({settings:viewSettings,watch:viewWatch,favorites:viewFavorites,wifi:viewWifi,log:viewLog,shots:viewShots,system:viewSystem,update:viewUpdate})[tab]()}
 const LABELS={home_lat:'Home latitude',home_lon:'Home longitude',home_radius_km:'Home zoom radius (km)',home_set:'Home location set',
   show_trails:'Trails',extended_trail:'Flight history on tap',show_speed_vectors:'Speed vectors',show_rings:'Range rings',show_runways:'Runways',
   show_airport_labels:'Airport codes',airport_codes:'Airport code style',show_route_info:'Airline and route on tap',autohide_buttons:'Auto-hide buttons',
@@ -214,6 +216,24 @@ async function viewShots(){
   <div class="grid">${j.files.map(f=>`<a href="/shots/${encodeURIComponent(f)}" target="_blank"><img loading="lazy" src="/shots/${encodeURIComponent(f)}">${esc(f.replace('.png',''))}</a>`).join('')}</div>`+(j.files.length?'':'<p class="muted">No screenshots yet.</p>');
 }
 async function shoot(){const j=await api('/api/screenshot',{});toast(j.ok?'Saving...':j.error);setTimeout(viewShots,3000)}
+async function viewSystem(){
+  const j=await api('/api/log');
+  $('#view').innerHTML=`<div class="card"><b>Backup</b><p class="muted">Settings, saved Wi-Fi networks, favorites and silenced aircraft in one file. It holds your Wi-Fi passwords: keep it private.</p>
+  <div class="flex"><a class="sec" href="/api/backup" download="plane-radar-backup.txt">Download a backup</a></div>
+  <p class="muted" style="margin-top:14px">Restore one (on this radar or a new one):</p>
+  <div class="flex"><input type="file" id="rf" accept=".txt,text/plain" style="flex:1"><button class="btn" onclick="restore()">Restore</button></div></div>
+  ${j.crash?`<div class="card"><b>Last crash</b><p class="muted">The radar restarted unexpectedly. These are the last lines it printed before.</p><pre>${esc(j.crash)}</pre></div>`:''}
+  <div class="card"><div class="flex"><b style="flex:1">System log</b><button class="sec" onclick="viewSystem()">Refresh</button><a class="sec" href="/api/log.txt" download="plane-radar-log.txt">Save</a></div><pre id="logtext">${esc(j.text)||'Nothing yet.'}</pre></div>
+  <div class="card"><b>Logs on the SD card</b>${j.files.length?j.files.map(f=>`<p><a href="/api/logs/${encodeURIComponent(f)}" target="_blank" style="color:var(--acc)">${esc(f)}</a></p>`).join(''):'<p class="muted">'+(j.sd?'Nothing saved yet (it is written every minute).':'With an SD card, the log is kept in log/system.log.')+'</p>'}</div>`;
+  const pre=$('#logtext');pre.scrollTop=pre.scrollHeight;
+}
+async function restore(){
+  const f=$('#rf').files[0];if(!f){toast('Choose a backup file first');return}
+  if(!confirm('Replace the settings, favorites and silenced aircraft with the ones in '+f.name+'?'))return;
+  const r=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'text/plain'},body:await f.text()});
+  const j=await r.json().catch(()=>({ok:false,error:'Bad answer from the radar'}));
+  toast(j.ok?j.summary:j.error,4000);
+}
 function viewUpdate(){
   $('#view').innerHTML=`<div class="card"><b>Installed</b><p>${esc(status.version)} for the ${esc(status.board)} board</p></div>
   <div class="card"><b>Install a firmware file</b><p class="muted">Pick the file that ends in <b>-ota.bin</b> for this board (<b>${esc(status.board)}</b>). Your settings and favorites are kept. The radar checks the file and refuses one for another board.</p>

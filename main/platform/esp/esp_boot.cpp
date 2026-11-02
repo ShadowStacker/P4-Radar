@@ -60,6 +60,7 @@ void bootCheck() {
   uint8_t quick = 0;
   nvs_get_u8(h, "quick", &quick);
   ++quick;
+  s_info.quick_start = quick;
   size_t n = sizeof(s_info.rolled_back_from);
   if (nvs_get_str(h, "rolledback", s_info.rolled_back_from, &n) != ESP_OK) s_info.rolled_back_from[0] = '\0';
   nvs_erase_key(h, "rolledback");  // reported once, on the start after the rollback
