@@ -10,6 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.30.0] - 2026-11-02
+
+### Added
+- **Saved places.** Up to four places besides home on the Location page:
+  pan and zoom the radar to a spot, save it with a name, and tap it later to
+  fly there. They're also in `settings.txt` (`place1` to `place4`) and on the
+  phone page.
+
+### Changed
+- **The sweep can go as slow as 1 rpm** (it stopped at 4), and new radars
+  start at 4 rpm instead of 15. A radar that's already set up keeps its
+  speed.
+
 ## [v1.29.0] - 2026-11-02
 
 ### Added

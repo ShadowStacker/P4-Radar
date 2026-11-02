@@ -45,7 +45,8 @@ size_t validPrefix(uint16_t version) {
     case 15: return offsetof(core::Settings, last_seen_version);
     case 16: return offsetof(core::Settings, replay_record);
     case 17: return offsetof(core::Settings, first_time_alert);
-    case 18: return sizeof(core::Settings);
+    case 18: return offsetof(core::Settings, places);
+    case 19: return sizeof(core::Settings);
     default: return 0;
   }
 }

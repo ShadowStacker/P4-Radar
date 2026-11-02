@@ -426,6 +426,30 @@ void testLogbook() {
   CHECK(csv.empty());
 }
 
+void testPlaces() {
+  core::Settings st;
+  std::vector<std::string> problems;
+  CHECK(core::settings_text::parse("place1 = Cabin, 44.123456, -121.5, 30 km\nplace2 = Work,45,-122\nplace3 = bad, 95, 0\n",
+                                   &st, &problems) == 2);
+  CHECK(problems.size() == 1);
+  CHECK(std::strcmp(st.places[0].name, "Cabin") == 0 && std::fabs(st.places[0].lat - 44.123456) < 1e-9 &&
+        st.places[0].lon == -121.5 && st.places[0].radius_km == 30.0f);
+  CHECK(std::strcmp(st.places[1].name, "Work") == 0 && st.places[1].radius_km == 25.0f);
+  CHECK(st.places[2].name[0] == '\0');
+  const std::string text = core::settings_text::serialize(st);
+  CHECK(text.find("place1 = Cabin, 44.12346, -121.50000, 30\n") != std::string::npos);
+  CHECK(text.find("place3 = \n") != std::string::npos);
+  core::Settings back;
+  core::settings_text::parse(text, &back, nullptr);
+  CHECK(std::strcmp(back.places[0].name, "Cabin") == 0 && back.places[1].radius_km == 25.0f && back.places[3].name[0] == '\0');
+  CHECK(core::settings_text::parse("place1 = off\n", &back, nullptr) == 1 && back.places[0].name[0] == '\0');
+  CHECK(core::settings_text::toJson(st).find("\"type\":\"place\"") != std::string::npos);
+  core::Settings sw;
+  CHECK(sw.sweep_rpm == 4);
+  CHECK(core::settings_text::parse("sweep_rpm = 1\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);
+  CHECK(core::settings_text::parse("sweep_rpm = 0\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);  // clamped
+}
+
 core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
   core::Aircraft a;
   std::snprintf(a.hex, sizeof(a.hex), "%s", hex);
@@ -1737,6 +1761,7 @@ int main() {
   testAdsbParse();
   testBackup();
   testLogbook();
+  testPlaces();
   testReplay();
   testTraffic();
   testFavorites();

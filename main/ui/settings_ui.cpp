@@ -515,6 +515,56 @@ void pageLocation() {
     });
   }, pal().text);
 
+  section("SAVED PLACES");
+  int used = 0;
+  for (int i = 0; i < core::kMaxPlaces; ++i) {
+    const core::Place& pl = st.places[i];
+    if (pl.name[0] == '\0') continue;
+    ++used;
+    actionRow(LV_SYMBOL_GPS, pl.name, [i] {
+      const core::Place& p = app::settings().places[i];
+      closeSettings();
+      RadarView::get().goTo({p.lat, p.lon}, p.radius_km);
+    }, pal().text);
+    actionRow(LV_SYMBOL_TRASH, fmtStr("Remove %s", pl.name).c_str(), [i] {
+      const std::string name = app::settings().places[i].name;
+      confirm(fmtStr("Remove %s?", name.c_str()).c_str(), "The place is taken off the list. Home stays as it is.",
+              "Remove", [i] {
+                app::settings().places[i] = core::Place();
+                changed();
+                showPage(Page::Location);
+              });
+    }, pal().text_dim);
+  }
+  if (used < core::kMaxPlaces) {
+    actionRow(LV_SYMBOL_PLUS, "Save the radar's view as a place", [] {
+      textInput("Name of this place", "", InputKind::Text, [](const std::string& name) {
+        if (name.empty()) return;
+        for (core::Place& p : app::settings().places) {
+          if (p.name[0] != '\0') continue;
+          const core::Viewport& vp = RadarView::get().viewport();
+          std::snprintf(p.name, sizeof(p.name), "%s", name.c_str());
+          p.lat = vp.center().lat;
+          p.lon = vp.center().lon;
+          p.radius_km = static_cast<float>(std::min(400.0, std::max(2.0, vp.radiusKm())));
+          changed();
+          toast((std::string(LV_SYMBOL_OK "  Saved ") + p.name).c_str(), 2000);
+          break;
+        }
+        showPage(Page::Location);
+      });
+    }, pal().accent);
+  }
+  {
+    lv_obj_t* note = label(s.list,
+                           "A place is the view the radar shows when you save it: pan and zoom to it first. Places "
+                           "can also be typed on the phone page (Location).",
+                           font(FontSize::S), pal().text_dim);
+    lv_obj_set_width(note, lv_pct(90));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(note, sc(16), 0);
+  }
+
   section("HOME VIEW");
   sliderRow("Home zoom (radius)", 2, 250, static_cast<int>(app::kmToUnits(st.home_radius_km) + 0.5),
             [](int v) { app::settings().home_radius_km = static_cast<float>(app::unitsToKm(v)); },
@@ -630,7 +680,7 @@ void pageMap() {
 void pageSweep() {
   auto& st = app::settings();
   switchRow("Radar sweep", &st.sweep_enabled);
-  sliderRow("Sweep speed", 4, 60, st.sweep_rpm, [](int v) { app::settings().sweep_rpm = static_cast<uint8_t>(v); },
+  sliderRow("Sweep speed", 1, 60, st.sweep_rpm, [](int v) { app::settings().sweep_rpm = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d rpm", v); });
   sliderRow("Sweep trail", 0, 36, st.sweep_trail_deg / 5,
             [](int v) { app::settings().sweep_trail_deg = static_cast<uint8_t>(v * 5); },

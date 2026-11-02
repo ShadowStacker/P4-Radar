@@ -273,9 +273,14 @@ others).
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
 | Use an airport | Jump home to an airport by ICAO (`KRDM`), IATA (`RDM`) or FAA code (`S39`, `BDN`) | |
 | Home zoom (radius) | How far the view reaches when you press Home, from the center to the edge of the screen | 25 km |
+| Saved places | Up to four more places. Tap one to fly there (at its zoom); **Remove** takes it off the list | |
+| Save the radar's view as a place | Pan and zoom the radar to the spot first, then name it here | |
 
 Home is the center of the range rings and the sweep, and the reference for
-proximity and favorite alerts.
+proximity and favorite alerts. Saved places are just views to jump to: home
+stays where it is. In `settings.txt` (and on the phone page) they're lines like
+`place1 = Cabin, 44.05000, -121.31000, 15` (name, latitude, longitude, zoom
+radius in km); an empty value frees the slot.
 
 ### Display
 
@@ -310,7 +315,7 @@ them all, in that order.
 | SD card | Opens the [SD card](#sd-card) page | |
 | Airport code style | **ICAO** (`KRDM`; fields with only a local code such as `S39` use their IATA code, `PRZ`) or **IATA** (`RDM`, wherever one exists) | ICAO |
 | Radar sweep | The rotating beam animation | On |
-| Sweep speed | Revolutions per minute, 4–60 | 15 rpm |
+| Sweep speed | Revolutions per minute, 1–60 | 4 rpm |
 | Sweep trail | Length of the glowing trail behind the beam, 0–180°. **0 = clean bar** (just the beam line). | 70° |
 | Smooth trail fade | Draws the trail in finer steps with a softer, longer fade (no visible bands). Uses slightly more processing. | Off |
 | Echoes fade after the beam | Aircraft dim after the beam passes and brighten on the next pass, like a real radar scope. Selected aircraft, emergencies and favorites stay bright. | Off |

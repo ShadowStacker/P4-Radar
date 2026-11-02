@@ -19,6 +19,15 @@ struct SavedWifi {
 };
 constexpr int kMaxSavedWifi = 4;  // plus the current one: five networks in all
 
+/** A saved place besides home (Location settings), to jump to. */
+struct Place {
+  char name[16] = "";  // "" = unused slot
+  double lat = 0;
+  double lon = 0;
+  float radius_km = 25.0f;  // zoom
+};
+constexpr int kMaxPlaces = 4;
+
 /**
  * Everything the user can change from the touch menu. Persisted to NVS as a
  * versioned blob plus separate Wi-Fi credential keys, so a firmware update
@@ -45,7 +54,8 @@ struct Settings {
   //  16: up to last_seen_version (v1.21.0)
   //  17: up to replay_record (v1.28.0)
   //  18: up to sound_first_time (v1.29.0)
-  static constexpr uint16_t kVersion = 18;
+  //  19: up to places (v1.30.0)
+  static constexpr uint16_t kVersion = 19;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -70,7 +80,7 @@ struct Settings {
   bool show_rings = true;
   bool show_speed_vectors = true;
   bool sweep_enabled = true;
-  uint8_t sweep_rpm = 15;          // revolutions per minute
+  uint8_t sweep_rpm = 4;           // revolutions per minute
   bool sweep_reveal = false;       // aircraft fade out until the beam passes
   uint8_t dim_after_min = 0;       // 0 = never
   uint8_t dim_brightness = 10;     // % while dimmed
@@ -219,6 +229,9 @@ struct Settings {
   // v1.29.0
   bool first_time_alert = true;           // announce aircraft the logbook has never seen near home
   bool sound_first_time = true;
+
+  // v1.30.0
+  Place places[kMaxPlaces];               // saved places to jump to
 };
 
 }  // namespace core

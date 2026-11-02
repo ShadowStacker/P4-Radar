@@ -29,6 +29,7 @@ enum class Kind : uint8_t {
   Categories,
   Alarm,     // alarms[min]
   Minutes,   // uint16_t minutes after midnight, written HH:MM
+  Place,     // places[min]: "name, lat, lon, radius km" ("" = unused)
 };
 
 struct Field {
@@ -64,6 +65,7 @@ const char* const kDays[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
 #define STR(f, h) {#f, Kind::Str, OFF(f), sizeof(Settings::f), 0, 0, nullptr, 0, h}
 #define ENUM(f, n, h) {#f, Kind::Enum, OFF(f), 0, 0, 0, n, static_cast<int>(sizeof(n) / sizeof(n[0])), h}
 #define ALARM(i) {"alarm" #i, Kind::Alarm, 0, 0, (i) - 1, 0, nullptr, 0, nullptr}
+#define PLACE(i) {"place" #i, Kind::Place, 0, 0, (i) - 1, 0, nullptr, 0, nullptr}
 #define MINUTES(f, h) {#f, Kind::Minutes, OFF(f), 0, 0, 24 * 60 - 1, nullptr, 0, h}
 
 static_assert(kMaxSavedWifi == 4, "one SAVED_WIFI() line per saved network below");
@@ -87,6 +89,10 @@ const Field kFields[] = {
     F64(home_lon, -180, 180, nullptr),
     F32(home_radius_km, 2, 400, "Radius the Home button zooms to (always in km)"),
     BOOL(home_set, "off = ask for a location at startup"),
+    PLACE(1),
+    PLACE(2),
+    PLACE(3),
+    PLACE(4),
 
     SECTION("Display"),
     ENUM(units, kUnits, "km, mi or nm"),
@@ -119,7 +125,7 @@ const Field kFields[] = {
 
     SECTION("Sweep"),
     BOOL(sweep_enabled, nullptr),
-    U8(sweep_rpm, 4, 60, "Revolutions per minute"),
+    U8(sweep_rpm, 1, 60, "Revolutions per minute"),
     U8(sweep_trail_deg, 0, 180, "Length of the fading trail, degrees"),
     BOOL(sweep_smooth, nullptr),
     BOOL(sweep_reveal, "Aircraft fade until the beam passes them"),
@@ -332,6 +338,14 @@ std::string formatValue(const Settings& s, const Field& f) {
       std::snprintf(buf, sizeof(buf), "%02d:%02d", m / 60, m % 60);
       return buf;
     }
+    case Kind::Place: {
+      const Place& pl = s.places[static_cast<int>(f.min)];
+      if (pl.name[0] == '\0') return "";
+      char buf[80];
+      std::snprintf(buf, sizeof(buf), "%s, %.5f, %.5f, %s", pl.name, pl.lat, pl.lon,
+                    formatNumber(pl.radius_km).c_str());
+      return buf;
+    }
     case Kind::Alarm: {
       const Alarm& a = s.alarms[static_cast<int>(f.min)];
       char buf[64];
@@ -357,6 +371,45 @@ bool parseDouble(const std::string& v, double* out) {
   const double d = std::strtod(v.c_str(), &end);
   if (end == v.c_str() || *end != '\0' || !std::isfinite(d)) return false;
   *out = d;
+  return true;
+}
+
+/** "Cabin, 44.1, -121.2, 25" (the radius may be left out); "" or "off" clears the slot. */
+bool parsePlace(const std::string& v, Place* out) {
+  std::string t = v;
+  while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back();
+  if (t.empty() || lower(t) == "off" || t == "\"\"") {
+    *out = Place();
+    return true;
+  }
+  std::vector<std::string> parts;
+  size_t start = 0;
+  for (;;) {
+    const size_t comma = t.find(',', start);
+    std::string part = t.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.front()))) part.erase(0, 1);
+    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.back()))) part.pop_back();
+    parts.push_back(part);
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
+  if (parts.size() < 3 || parts.size() > 4 || parts[0].empty()) return false;
+  Place p;
+  double radius = p.radius_km;
+  if (!parseDouble(parts[1], &p.lat) || !parseDouble(parts[2], &p.lon) || p.lat < -90 || p.lat > 90 ||
+      p.lon < -180 || p.lon > 180) {
+    return false;
+  }
+  if (parts.size() == 4) {
+    std::string r = lower(parts[3]);
+    if (r.size() > 2 && r.compare(r.size() - 2, 2, "km") == 0) r.resize(r.size() - 2);
+    while (!r.empty() && std::isspace(static_cast<unsigned char>(r.back()))) r.pop_back();
+    if (!parseDouble(r, &radius)) return false;
+    radius = std::min(400.0, std::max(2.0, radius));
+  }
+  std::snprintf(p.name, sizeof(p.name), "%s", parts[0].c_str());
+  p.radius_km = static_cast<float>(radius);
+  *out = p;
   return true;
 }
 
@@ -476,6 +529,7 @@ bool parseValue(const Field& f, const std::string& raw, Settings* s) {
       return true;
     }
     case Kind::Alarm: return parseAlarm(v, &s->alarms[static_cast<int>(f.min)]);
+    case Kind::Place: return parsePlace(v, &s->places[static_cast<int>(f.min)]);
   }
   return false;
 }
@@ -527,6 +581,8 @@ std::string serialize(const Settings& s) {
         std::snprintf(buf, sizeof(buf), "#  %2d = %s\n", i, timeZone(i).name);
         out += buf;
       }
+    } else if (f.kind == Kind::Place && f.min == 0) {
+      out += "# Saved places: name, latitude, longitude, zoom radius in km (empty = unused)\n";
     } else if (f.kind == Kind::Alarm && f.min == 0) {
       out += "# Alarms: on/off, 24-hour time, then once, daily, weekdays, weekends or\n"
              "# days like mon,wed,fri or mon-fri\n";
@@ -704,9 +760,13 @@ std::string toJson(const Settings& s) {
         type = "alarm";
         if (f.min == 0) help = "on/off, 24-hour time, then once, daily, weekdays, weekends or days like mon,wed,fri";
         break;
+      case Kind::Place:
+        type = "place";
+        if (f.min == 0) help = "Saved place: name, latitude, longitude, zoom radius in km (empty = unused)";
+        break;
       case Kind::Section: break;
     }
-    if (f.kind != Kind::Str && f.kind != Kind::Alarm && f.kind != Kind::Categories && f.kind != Kind::Minutes &&
+    if (f.kind != Kind::Str && f.kind != Kind::Alarm && f.kind != Kind::Place && f.kind != Kind::Categories && f.kind != Kind::Minutes &&
         f.kind != Kind::Enum && f.kind != Kind::Rotation && f.kind != Kind::Bool) {
       char buf[64];
       std::snprintf(buf, sizeof(buf), ",\"min\":%g,\"max\":%g", f.min, f.max);

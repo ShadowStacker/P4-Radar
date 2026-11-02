@@ -278,6 +278,11 @@ void RadarView::zoomStep(double factor) { vp_.zoomStep(factor, plat::millis()); 
 
 void RadarView::setZoomRate(double octaves_per_s) { vp_.setZoomRate(octaves_per_s, plat::millis()); }
 
+void RadarView::goTo(core::LatLon where, double radius_km) {
+  follow_ = false;
+  vp_.flyTo(where, radius_km, plat::millis(), 800);
+}
+
 bool RadarView::atHome() const {
   const auto& st = app::settings();
   const double d = core::distanceKm(vp_.center(), {st.home_lat, st.home_lon});

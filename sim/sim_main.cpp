@@ -251,6 +251,14 @@ bool findAircraftOnScreen(int* x, int* y) {
 }
 
 /** True if a label under `obj` contains `needle` (the toasts on the top layer). */
+lv_obj_t* findLabel(lv_obj_t* obj, const char* text) {
+  if (lv_obj_check_type(obj, &lv_label_class) && std::strcmp(lv_label_get_text(obj), text) == 0) return obj;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+    if (lv_obj_t* f = findLabel(lv_obj_get_child(obj, static_cast<int32_t>(i)), text)) return f;
+  }
+  return nullptr;
+}
+
 bool hasLabel(lv_obj_t* obj, const char* needle) {
   if (lv_obj_check_type(obj, &lv_label_class) && std::strstr(lv_label_get_text(obj), needle) != nullptr) return true;
   for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
@@ -1243,6 +1251,29 @@ int main(int argc, char** argv) {
     }
     app::settings().show_stats = false;
     run(300);
+  }
+
+  // Saved places: one from settings.txt is listed on the Location page, and
+  // tapping it flies there at its zoom.
+  {
+    ui::RadarView& rv = ui::RadarView::get();
+    rv.goHome(false);
+    run(500);
+    std::vector<std::string> problems;
+    app::applySettingsText("place1 = Cabin, 44.05, -121.31, 15\n", &problems);
+    ui::openSettings(ui::Page::Location);
+    run(600);
+    const bool listed = hasLabel(lv_screen_active(), "Cabin") && hasLabel(lv_screen_active(), "Save the radar's view as a place");
+    shot((p + "80_location_places").c_str());
+    lv_obj_t* row = findLabel(lv_screen_active(), "Cabin");
+    if (row) lv_obj_send_event(lv_obj_get_parent(row), LV_EVENT_CLICKED, nullptr);
+    run(2000);
+    const bool went = !ui::settingsOpen() && core::distanceKm(rv.viewport().center(), {44.05, -121.31}) < 1.0 &&
+                      std::fabs(rv.viewport().radiusKm() - 15.0) < 0.5;
+    std::printf("saved places: listed %s, go there %s\n", listed ? "OK" : "FAILED", went ? "OK" : "FAILED");
+    if (!listed || !went) return 1;
+    rv.goHome(false);
+    run(2000);
   }
 
   // Logbook: a new visitor is announced; the page lists the book.

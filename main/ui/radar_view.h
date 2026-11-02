@@ -33,6 +33,8 @@ class RadarView {
 
   /** Animates back to the home location and home zoom. */
   void goHome(bool animate = true);
+  /** Animates to a place (a saved place) at a zoom radius. */
+  void goTo(core::LatLon where, double radius_km);
   void zoomBy(double factor);
   /** Zoom buttons: a smooth step per tap (steps add up), continuous while held. */
   void zoomStep(double factor);

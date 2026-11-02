@@ -138,7 +138,7 @@ function field(f){
       ctl=`<div class="val"><input type="number" value="${shown}" min="${f.min}" max="${f.max}" step="${f.type=='int'?1:'any'}" oninput="convUpd('${f.key}',this.value)" onchange="save('${f.key}',this.value)"><br>${conv(f)}</div>`;break;}
     case 'time':ctl=`<input type="time" value="${v}" onchange="save('${f.key}',this.value)">`;break;
     case 'text':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" maxlength="${f.maxlen}" onchange="save('${f.key}','&quot;'+this.value+'&quot;')"></div></div>`;
-    case 'alarm':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" onchange="save('${f.key}',this.value)"></div></div>`;
+    case 'alarm':case 'place':return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b>${f.help?`<span>${esc(f.help)}</span>`:''}<input class="wide" value="${v}" onchange="save('${f.key}',this.value)"></div></div>`;
     case 'categories':{
       const on=f.value=='all'?f.options:f.value.split(/[ ,]+/);
       return `<div class="row"><div class="lbl"><b>${nice(f.key)}</b><span>${esc(f.help)}</span><div class="cats" id="${id}">`+
