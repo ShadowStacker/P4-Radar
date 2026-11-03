@@ -270,6 +270,7 @@ others).
 
 | Option | What it does | Default |
 |---|---|---|
+| Search bar | Type a city, state, country (or any place name) and pick from the results: **Show on radar**, **Set as home** or **Bookmark** it. Needs Wi-Fi; see below. | |
 | Latitude / Longitude | Your current home point | Roberts Field (RDM), Redmond, Oregon |
 | Pick on the map | Closes settings and shows a crosshair. Drag the map under it, then tap **Set home**. This also saves the current zoom as the Home zoom. | |
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
@@ -280,6 +281,20 @@ others).
 Home is the center of the range rings and the sweep, and the reference for
 proximity and favorite alerts. You can also long-press any spot on the radar
 and choose **Set as home**.
+
+**Searching for a place.** Tap the search bar at the top of the Location page
+and type a name: `Bend`, `Oregon`, `Germany`, `Lake Tahoe`. Up to six matches
+are listed, each with where it is (county, state, country) and what it is
+(city, state, country, ...). If a name is ambiguous, add the state or country
+(`Bend, Oregon`). Tap a match to:
+
+- **Show on radar**: fly there, zoomed to fit the whole place (a city, a
+  state; countries as far out as the radar goes). Home doesn't change.
+- **Set as home**: make it your home location.
+- **Bookmark**: save it as a [bookmark](#bookmarks), named after the place.
+
+The search uses OpenStreetMap's free Nominatim service, so it needs Wi-Fi; the
+radar only asks it when you search.
 
 ### Bookmarks
 

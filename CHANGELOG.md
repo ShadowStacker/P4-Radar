@@ -10,6 +10,15 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.34.0] - 2026-11-03
+
+### Added
+- **Place search on the Location page.** A search bar at the top: type a
+  city, state, country or any place name and pick from up to six matches,
+  each with where it is and what it is. Tap one to **show it on the radar**
+  (zoomed to fit it), **set it as home**, or **bookmark** it (the name is
+  filled in). It uses OpenStreetMap's Nominatim, so it needs Wi-Fi.
+
 ## [v1.33.0] - 2026-11-03
 
 ### Added

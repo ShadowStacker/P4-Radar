@@ -7,6 +7,7 @@
 
 #include "core/daylog.h"
 #include "core/favorites.h"
+#include "core/geocode.h"
 #include "core/logbook.h"
 #include "core/geo.h"
 #include "core/route.h"
@@ -126,6 +127,20 @@ bool addFavorite(const core::Favorite& f);
 void lookupFavorite(const std::string& registration_or_hex);
 /** Runs a pending lookup (network task); true if it made a request. */
 bool serviceFavoriteLookup();
+
+// --- Place search (Location page) -------------------------------------------------
+enum class PlaceSearchState { Idle, Searching, Done, Failed };
+struct PlaceSearch {
+  PlaceSearchState state = PlaceSearchState::Idle;
+  std::string query;
+  std::vector<core::geocode::Result> results;
+  std::string error;  // when Failed
+};
+/** Looks up a city, state, country... by name online (the network task asks; poll placeSearch()). */
+void searchPlaces(const std::string& query);
+PlaceSearch placeSearch();
+/** Runs a pending search (network task); true if it made a request. */
+bool servicePlaceSearch();
 // --- Silenced aircraft (thread-safe): the opposite of favorites -------------------
 /**
  * No sounds or watchlist notices for these: no new-aircraft chime, proximity

@@ -156,7 +156,9 @@ void run(uint32_t ms, uint32_t step = 16) {
     const bool card = app::maps::serviceSd() || app::serviceSdFiles() || app::serviceCardWork();
     while (app::serviceCardQueue()) {}
     app::serviceReplay();
-    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::serviceRoute()) app::serviceTrace();
+    if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::servicePlaceSearch() && !app::serviceRoute()) {
+      app::serviceTrace();
+    }
     if (!card) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
@@ -1421,6 +1423,63 @@ int main(int argc, char** argv) {
     for (int i = 0; i < core::kMaxBookmarks; ++i) core::bookmark(app::settings(), i) = core::Place();
     app::settingsChanged();
     rv.markStaticDirty();
+    rv.goHome(false);
+    run(2000);
+  }
+
+  // Place search: the search bar on the Location page, results from the
+  // (fake) search service, a result shown on the radar; nothing found.
+  {
+    ui::RadarView& rv = ui::RadarView::get();
+    ui::openSettings(ui::Page::Location);
+    run(500);
+    const bool bar = hasLabel(lv_screen_active(), "Search a city, state or country");
+    if (lv_obj_t* l = findLabel(lv_screen_active(), "Search a city, state or country")) {
+      lv_obj_send_event(lv_obj_get_parent(l), LV_EVENT_CLICKED, nullptr);
+    }
+    run(400);
+    auto typeAndSearch = [&](const char* text) {
+      lv_obj_t* kb = nullptr;
+      std::function<void(lv_obj_t*)> findKb = [&](lv_obj_t* o) {
+        if (!kb && lv_obj_check_type(o, &lv_keyboard_class)) kb = o;
+        for (uint32_t i = 0; !kb && i < lv_obj_get_child_count(o); ++i) findKb(lv_obj_get_child(o, static_cast<int32_t>(i)));
+      };
+      findKb(lv_layer_top());
+      if (kb == nullptr) return false;
+      lv_textarea_set_text(lv_keyboard_get_textarea(kb), text);
+      lv_obj_send_event(kb, LV_EVENT_READY, nullptr);
+      for (int i = 0; i < 40 && app::placeSearch().state == app::PlaceSearchState::Searching; ++i) run(100);
+      run(800);  // the page notices and rebuilds
+      return true;
+    };
+    const bool typed = typeAndSearch("Bend");
+    const bool found = ui::settings_ui::currentPage() == ui::Page::PlaceSearch &&
+                       hasLabel(lv_screen_active(), "Deschutes County, Oregon") &&
+                       hasLabel(lv_screen_active(), "Monterey County") && hasLabel(lv_screen_active(), "city");
+    shot((p + "82_place_search").c_str());
+    if (lv_obj_t* l = findLabel(lv_screen_active(), "Deschutes County, Oregon, United States")) {
+      lv_obj_send_event(lv_obj_get_parent(lv_obj_get_parent(l)), LV_EVENT_CLICKED, nullptr);
+    }
+    run(300);
+    const bool asked = hasLabel(lv_layer_top(), "Show on radar") && hasLabel(lv_layer_top(), "Set as home");
+    if (lv_obj_t* l = findLabel(lv_layer_top(), "Show on radar")) lv_obj_send_event(lv_obj_get_parent(l), LV_EVENT_CLICKED, nullptr);
+    run(2500);
+    const bool shown = !ui::settingsOpen() && core::distanceKm(rv.viewport().center(), {44.058, -121.315}) < 1.0 &&
+                       rv.viewport().radiusKm() > 6 && rv.viewport().radiusKm() < 12;
+    // Nothing found.
+    ui::openSettings(ui::Page::PlaceSearch);
+    run(400);
+    if (lv_obj_t* l = findLabel(lv_screen_active(), "Search a city, state or country")) {
+      lv_obj_send_event(lv_obj_get_parent(l), LV_EVENT_CLICKED, nullptr);
+    }
+    run(400);
+    typeAndSearch("Xyzzy");
+    const bool none = hasLabel(lv_screen_active(), "Nothing found");
+    std::printf("place search: bar %s, typed %s, results %s, asked %s, shown %s, nothing found %s\n", bar ? "OK" : "FAILED",
+                typed ? "OK" : "FAILED", found ? "OK" : "FAILED", asked ? "OK" : "FAILED", shown ? "OK" : "FAILED",
+                none ? "OK" : "FAILED");
+    if (!bar || !typed || !found || !asked || !shown || !none) return 1;
+    ui::closeSettings();
     rv.goHome(false);
     run(2000);
   }

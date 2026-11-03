@@ -1054,7 +1054,7 @@ void networkLoop() {
     }
     if (serviceUpdate()) continue;  // asked for on the About page
     if (!first && now - last_fetch >= kMinFetchSpacingMs &&
-        (serviceFavoriteLookup() || (!menu && (serviceRoute() || serviceTrace())))) {
+        (serviceFavoriteLookup() || servicePlaceSearch() || (!menu && (serviceRoute() || serviceTrace())))) {
       last_fetch = plat::millis();
       continue;
     }
@@ -1721,6 +1721,56 @@ bool addFavorite(const core::Favorite& f) {
   }
   plat::favoritesSave(copy);
   queueFavoritesFile();
+  return true;
+}
+
+std::mutex s_search_mu;
+PlaceSearch s_search;  // guarded by s_search_mu
+bool s_search_pending = false;
+
+void searchPlaces(const std::string& query) {
+  std::lock_guard<std::mutex> lock(s_search_mu);
+  s_search = PlaceSearch{};
+  s_search.query = query;
+  if (plat::wifiStatus().state != plat::WifiState::Connected) {
+    s_search.state = PlaceSearchState::Failed;
+    s_search.error = "Searching needs Wi-Fi";
+    s_search_pending = false;
+    return;
+  }
+  s_search.state = PlaceSearchState::Searching;
+  s_search_pending = true;
+}
+
+PlaceSearch placeSearch() {
+  std::lock_guard<std::mutex> lock(s_search_mu);
+  return s_search;
+}
+
+bool servicePlaceSearch() {
+  std::string query;
+  {
+    std::lock_guard<std::mutex> lock(s_search_mu);
+    if (!s_search_pending) return false;
+    s_search_pending = false;
+    query = s_search.query;
+  }
+  std::string body;
+  const std::string url = core::geocode::searchUrl(query);
+  const int code = plat::httpGet(url.c_str(), &body, 10000);
+  std::vector<core::geocode::Result> results;
+  const bool ok = code == 200 && core::geocode::parse(body.data(), body.size(), &results);
+  std::printf("place search: \"%s\" -> HTTP %d, %u found\n", query.c_str(), code, static_cast<unsigned>(results.size()));
+  std::lock_guard<std::mutex> lock(s_search_mu);
+  if (s_search.query != query || s_search_pending) return true;  // a newer search replaced this one
+  if (ok) {
+    s_search.state = PlaceSearchState::Done;
+    s_search.results = std::move(results);
+  } else {
+    s_search.state = PlaceSearchState::Failed;
+    s_search.error = code < 0 ? "No connection - try again" : code == 200 ? "Unexpected answer from the search service"
+                                                                         : "Search service answered HTTP " + std::to_string(code);
+  }
   return true;
 }
 

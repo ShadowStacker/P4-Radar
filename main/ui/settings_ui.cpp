@@ -489,8 +489,49 @@ const data::Airport* findAirport(const std::string& query) {
   return k_match;
 }
 
+/** Asks what to search for, then shows the results page. */
+void askPlaceSearch() {
+  textInput("City, state, country...", app::placeSearch().query, InputKind::Text, [](const std::string& q) {
+    std::string t = q;
+    while (!t.empty() && std::isspace(static_cast<unsigned char>(t.back()))) t.pop_back();
+    if (t.empty()) return;
+    app::searchPlaces(t);
+    showPage(Page::PlaceSearch);
+  });
+}
+
+/** Looks like a text field; tapping it opens the keyboard. */
+void searchBar() {
+  const Palette& p = pal();
+  lv_obj_t* bar = lv_obj_create(s.list);
+  lv_obj_remove_style_all(bar);
+  lv_obj_set_size(bar, lv_pct(92), LV_SIZE_CONTENT);
+  lv_obj_set_style_margin_left(bar, sc(16), 0);
+  lv_obj_set_style_margin_ver(bar, sc(8), 0);
+  lv_obj_set_style_pad_hor(bar, sc(20), 0);
+  lv_obj_set_style_pad_ver(bar, sc(14), 0);
+  lv_obj_set_style_radius(bar, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_border_color(bar, p.accent, 0);
+  lv_obj_set_style_border_width(bar, sc(2) > 1 ? sc(2) : 1, 0);
+  lv_obj_set_style_bg_color(bar, p.panel, 0);
+  lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(bar, p.panel_border, LV_STATE_PRESSED);
+  lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_flex_flow(bar, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(bar, sc(14), 0);
+  lv_obj_t* img = lv_image_create(bar);
+  lv_image_set_src(img, sprites::searchIcon(sc(30) | 1));
+  lv_obj_set_style_image_recolor(img, p.accent, 0);
+  lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+  label(bar, "Search a city, state or country", font(FontSize::M), p.text_dim);
+  onClick(bar, [] { askPlaceSearch(); });
+}
+
 void pageLocation() {
   auto& st = app::settings();
+  searchBar();
   infoRow("Latitude", fmtStr("%.5f", st.home_lat));
   infoRow("Longitude", fmtStr("%.5f", st.home_lon));
 
@@ -1611,6 +1652,79 @@ void pageNearby() {
   lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
+/** Place search results; tapping one offers to show it, make it home or bookmark it. */
+void pagePlaceSearch() {
+  const Palette& p = pal();
+  const app::PlaceSearch ps = app::placeSearch();
+  searchBar();
+  auto note = [&](const std::string& text) {
+    lv_obj_t* l = label(s.list, text.c_str(), font(FontSize::M), p.text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  };
+  switch (ps.state) {
+    case app::PlaceSearchState::Idle: break;
+    case app::PlaceSearchState::Searching:
+      note("Searching for \"" + ps.query + "\"...");
+      // Rebuild once the answer is in.
+      s.tick = [] {
+        if (app::placeSearch().state != app::PlaceSearchState::Searching) showPage(Page::PlaceSearch);
+      };
+      break;
+    case app::PlaceSearchState::Failed: note(std::string(LV_SYMBOL_WARNING "  ") + ps.error); break;
+    case app::PlaceSearchState::Done:
+      if (ps.results.empty()) {
+        note("Nothing found for \"" + ps.query + "\". Check the spelling, or add the state or country (\"Bend, "
+             "Oregon\").");
+        break;
+      }
+      section(("RESULTS FOR \"" + ps.query + "\"").c_str());
+      for (const core::geocode::Result& r : ps.results) {
+        lv_obj_t* row = baseRow(s.list);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_bg_color(row, p.panel_border, LV_STATE_PRESSED);
+        lv_obj_t* col = lv_obj_create(row);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_height(col, LV_SIZE_CONTENT);
+        lv_obj_set_flex_grow(col, 1);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(col, sc(2), 0);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(col, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_t* name = label(col, r.name.c_str(), font(FontSize::M), p.text);
+        lv_obj_set_width(name, lv_pct(100));
+        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+        if (!r.detail.empty()) {
+          lv_obj_t* d = label(col, r.detail.c_str(), font(FontSize::S), p.text_dim);
+          lv_obj_set_width(d, lv_pct(100));
+          lv_label_set_long_mode(d, LV_LABEL_LONG_DOT);
+        }
+        if (!r.kind.empty()) label(row, r.kind.c_str(), font(FontSize::S), p.accent);
+        const core::geocode::Result res = r;
+        onClick(row, [res] {
+          const std::string coords = fmtStr("%.4f, %.4f", res.lat, res.lon);
+          choose(res.name.c_str(), (res.detail.empty() ? coords : res.detail + "\n" + coords).c_str(),
+                 {{"Show on radar",
+                   [res] {
+                     closeSettings();
+                     RadarView::get().goTo({res.lat, res.lon}, res.radius_km);
+                   },
+                   false},
+                  {LV_SYMBOL_HOME "  Set as home", [res] { setHome(res.lat, res.lon, res.name.c_str()); }, false},
+                  {"Bookmark", [res] { addBookmark(res.lat, res.lon, res.radius_km, res.name); }, true}});
+        });
+      }
+      break;
+  }
+  lv_obj_t* credit = label(s.list, "Place search by OpenStreetMap (Nominatim). Needs Wi-Fi.", font(FontSize::S),
+                           p.text_dim);
+  lv_obj_set_width(credit, lv_pct(90));
+  lv_label_set_long_mode(credit, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(credit, sc(16), 0);
+  lv_obj_set_style_pad_top(credit, sc(10), 0);
+}
+
 /** Bookmarks: tap one to show it on the radar; the trash can removes it. */
 void pageBookmarks() {
   const Palette& p = pal();
@@ -2073,6 +2187,7 @@ const char* pageTitle(Page p) {
     case Page::Logbook: return "Logbook";
     case Page::Nearby: return "Nearby aircraft";
     case Page::Bookmarks: return "Bookmarks";
+    case Page::PlaceSearch: return "Search places";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -2113,6 +2228,7 @@ void showPage(Page page) {
     case Page::Logbook: pageLogbook(); break;
     case Page::Nearby: pageNearby(); break;
     case Page::Bookmarks: pageBookmarks(); break;
+    case Page::PlaceSearch: pagePlaceSearch(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
@@ -2166,6 +2282,7 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
     else if (s.page == Page::Silenced) showPage(Page::Sound);
     else if (s.page == Page::Logbook) showPage(Page::DayLog);
+    else if (s.page == Page::PlaceSearch) showPage(Page::Location);
     else showPage(Page::Main);
   });
   lv_obj_align(back, LV_ALIGN_CENTER, -sc(196), -sc(286));
@@ -2209,7 +2326,7 @@ void destroy() {
 
 namespace ui {
 
-void addBookmark(double lat, double lon, double radius_km) {
+void addBookmark(double lat, double lon, double radius_km, const std::string& name) {
   int named = 0, free_slot = -1;
   for (int i = 0; i < core::kMaxBookmarks; ++i) {
     if (core::bookmark(app::settings(), i).name[0] != '\0') ++named;
@@ -2220,7 +2337,13 @@ void addBookmark(double lat, double lon, double radius_km) {
     return;
   }
   const std::string fallback = "Bookmark " + std::to_string(named + 1);
-  textInput(("Name it (blank: " + fallback + ")").c_str(), "", InputKind::Text,
+  // A suggested name, cut to what fits (at a whole UTF-8 character).
+  std::string initial = name.substr(0, std::min<size_t>(name.size(), sizeof(core::Place::name) - 1));
+  if (initial.size() < name.size()) {
+    while (!initial.empty() && (static_cast<unsigned char>(initial.back()) & 0xC0) == 0x80) initial.pop_back();
+    if (!initial.empty() && (static_cast<unsigned char>(initial.back()) & 0x80)) initial.pop_back();
+  }
+  textInput(("Name it (blank: " + fallback + ")").c_str(), initial, InputKind::Text,
             [lat, lon, radius_km, fallback](const std::string& typed) {
               std::string name = typed;
               while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back()))) name.pop_back();

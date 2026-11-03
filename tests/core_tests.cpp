@@ -42,6 +42,7 @@
 #include "core/tiles.h"
 #include "core/trace.h"
 #include "core/update.h"
+#include "core/geocode.h"
 #include "core/net_watch.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
@@ -460,6 +461,40 @@ void testPlaces() {
   CHECK(sw.sweep_rpm == 4);
   CHECK(core::settings_text::parse("sweep_rpm = 1\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);
   CHECK(core::settings_text::parse("sweep_rpm = 0\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);  // clamped
+}
+
+void testGeocode() {
+  namespace g = core::geocode;
+  CHECK(g::urlEncode("Bend, OR") == "Bend%2C%20OR");
+  CHECK(g::urlEncode("S\xC3\xA3o Paulo") == "S%C3%A3o%20Paulo");  // UTF-8 kept byte by byte
+  CHECK(g::searchUrl("  Oregon ") ==
+        "https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=en&limit=6&q=Oregon");
+  const char* json = R"([
+    {"place_id":1,"lat":"44.0581728","lon":"-121.3153096","category":"boundary","type":"administrative",
+     "addresstype":"city","name":"Bend","display_name":"Bend, Deschutes County, Oregon, United States",
+     "boundingbox":["43.9907","44.1215","-121.3907","-121.2482"]},
+    {"place_id":2,"lat":"43.9792797","lon":"-120.737257","addresstype":"state","name":"Oregon",
+     "display_name":"Oregon, United States","boundingbox":["41.9917941","46.2991083","-124.7035","-116.4632"]},
+    {"place_id":3,"lat":"39.7837304","lon":"-100.445882","addresstype":"country","name":"United States",
+     "display_name":"United States","boundingbox":["-14.7608","71.5399","-180.0","180.0"]},
+    {"place_id":4,"lat":"bad","lon":"1"},
+    {"place_id":5,"lat":"10","lon":"20","type":"peak","display_name":"Nameless Peak, Somewhere"}
+  ])";
+  std::vector<g::Result> r;
+  CHECK(g::parse(json, std::strlen(json), &r));
+  CHECK(r.size() == 4);  // the one without a usable position is skipped
+  if (r.size() == 4) {
+    CHECK(r[0].name == "Bend" && r[0].detail == "Deschutes County, Oregon, United States" && r[0].kind == "city");
+    CHECK(std::fabs(r[0].lat - 44.0581728) < 1e-9 && std::fabs(r[0].lon + 121.3153096) < 1e-9);
+    CHECK(r[0].radius_km > 6 && r[0].radius_km < 12);    // ~14.6 km across
+    CHECK(r[1].kind == "state" && r[1].radius_km > 300 && r[1].radius_km < 460);
+    CHECK(r[2].detail.empty() && r[2].radius_km == core::Viewport::kMaxRadiusKm);  // as far out as the radar goes
+    CHECK(r[3].name == "Nameless Peak" && r[3].detail == "Somewhere" && r[3].kind == "peak" && r[3].radius_km == 25);
+  }
+  CHECK(g::parse("[]", 2, &r) && r.empty());
+  CHECK(!g::parse("{\"error\":\"x\"}", 13, &r));
+  CHECK(!g::parse("<html>", 6, &r));
+  CHECK(g::radiusForBox(44.0, 44.0, -121.0, -121.0) == 5.0);  // a point: the closest zoom it gets
 }
 
 void testNetWatch() {
@@ -1862,6 +1897,7 @@ int main() {
   testBackup();
   testJobQueue();
   testNetWatch();
+  testGeocode();
   testLogbook();
   testPlaces();
   testReplay();

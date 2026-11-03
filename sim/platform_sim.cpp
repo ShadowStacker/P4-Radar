@@ -249,6 +249,23 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     body->append(fakeTile(topo || sat, z, x, y, osm, faa));  // (satellite: the topo look will do)
     return 200;
   }
+  if (std::strstr(url, "nominatim.openstreetmap.org/search") != nullptr) {
+    // Place search: a few known names, nothing for anything else.
+    std::string q = std::strstr(url, "&q=") ? std::string(std::strstr(url, "&q=") + 3) : "";
+    for (char& c : q) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (q == "bend") {
+      *body = R"([{"lat":"44.0581728","lon":"-121.3153096","addresstype":"city","name":"Bend",
+        "display_name":"Bend, Deschutes County, Oregon, United States","boundingbox":["43.9907","44.1215","-121.3907","-121.2482"]},
+        {"lat":"36.6563","lon":"-121.9405","addresstype":"hamlet","name":"Bend",
+        "display_name":"Bend, Monterey County, California, United States","boundingbox":["36.64","36.67","-121.95","-121.93"]}])";
+    } else if (q == "oregon") {
+      *body = R"([{"lat":"43.9792797","lon":"-120.737257","addresstype":"state","name":"Oregon",
+        "display_name":"Oregon, United States","boundingbox":["41.9917941","46.2991083","-124.7035","-116.4632"]}])";
+    } else {
+      *body = "[]";
+    }
+    return 200;
+  }
   if (const char* ac = std::strstr(url, "adsbdb.com/v0/aircraft/")) {
     if (!sim::g_route_server) return -1;
     std::string hex(ac + std::strlen("adsbdb.com/v0/aircraft/"));

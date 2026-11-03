@@ -309,6 +309,47 @@ const lv_draw_buf_t* bookmarkIcon(int32_t size) {
   return buf;
 }
 
+const lv_draw_buf_t* searchIcon(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  const int32_t w = size / 9 > 2 ? size / 9 : 2;
+  // Lens up and to the left, handle down to the lower right.
+  lv_draw_arc_dsc_t arc;
+  lv_draw_arc_dsc_init(&arc);
+  arc.color = lv_color_white();
+  arc.width = w;
+  arc.center.x = size * 42 / 100;
+  arc.center.y = size * 42 / 100;
+  arc.radius = static_cast<uint16_t>(size * 30 / 100);
+  arc.start_angle = 0;
+  arc.end_angle = 360;
+  lv_draw_arc(&layer, &arc);
+  lv_draw_line_dsc_t ln;
+  lv_draw_line_dsc_init(&ln);
+  ln.color = lv_color_white();
+  ln.width = w + 1;
+  ln.round_start = ln.round_end = 1;
+  ln.p1.x = size * 64 / 100;
+  ln.p1.y = size * 64 / 100;
+  ln.p2.x = size * 90 / 100;
+  ln.p2.y = size * 90 / 100;
+  lv_draw_line(&layer, &ln);
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.emplace_back(size, buf);
+  return buf;
+}
+
 const lv_draw_buf_t* cameraIcon(int32_t size) {
   static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
   for (const auto& e : s_cache) {
