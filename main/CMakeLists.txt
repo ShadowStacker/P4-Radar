@@ -18,3 +18,6 @@ idf_component_register(
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
 # The display panel is created through our wrapper (see platform/esp/esp_display.cpp).
 target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=esp_lcd_new_panel_dpi")
+# LVGL's memory functions live in platform/esp/esp_lv_mem.cpp; only LVGL calls
+# them, so tell the linker to keep that file.
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--undefined=lv_malloc_core")

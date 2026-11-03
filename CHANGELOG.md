@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.35.1] - 2026-11-03
+
+### Fixed
+- **More room in internal RAM, so Wi-Fi doesn't run out.** Everything on
+  the screen (buttons, labels, menu rows, their styles) used to be kept in
+  the small internal RAM that Wi-Fi, secure connections and the drivers also
+  need. A full menu page alone took a big share of it. All of that now goes
+  in the large external memory (PSRAM) instead. Internal RAM is only used if
+  PSRAM is ever full. With the on-screen stats on, the "RAM" figure should be
+  noticeably higher, especially with a menu open, and its "low" mark should
+  stay well above 0.
+
 ## [v1.35.0] - 2026-11-03
 
 ### Added
