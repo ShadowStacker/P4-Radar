@@ -275,6 +275,40 @@ const lv_draw_buf_t* planeIcon(int32_t size) {
   return buf;
 }
 
+const lv_draw_buf_t* bookmarkIcon(int32_t size) {
+  static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
+  for (const auto& e : s_cache) {
+    if (e.first == size) return e.second;
+  }
+  lv_draw_buf_t* buf = createImageBuf(size, size, LV_COLOR_FORMAT_ARGB8888);
+  if (buf == nullptr) return nullptr;
+  lv_draw_buf_clear(buf, nullptr);
+  lv_obj_t* canvas = lv_canvas_create(lv_screen_active());
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_set_draw_buf(canvas, buf);
+  lv_layer_t layer;
+  lv_canvas_init_layer(canvas, &layer);
+  // The ribbon: a solid body down to the notch, then two tails. The tails
+  // overlap the body a little, so no seam shows where they meet.
+  const float c = size / 2.0f, k = size * 0.5f;
+  lv_draw_rect_dsc_t body;
+  lv_draw_rect_dsc_init(&body);
+  body.bg_color = lv_color_white();
+  body.radius = size / 16;
+  const lv_area_t box = {static_cast<int32_t>(c - 0.46f * k), static_cast<int32_t>(c - 0.82f * k),
+                         static_cast<int32_t>(c + 0.46f * k) - 1, static_cast<int32_t>(c + 0.44f * k)};
+  lv_draw_rect(&layer, &body, &box);
+  static const V kTails[][3] = {
+      {{-0.46f, 0.36f}, {0.04f, 0.36f}, {-0.46f, 0.82f}},
+      {{-0.04f, 0.36f}, {0.46f, 0.36f}, {0.46f, 0.82f}},
+  };
+  drawTris(&layer, kTails, 2, c, c, k, 0);
+  lv_canvas_finish_layer(canvas, &layer);
+  lv_obj_delete(canvas);
+  s_cache.emplace_back(size, buf);
+  return buf;
+}
+
 const lv_draw_buf_t* cameraIcon(int32_t size) {
   static std::vector<std::pair<int32_t, lv_draw_buf_t*>> s_cache;
   for (const auto& e : s_cache) {

@@ -447,6 +447,14 @@ void testPlaces() {
   core::settings_text::parse(text, &back, nullptr);
   CHECK(std::strcmp(back.places[0].name, "Cabin") == 0 && back.places[1].radius_km == 25.0f && back.places[3].name[0] == '\0');
   CHECK(core::settings_text::parse("place1 = off\n", &back, nullptr) == 1 && back.places[0].name[0] == '\0');
+  // Bookmarks 5-8 live in places_more; the same keys continue.
+  CHECK(core::settings_text::parse("place5 = Lake, 43.5, -121.0, 12\nplace8 = Ridge, 44, -120\n", &back, nullptr) == 2);
+  CHECK(std::strcmp(back.places_more[0].name, "Lake") == 0 && back.places_more[0].radius_km == 12.0f);
+  CHECK(std::strcmp(core::bookmark(back, 7).name, "Ridge") == 0 && &core::bookmark(back, 7) == &back.places_more[3]);
+  CHECK(&core::bookmark(back, 2) == &back.places[2]);
+  const std::string text8 = core::settings_text::serialize(back);
+  CHECK(text8.find("place5 = Lake, 43.50000, -121.00000, 12\n") != std::string::npos);
+  CHECK(text8.find("# Bookmarks:") != std::string::npos);
   CHECK(core::settings_text::toJson(st).find("\"type\":\"place\"") != std::string::npos);
   core::Settings sw;
   CHECK(sw.sweep_rpm == 4);

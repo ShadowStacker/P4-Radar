@@ -46,6 +46,7 @@ struct Hud {
   lv_obj_t* sleep = nullptr;
   lv_obj_t* camera = nullptr;     // screenshot
   lv_obj_t* list_btn = nullptr;   // nearby aircraft list
+  lv_obj_t* bookmark_btn = nullptr;  // bookmarks
   lv_obj_t* alt_key = nullptr;    // altitude color scale under the status pill
   lv_obj_t* alarm_box = nullptr;  // "alarm ringing" dialog, while shown
   lv_obj_t* gear = nullptr;
@@ -591,6 +592,7 @@ void leavePickMode() {
   setHidden(h.sleep, false);
   setHidden(h.camera, false);
   setHidden(h.list_btn, false);
+  setHidden(h.bookmark_btn, false);
   updateCard();
 }
 
@@ -646,6 +648,7 @@ void enterPickMode() {
   setHidden(h.sleep, true);
   setHidden(h.camera, true);
   setHidden(h.list_btn, true);
+  setHidden(h.bookmark_btn, true);
   updateCard();
 }
 
@@ -762,14 +765,26 @@ void create(lv_obj_t* parent) {
     lv_obj_set_style_image_recolor(icon, p.text, 0);
     lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
   }
-  placePolar(h.list_btn, -121.5f, 0.80f);
+  // The left side holds one more button than the right (Bookmarks), so its six
+  // are spaced evenly from the sweep button down to zoom-out: 19 degrees apart.
+  placePolar(h.list_btn, -121.0f, 0.80f);
 
-  // Sleep, mirroring the clock button: screen off and quiet until a tap
-  // (or an alarm, with Wake on alarm on).
+  // Bookmarks, between sleep and the aircraft list.
+  h.bookmark_btn = iconButton(h.controls, "", d, [] { openSettings(Page::Bookmarks); });
+  {
+    lv_obj_t* icon = lv_image_create(h.bookmark_btn);
+    lv_image_set_src(icon, sprites::bookmarkIcon(sc(34) | 1));
+    lv_obj_center(icon);
+    lv_obj_set_style_image_recolor(icon, p.text, 0);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+  }
+  placePolar(h.bookmark_btn, -102.0f, 0.80f);
+
+  // Sleep: screen off and quiet until a tap (or an alarm, with Wake on alarm on).
   h.sleep = iconButton(h.controls, LV_SYMBOL_POWER, d, [] { app::setSleeping(true); });
-  placePolar(h.sleep, -103, 0.80f);
+  placePolar(h.sleep, -83, 0.80f);
 
-  // Mute, mirroring the filter button on the left.
+  // Mute.
   h.mute = iconButton(h.controls, LV_SYMBOL_VOLUME_MAX, d, [] {
     auto& st = app::settings();
     st.sound_enabled = !st.sound_enabled;
@@ -779,7 +794,7 @@ void create(lv_obj_t* parent) {
     updateStatus();
   });
   h.mute_label = lv_obj_get_child(h.mute, 0);
-  placePolar(h.mute, -77, 0.80f);
+  placePolar(h.mute, -64, 0.80f);
 
   h.sweep = iconButton(h.controls, LV_SYMBOL_LOOP, d, [] {
     auto& st = app::settings();
@@ -810,19 +825,28 @@ void create(lv_obj_t* parent) {
 
   RadarView& rv = RadarView::get();
   rv.on_selection_changed = [] { updateCard(); };
+  // Long press anywhere: make that spot home, or bookmark it.
   rv.on_long_press = [](core::LatLon ll) {
-    static char body[96];
-    std::snprintf(body, sizeof(body), "Make this spot your home location?\n%.4f, %.4f", ll.lat, ll.lon);
-    confirm("Set home here?", body, LV_SYMBOL_HOME " Set home", [ll] {
-      auto& st = app::settings();
-      st.home_lat = ll.lat;
-      st.home_lon = ll.lon;
-      st.home_set = true;
-      app::settingsChanged();
-      app::settingsFlush();
-      RadarView::get().markStaticDirty();
-      toast(LV_SYMBOL_OK "  Home location saved");
-    });
+    const auto& st = app::settings();
+    char dist[24];
+    app::formatDistance(core::distanceKm({st.home_lat, st.home_lon}, ll), dist, sizeof(dist));
+    char body[128];
+    std::snprintf(body, sizeof(body), "%.4f, %.4f\n%s from home", ll.lat, ll.lon, dist);
+    const double radius = RadarView::get().viewport().radiusKm();
+    choose("This spot", body,
+           {{LV_SYMBOL_HOME "  Set as home",
+             [ll] {
+               auto& s = app::settings();
+               s.home_lat = ll.lat;
+               s.home_lon = ll.lon;
+               s.home_set = true;
+               app::settingsChanged();
+               app::settingsFlush();
+               RadarView::get().markStaticDirty();
+               toast(LV_SYMBOL_OK "  Home location saved");
+             },
+             false},
+            {"Bookmark", [ll, radius] { addBookmark(ll.lat, ll.lon, radius); }, true}});
   };
 
   h.timer = lv_timer_create(onTimer, 500, nullptr);

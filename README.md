@@ -82,7 +82,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   for that aircraft (a local flight school's trainers, say); emergencies still sound.
 - **Screenshots**: a camera button saves the radar as a PNG on the SD card.
 - **Flight replay**: a week of traffic around home is recorded on the SD card and plays back on the radar.
-- **Saved places**: up to four places besides home to jump to.
+- **Bookmarks**: up to eight places to jump to, from a button on the radar; long-press any spot to bookmark it or make it home.
 - **Nearby aircraft**: a list of what's around, sorted by distance, altitude or speed; tap one to see it on the radar.
 - **Logbook**: every aircraft ever seen near home, with visits, in `logbook.csv`; a "first time here" alert for
   aircraft it has never seen.

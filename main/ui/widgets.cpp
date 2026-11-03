@@ -103,6 +103,10 @@ lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* f, lv_color
 }
 
 void confirm(const char* title, const char* body, const char* yes_text, Callback on_yes) {
+  choose(title, body, {{yes_text, std::move(on_yes), true}});
+}
+
+void choose(const char* title, const char* body, std::vector<Choice> choices) {
   const Palette& p = pal();
   lv_obj_t* scrim = lv_obj_create(lv_layer_top());
   lv_obj_remove_style_all(scrim);
@@ -130,18 +134,22 @@ void confirm(const char* title, const char* body, const char* yes_text, Callback
   lv_obj_t* row = lv_obj_create(box);
   lv_obj_remove_style_all(row);
   lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
   lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_top(row, sc(8), 0);
+  lv_obj_set_style_pad_row(row, sc(12), 0);
+  lv_obj_set_style_pad_column(row, sc(12), 0);
 
   pillButton(row, "Cancel", [scrim] { lv_obj_delete_async(scrim); });
-  pillButton(
-      row, yes_text,
-      [scrim, on_yes] {
-        lv_obj_delete_async(scrim);
-        if (on_yes) on_yes();
-      },
-      true);
+  for (Choice& c : choices) {
+    pillButton(
+        row, c.text.c_str(),
+        [scrim, cb = std::move(c.cb)] {
+          lv_obj_delete_async(scrim);
+          if (cb) cb();
+        },
+        c.accent);
+  }
 }
 
 void toast(const char* text, uint32_t ms) {

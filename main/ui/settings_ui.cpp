@@ -276,6 +276,12 @@ void choiceRow(const char* text, const char* const* map, int current, std::funct
 
 std::string updateSummary();
 
+std::string bookmarkCount() {
+  int n = 0;
+  for (int i = 0; i < core::kMaxBookmarks; ++i) n += core::bookmark(app::settings(), i).name[0] != '\0';
+  return n ? fmtStr("%d", n) : std::string();
+}
+
 void pageMain() {
   const auto& st = app::settings();
   const plat::WifiStatus ws = plat::wifiStatus();
@@ -284,6 +290,7 @@ void pageMain() {
 
   navRow(LV_SYMBOL_WIFI, "Wi-Fi", wifi, Page::Wifi);
   navRow(LV_SYMBOL_HOME, "Location", fmtStr("%.3f, %.3f", st.home_lat, st.home_lon), Page::Location);
+  navRowImage(sprites::bookmarkIcon(sc(30) | 1), "Bookmarks", bookmarkCount(), Page::Bookmarks);
   navRow(LV_SYMBOL_IMAGE, "Display", "", Page::Display);
   navRow(LV_SYMBOL_VOLUME_MAX, "Sound", st.sound_enabled ? fmtStr("%d%%", st.volume) : "Off", Page::Sound);
   navRow(LV_SYMBOL_GPS, "Traffic & data", core::adsb::sourceName(st.source), Page::Traffic);
@@ -521,50 +528,10 @@ void pageLocation() {
     });
   }, pal().text);
 
-  section("SAVED PLACES");
-  int used = 0;
-  for (int i = 0; i < core::kMaxPlaces; ++i) {
-    const core::Place& pl = st.places[i];
-    if (pl.name[0] == '\0') continue;
-    ++used;
-    actionRow(LV_SYMBOL_GPS, pl.name, [i] {
-      const core::Place& p = app::settings().places[i];
-      closeSettings();
-      RadarView::get().goTo({p.lat, p.lon}, p.radius_km);
-    }, pal().text);
-    actionRow(LV_SYMBOL_TRASH, fmtStr("Remove %s", pl.name).c_str(), [i] {
-      const std::string name = app::settings().places[i].name;
-      confirm(fmtStr("Remove %s?", name.c_str()).c_str(), "The place is taken off the list. Home stays as it is.",
-              "Remove", [i] {
-                app::settings().places[i] = core::Place();
-                changed();
-                showPage(Page::Location);
-              });
-    }, pal().text_dim);
-  }
-  if (used < core::kMaxPlaces) {
-    actionRow(LV_SYMBOL_PLUS, "Save the radar's view as a place", [] {
-      textInput("Name of this place", "", InputKind::Text, [](const std::string& name) {
-        if (name.empty()) return;
-        for (core::Place& p : app::settings().places) {
-          if (p.name[0] != '\0') continue;
-          const core::Viewport& vp = RadarView::get().viewport();
-          std::snprintf(p.name, sizeof(p.name), "%s", name.c_str());
-          p.lat = vp.center().lat;
-          p.lon = vp.center().lon;
-          p.radius_km = static_cast<float>(std::min(400.0, std::max(2.0, vp.radiusKm())));
-          changed();
-          toast((std::string(LV_SYMBOL_OK "  Saved ") + p.name).c_str(), 2000);
-          break;
-        }
-        showPage(Page::Location);
-      });
-    }, pal().accent);
-  }
+  section("OTHER PLACES");
+  navRowImage(sprites::bookmarkIcon(sc(30) | 1), "Bookmarks", bookmarkCount(), Page::Bookmarks);
   {
-    lv_obj_t* note = label(s.list,
-                           "A place is the view the radar shows when you save it: pan and zoom to it first. Places "
-                           "can also be typed on the phone page (Location).",
+    lv_obj_t* note = label(s.list, "Tip: long-press anywhere on the radar to make that spot home, or to bookmark it.",
                            font(FontSize::S), pal().text_dim);
     lv_obj_set_width(note, lv_pct(90));
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
@@ -1644,6 +1611,64 @@ void pageNearby() {
   lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
+/** Bookmarks: tap one to show it on the radar; the trash can removes it. */
+void pageBookmarks() {
+  const Palette& p = pal();
+  const auto& st = app::settings();
+  const core::LatLon home{st.home_lat, st.home_lon};
+  int used = 0;
+  for (int i = 0; i < core::kMaxBookmarks; ++i) {
+    const core::Place& pl = core::bookmark(st, i);
+    if (pl.name[0] == '\0') continue;
+    ++used;
+    lv_obj_t* r = baseRow(s.list);
+    lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(r, p.panel_border, LV_STATE_PRESSED);
+    lv_obj_t* img = lv_image_create(r);
+    lv_image_set_src(img, sprites::bookmarkIcon(sc(30) | 1));
+    lv_obj_set_style_image_recolor(img, p.accent, 0);
+    lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+    growLabel(r, pl.name, p.text);
+    const double km = core::distanceKm(home, {pl.lat, pl.lon});
+    char dist[24];
+    app::formatDistance(km, dist, sizeof(dist));
+    label(r, km < 0.5 ? "at home" : fmtStr("%s away", dist).c_str(), font(FontSize::S), p.text_dim);
+    iconButton(r, LV_SYMBOL_TRASH, sc(56), [i] {
+      const std::string name = core::bookmark(app::settings(), i).name;
+      confirm(fmtStr("Remove %s?", name.c_str()).c_str(), "The bookmark is taken off the list.", "Remove", [i] {
+        core::bookmark(app::settings(), i) = core::Place();
+        changed();
+        app::settingsFlush();
+        showPage(Page::Bookmarks);
+      });
+    });
+    onClick(r, [i] {
+      const core::Place& b = core::bookmark(app::settings(), i);
+      const core::LatLon ll{b.lat, b.lon};
+      const double radius = b.radius_km;
+      closeSettings();
+      RadarView::get().goTo(ll, radius);
+    });
+  }
+  if (used == 0) {
+    lv_obj_t* l = label(s.list, "No bookmarks yet.", font(FontSize::M), p.text_dim);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
+  if (used < core::kMaxBookmarks) {
+    actionRow(LV_SYMBOL_PLUS, "Bookmark the radar's view", [] {
+      const core::Viewport& vp = RadarView::get().viewport();
+      addBookmark(vp.center().lat, vp.center().lon, vp.radiusKm());
+    }, p.accent);
+  }
+  const std::string text = "Tap a bookmark to show it on the radar, at the zoom it was saved with. Long-press "
+                           "anywhere on the radar to bookmark that spot (or make it home). Up to " +
+                           std::to_string(core::kMaxBookmarks) + "; they can also be typed on the phone page.";
+  lv_obj_t* note = label(s.list, text.c_str(), font(FontSize::S), p.text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+}
+
 void pageDayLog() {
   lv_obj_t* date = infoRow("Today", "");
   lv_obj_t* count = infoRow("Aircraft", "");
@@ -2047,6 +2072,7 @@ const char* pageTitle(Page p) {
     case Page::Replay: return "Replay";
     case Page::Logbook: return "Logbook";
     case Page::Nearby: return "Nearby aircraft";
+    case Page::Bookmarks: return "Bookmarks";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -2086,6 +2112,7 @@ void showPage(Page page) {
     case Page::Replay: pageReplay(); break;
     case Page::Logbook: pageLogbook(); break;
     case Page::Nearby: pageNearby(); break;
+    case Page::Bookmarks: pageBookmarks(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;
@@ -2179,3 +2206,41 @@ void destroy() {
 }
 
 }  // namespace ui::settings_ui
+
+namespace ui {
+
+void addBookmark(double lat, double lon, double radius_km) {
+  int named = 0, free_slot = -1;
+  for (int i = 0; i < core::kMaxBookmarks; ++i) {
+    if (core::bookmark(app::settings(), i).name[0] != '\0') ++named;
+    else if (free_slot < 0) free_slot = i;
+  }
+  if (free_slot < 0) {
+    toast(LV_SYMBOL_WARNING "  All bookmarks used - remove one first", 3000);
+    return;
+  }
+  const std::string fallback = "Bookmark " + std::to_string(named + 1);
+  textInput(("Name it (blank: " + fallback + ")").c_str(), "", InputKind::Text,
+            [lat, lon, radius_km, fallback](const std::string& typed) {
+              std::string name = typed;
+              while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back()))) name.pop_back();
+              while (!name.empty() && std::isspace(static_cast<unsigned char>(name.front()))) name.erase(0, 1);
+              if (name.empty()) name = fallback;
+              for (int i = 0; i < core::kMaxBookmarks; ++i) {
+                core::Place& p = core::bookmark(app::settings(), i);
+                if (p.name[0] != '\0') continue;
+                std::snprintf(p.name, sizeof(p.name), "%s", name.c_str());
+                p.lat = lat;
+                p.lon = lon;
+                p.radius_km = static_cast<float>(std::min(400.0, std::max(2.0, radius_km)));
+                app::settingsChanged();
+                app::settingsFlush();
+                toast((std::string(LV_SYMBOL_OK "  Bookmarked ") + p.name).c_str(), 2500);
+                if (settingsOpen() && settings_ui::currentPage() == Page::Bookmarks) settings_ui::refresh();
+                return;
+              }
+              toast(LV_SYMBOL_WARNING "  All bookmarks used - remove one first", 3000);
+            });
+}
+
+}  // namespace ui

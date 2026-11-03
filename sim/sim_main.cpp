@@ -38,6 +38,7 @@
 #include "ui/display_rotation.h"
 #include "ui/hud.h"
 #include "ui/keyboard.h"
+#include "ui/settings_ui.h"
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
@@ -1339,25 +1340,87 @@ int main(int argc, char** argv) {
     run(1000);
   }
 
-  // Saved places: one from settings.txt is listed on the Location page, and
-  // tapping it flies there at its zoom.
+  // Bookmarks: the bookmark button on the radar opens the list (slots 1-4
+  // and 5-8 both show); tapping one flies there at its zoom; a long press on
+  // the radar offers "Set as home" or "Bookmark", and bookmarking names it.
   {
     ui::RadarView& rv = ui::RadarView::get();
     rv.goHome(false);
     run(500);
     std::vector<std::string> problems;
-    app::applySettingsText("place1 = Cabin, 44.05, -121.31, 15\n", &problems);
-    ui::openSettings(ui::Page::Location);
-    run(600);
-    const bool listed = hasLabel(lv_screen_active(), "Cabin") && hasLabel(lv_screen_active(), "Save the radar's view as a place");
-    shot((p + "80_location_places").c_str());
-    lv_obj_t* row = findLabel(lv_screen_active(), "Cabin");
+    app::applySettingsText("place1 = Cabin, 44.05, -121.31, 15\nplace5 = Lake, 43.70, -121.25, 30\n", &problems);
+    lv_display_trigger_activity(nullptr);
+    run(300);
+    const float ang = -102.0f * 3.14159265f / 180.0f;
+    const int bx = static_cast<int>(g_size / 2 + std::sin(ang) * g_size / 2 * 0.80f);
+    const int by = static_cast<int>(g_size / 2 - std::cos(ang) * g_size / 2 * 0.80f);
+    for (int i = 0; i < 2 && !ui::settingsOpen(); ++i) {  // the first tap may only bring the buttons back
+      tap(bx, by);
+      run(600);
+    }
+    const bool button = ui::settingsOpen() && ui::settings_ui::currentPage() == ui::Page::Bookmarks;
+    const bool listed = hasLabel(lv_screen_active(), "Cabin") && hasLabel(lv_screen_active(), "Lake") &&
+                        hasLabel(lv_screen_active(), "Bookmark the radar's view");
+    shot((p + "80_bookmarks").c_str());
+    lv_obj_t* row = findLabel(lv_screen_active(), "Lake");
     if (row) lv_obj_send_event(lv_obj_get_parent(row), LV_EVENT_CLICKED, nullptr);
     run(2000);
-    const bool went = !ui::settingsOpen() && core::distanceKm(rv.viewport().center(), {44.05, -121.31}) < 1.0 &&
-                      std::fabs(rv.viewport().radiusKm() - 15.0) < 0.5;
-    std::printf("saved places: listed %s, go there %s\n", listed ? "OK" : "FAILED", went ? "OK" : "FAILED");
-    if (!listed || !went) return 1;
+    const bool went = !ui::settingsOpen() && core::distanceKm(rv.viewport().center(), {43.70, -121.25}) < 1.0 &&
+                      std::fabs(rv.viewport().radiusKm() - 30.0) < 0.5;
+    std::printf("bookmarks: button %s, listed %s, go there %s\n", button ? "OK" : "FAILED", listed ? "OK" : "FAILED",
+                went ? "OK" : "FAILED");
+    if (!button || !listed || !went) return 1;
+
+    // Long press on the radar, away from the buttons.
+    rv.goHome(false);
+    run(1500);
+    lv_display_trigger_activity(nullptr);
+    run(300);
+    const int lx = g_size / 2 + g_size / 8, ly = g_size / 2 - g_size / 10;
+    const core::LatLon spot = rv.viewport().unproject(static_cast<float>(lx), static_cast<float>(ly));
+    press(lx, ly);
+    run(1200);
+    release();
+    run(300);
+    const bool asked = hasLabel(lv_layer_top(), "This spot") && hasLabel(lv_layer_top(), "Set as home") &&
+                       findLabel(lv_layer_top(), "Bookmark") != nullptr;
+    shot((p + "81_long_press").c_str());
+    if (lv_obj_t* b = findLabel(lv_layer_top(), "Bookmark")) lv_obj_send_event(lv_obj_get_parent(b), LV_EVENT_CLICKED, nullptr);
+    run(400);
+    lv_obj_t* kb = nullptr;
+    std::function<void(lv_obj_t*)> findKb = [&](lv_obj_t* o) {
+      if (!kb && lv_obj_check_type(o, &lv_keyboard_class)) kb = o;
+      for (uint32_t i = 0; !kb && i < lv_obj_get_child_count(o); ++i) findKb(lv_obj_get_child(o, static_cast<int32_t>(i)));
+    };
+    findKb(lv_layer_top());
+    const bool named_prompt = kb != nullptr && hasLabel(lv_layer_top(), "blank: Bookmark 3");
+    if (kb) {
+      lv_textarea_set_text(lv_keyboard_get_textarea(kb), "Trailhead");
+      lv_obj_send_event(kb, LV_EVENT_READY, nullptr);
+    }
+    run(600);
+    const core::Place& added = core::bookmark(app::settings(), 1);  // the first free slot
+    const bool saved = std::strcmp(added.name, "Trailhead") == 0 && core::distanceKm({added.lat, added.lon}, spot) < 0.5;
+    // "Set as home" from a second long press.
+    const core::Settings before = app::settings();
+    press(lx, ly);
+    run(1200);
+    release();
+    run(300);
+    if (lv_obj_t* b = findLabel(lv_layer_top(), LV_SYMBOL_HOME "  Set as home")) {
+      lv_obj_send_event(lv_obj_get_parent(b), LV_EVENT_CLICKED, nullptr);
+    }
+    run(400);
+    const bool home = core::distanceKm({app::settings().home_lat, app::settings().home_lon}, spot) < 0.5;
+    std::printf("long press: asked %s, name prompt %s, bookmarked %s, set home %s\n", asked ? "OK" : "FAILED",
+                named_prompt ? "OK" : "FAILED", saved ? "OK" : "FAILED", home ? "OK" : "FAILED");
+    if (!asked || !named_prompt || !saved || !home) return 1;
+    // Back to how the other scenes expect it.
+    app::settings().home_lat = before.home_lat;
+    app::settings().home_lon = before.home_lon;
+    for (int i = 0; i < core::kMaxBookmarks; ++i) core::bookmark(app::settings(), i) = core::Place();
+    app::settingsChanged();
+    rv.markStaticDirty();
     rv.goHome(false);
     run(2000);
   }

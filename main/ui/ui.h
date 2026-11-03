@@ -7,10 +7,17 @@ namespace ui {
 enum class Page {
   Main, Wifi, Location, Display, Sound, Traffic, Filters, Favorites, DayLog, Updates, About,
   CustomTheme, Clock, TimeZone, AlarmEdit, SdCard, Phone, Watchlist, Silenced, Map, Sweep, Power, Aircraft, Replay, Logbook, Nearby,
+  Bookmarks,
 };
 
 /** Builds the whole UI. Call with the LVGL lock held. */
 void init(lv_display_t* disp);
+
+/**
+ * Bookmarks a spot, shown at `radius_km` when opened: asks for a name first
+ * (blank gives "Bookmark N"). Says so instead when all of them are used.
+ */
+void addBookmark(double lat, double lon, double radius_km);
 
 /** Opens the settings screen at a page. */
 void openSettings(Page page = Page::Main);

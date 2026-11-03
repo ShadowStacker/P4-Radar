@@ -78,7 +78,7 @@ stops reporting disappears after 45 seconds.
 | **Pinch** with two fingers | Zoom in or out around the point between your fingers. |
 | **Double-tap** | Zoom in 2× on that spot. |
 | **Tap an aircraft** | Open its [info card](#the-aircraft-info-card). Tap empty map to close it. |
-| **Long-press** the map | Asks whether to make that spot your home location. |
+| **Long-press** the map | Asks what to do with that spot: **Set as home**, or **Bookmark** it (you name it; blank gives "Bookmark N"). |
 
 Zoom ranges from a 1 km to a 460 km radius. The radar fetches traffic for
 whatever area you're looking at, up to the feeds' 250 nm limit.
@@ -94,7 +94,8 @@ whatever area you're looking at, up to the feeds' 250 nm limit.
 | ⏻ Power | left, below the speaker | **Sleep**: turns the screen off and mutes all sounds. One tap anywhere wakes it (that tap does nothing else). Traffic keeps updating while asleep. Alarms stay silent while asleep unless **Wake on alarm** is on (Clock & alarms). |
 | 🕘 Clock | right, below the eye | Switch the bezel between compass headings and a [clock face](#clock-and-alarms) (lit = clock) |
 | 📷 Camera | right, below the clock | Save a [screenshot](#screenshots) of the radar on the SD card |
-| ✈ Airplane | left, below the power button | Open the [Nearby aircraft](#nearby-aircraft) list |
+| 🔖 Bookmark | left, below the power button | Open your [Bookmarks](#bookmarks) |
+| ✈ Airplane | left, below the bookmark | Open the [Nearby aircraft](#nearby-aircraft) list |
 | ⟳ Loop | top left | Turn the radar sweep animation on or off (lit = on) |
 | ＋ / − | lower right / lower left | Tap: zoom in / out a little (1.25×), smoothly; quick taps add up. Hold: keeps zooming, gently speeding up, until you let go. |
 | ⌂ Home | bottom | Fly back to home at your **Home zoom**. It's dimmed when you're already there. |
@@ -274,14 +275,29 @@ others).
 | Enter coordinates | Type latitude (−90 to 90), then longitude (−180 to 180) | |
 | Use an airport | Jump home to an airport by ICAO (`KRDM`), IATA (`RDM`) or FAA code (`S39`, `BDN`) | |
 | Home zoom (radius) | How far the view reaches when you press Home, from the center to the edge of the screen | 25 km |
-| Saved places | Up to four more places. Tap one to fly there (at its zoom); **Remove** takes it off the list | |
-| Save the radar's view as a place | Pan and zoom the radar to the spot first, then name it here | |
+| Bookmarks | Opens the [Bookmarks](#bookmarks) page | |
 
 Home is the center of the range rings and the sweep, and the reference for
-proximity and favorite alerts. Saved places are just views to jump to: home
-stays where it is. In `settings.txt` (and on the phone page) they're lines like
+proximity and favorite alerts. You can also long-press any spot on the radar
+and choose **Set as home**.
+
+### Bookmarks
+
+**Settings → Bookmarks**, or the bookmark button on the left of the radar,
+lists up to eight places to jump to. Each shows how far it is from home.
+
+- **Tap one** to close the settings and show it on the radar, at the zoom it
+  was saved with.
+- The **trash can** removes it (after asking).
+- **Bookmark the radar's view** saves what the radar shows now: pan and zoom
+  to the spot first.
+- **Long-press anywhere on the radar** and choose **Bookmark** to save that
+  spot, at the current zoom.
+
+Bookmarks are just views to jump to: home stays where it is. In
+`settings.txt` (and on the phone page) they're lines like
 `place1 = Cabin, 44.05000, -121.31000, 15` (name, latitude, longitude, zoom
-radius in km); an empty value frees the slot.
+radius in km), `place1` to `place8`; an empty value frees the slot.
 
 ### Display
 

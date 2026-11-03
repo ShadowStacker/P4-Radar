@@ -124,7 +124,7 @@ function conv(f){
   const v=parseFloat(f.value)/UNIT[status.units];return isNaN(v)?'':`<span class="conv" id="c_${f.key}">= ${+v.toFixed(1)} ${status.units}</span>`;
 }
 function convUpd(key,val){const e=document.getElementById('c_'+key);if(e)e.textContent='= '+(+(parseFloat(val)/UNIT[status.units]).toFixed(1))+' '+status.units}
-const nice=k=>{if(LABELS[k])return LABELS[k];const s=k.replace(/_/g,' ').replace(/\bkm\b/,'(km)').replace(/\bft\b/,'(ft)').replace(/\bkt\b/,'(kt)').replace(/\bmin\b$/,'').replace(/\bs$/,'(s)');return s.charAt(0).toUpperCase()+s.slice(1)};
+const nice=k=>{if(LABELS[k])return LABELS[k];if(/^place\d$/.test(k))return 'Bookmark '+k.slice(5);const s=k.replace(/_/g,' ').replace(/\bkm\b/,'(km)').replace(/\bft\b/,'(ft)').replace(/\bkt\b/,'(kt)').replace(/\bmin\b$/,'').replace(/\bs$/,'(s)');return s.charAt(0).toUpperCase()+s.slice(1)};
 async function save(key,value){
   const j=await api('/api/settings',{text:key+' = '+value});
   if(j.problems&&j.problems.length)toast(j.problems[0].replace(/^line \d+: /,''),3500);else toast('Saved');

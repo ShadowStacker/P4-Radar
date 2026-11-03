@@ -19,14 +19,15 @@ struct SavedWifi {
 };
 constexpr int kMaxSavedWifi = 4;  // plus the current one: five networks in all
 
-/** A saved place besides home (Location settings), to jump to. */
+/** A bookmark: a place besides home to jump to (Bookmarks page, or a long press on the radar). */
 struct Place {
   char name[16] = "";  // "" = unused slot
   double lat = 0;
   double lon = 0;
   float radius_km = 25.0f;  // zoom
 };
-constexpr int kMaxPlaces = 4;
+constexpr int kMaxPlaces = 4;     // the first slots (v1.30.0), in Settings::places
+constexpr int kMaxBookmarks = 8;  // all of them: places plus places_more (v1.33.0)
 
 /**
  * Everything the user can change from the touch menu. Persisted to NVS as a
@@ -55,7 +56,8 @@ struct Settings {
   //  17: up to replay_record (v1.28.0)
   //  18: up to sound_first_time (v1.29.0)
   //  19: up to places (v1.30.0)
-  static constexpr uint16_t kVersion = 19;
+  //  20: up to places_more (v1.33.0)
+  static constexpr uint16_t kVersion = 20;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -231,7 +233,16 @@ struct Settings {
   bool sound_first_time = true;
 
   // v1.30.0
-  Place places[kMaxPlaces];               // saved places to jump to
+  Place places[kMaxPlaces];               // bookmarks 1-4 (use bookmark())
+
+  // v1.33.0
+  Place places_more[kMaxBookmarks - kMaxPlaces];  // bookmarks 5-8
 };
+
+/** Bookmark `i` (0 .. kMaxBookmarks-1), wherever its slot is stored. */
+inline Place& bookmark(Settings& s, int i) { return i < kMaxPlaces ? s.places[i] : s.places_more[i - kMaxPlaces]; }
+inline const Place& bookmark(const Settings& s, int i) {
+  return i < kMaxPlaces ? s.places[i] : s.places_more[i - kMaxPlaces];
+}
 
 }  // namespace core

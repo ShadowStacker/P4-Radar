@@ -37,6 +37,8 @@ const lv_draw_buf_t* clockIcon(int32_t size);
 const lv_draw_buf_t* cameraIcon(int32_t size);
 /** White airplane icon (the airliner, nose up), `size` px square. Cached; unlike get(), never re-rendered. */
 const lv_draw_buf_t* planeIcon(int32_t size);
+/** White bookmark ribbon (a tall tab with a notch at the bottom), `size` px square. Cached. */
+const lv_draw_buf_t* bookmarkIcon(int32_t size);
 
 /** Picks a sprite family from the ADS-B emitter category (A1..A7, C1..). */
 Kind kindFor(const char* category, bool on_ground);

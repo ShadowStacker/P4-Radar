@@ -93,6 +93,10 @@ const Field kFields[] = {
     PLACE(2),
     PLACE(3),
     PLACE(4),
+    PLACE(5),
+    PLACE(6),
+    PLACE(7),
+    PLACE(8),
 
     SECTION("Display"),
     ENUM(units, kUnits, "km, mi or nm"),
@@ -339,7 +343,7 @@ std::string formatValue(const Settings& s, const Field& f) {
       return buf;
     }
     case Kind::Place: {
-      const Place& pl = s.places[static_cast<int>(f.min)];
+      const Place& pl = bookmark(s, static_cast<int>(f.min));
       if (pl.name[0] == '\0') return "";
       char buf[80];
       std::snprintf(buf, sizeof(buf), "%s, %.5f, %.5f, %s", pl.name, pl.lat, pl.lon,
@@ -529,7 +533,7 @@ bool parseValue(const Field& f, const std::string& raw, Settings* s) {
       return true;
     }
     case Kind::Alarm: return parseAlarm(v, &s->alarms[static_cast<int>(f.min)]);
-    case Kind::Place: return parsePlace(v, &s->places[static_cast<int>(f.min)]);
+    case Kind::Place: return parsePlace(v, &bookmark(*s, static_cast<int>(f.min)));
   }
   return false;
 }
@@ -582,7 +586,7 @@ std::string serialize(const Settings& s) {
         out += buf;
       }
     } else if (f.kind == Kind::Place && f.min == 0) {
-      out += "# Saved places: name, latitude, longitude, zoom radius in km (empty = unused)\n";
+      out += "# Bookmarks: name, latitude, longitude, zoom radius in km (empty = unused)\n";
     } else if (f.kind == Kind::Alarm && f.min == 0) {
       out += "# Alarms: on/off, 24-hour time, then once, daily, weekdays, weekends or\n"
              "# days like mon,wed,fri or mon-fri\n";

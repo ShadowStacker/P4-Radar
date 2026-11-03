@@ -32,6 +32,15 @@ void setLabelText(lv_obj_t* l, const char* text);
  * Modal confirm dialog centered on screen. `on_yes` runs when confirmed.
  */
 void confirm(const char* title, const char* body, const char* yes_text, Callback on_yes);
+
+/** One button of choose(). */
+struct Choice {
+  std::string text;
+  Callback cb;
+  bool accent = false;
+};
+/** Modal dialog with a Cancel button plus `choices`; picking one closes it and runs its callback. */
+void choose(const char* title, const char* body, std::vector<Choice> choices);
 /** Short toast message at the top of the screen. */
 void toast(const char* text, uint32_t ms = 2000);
 

@@ -10,6 +10,23 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.33.0] - 2026-11-03
+
+### Added
+- **Bookmarks**, replacing Saved places: their own page (Settings →
+  Bookmarks), and a **bookmark button on the radar** (left side, between the
+  power and airplane buttons). Tap one to show it on the radar at its zoom;
+  the trash can removes it. Up to **eight** now (was four). Your saved places
+  carry over as bookmarks.
+- **Long-press anywhere on the radar** now asks what to do with that spot:
+  **Set as home**, or **Bookmark** it (you name it; leave it blank for
+  "Bookmark N").
+
+### Changed
+- The left-side radar buttons are spaced a little closer to make room for
+  the bookmark button.
+- On the phone page, the place slots are called Bookmark 1 to 8.
+
 ## [v1.32.6] - 2026-11-03
 
 ### Fixed
