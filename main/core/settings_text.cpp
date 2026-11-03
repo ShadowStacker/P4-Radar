@@ -160,7 +160,8 @@ const Field kFields[] = {
     BOOL(sound_enabled, nullptr),
     U8(volume, 0, 100, "Percent"),
     BOOL(sound_touch, nullptr),
-    BOOL(sound_new_aircraft, nullptr),
+    BOOL(sound_new_aircraft, "Aircraft detected: a chime when 1-3 new aircraft appear"),
+    BOOL(sound_first_time, "First time here: a sound for aircraft the logbook has never seen near home"),
     BOOL(sound_sweep_ping, nullptr),
     BOOL(sound_alerts, "Emergency squawks"),
     BOOL(sound_proximity, "Any aircraft inside the alert zone"),
@@ -180,7 +181,6 @@ const Field kFields[] = {
     F32(watch_radius_km, 1, 400, "Within this distance of home, km"),
     BOOL(sound_watch, "Play a sound"),
     BOOL(first_time_alert, "Announce aircraft never seen near home before (needs the SD card's logbook)"),
-    BOOL(sound_first_time, "Play a sound for them"),
 
     SECTION("Filters"),
     BOOL(show_ground, nullptr),

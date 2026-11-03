@@ -324,6 +324,8 @@ void pageMain() {
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
   navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
+  navRow(LV_SYMBOL_DIRECTORY, "Logbook", fmtStr("%u aircraft", static_cast<unsigned>(app::logbookSummary(0).aircraft)),
+         Page::Logbook);
   navRow(LV_SYMBOL_PLAY, "Replay a day", app::replayActive() ? "Playing" : "", Page::Replay);
   navRow(LV_SYMBOL_DOWNLOAD, "Updates", updateSummary(), Page::Updates);
   navRow(LV_SYMBOL_LIST, "About", plat::firmwareVersion(), Page::About);
@@ -1164,7 +1166,8 @@ void pageSound() {
 
   section("PLAY A SOUND FOR");
   switchRow("Touches", &st.sound_touch);
-  switchRow("New aircraft", &st.sound_new_aircraft);
+  switchRow("Aircraft detected", &st.sound_new_aircraft);
+  switchRow("First time here (logbook)", &st.sound_first_time);
   switchRow("Each sweep (sonar ping)", &st.sound_sweep_ping);
   switchRow("Emergency squawks", &st.sound_alerts);
 
@@ -1191,7 +1194,8 @@ void pageSound() {
 
   section("TEST");
   actionRow(LV_SYMBOL_PLAY, "Sonar ping", [] { plat::playSound(core::Sound::Ping); }, pal().text);
-  actionRow(LV_SYMBOL_PLAY, "New aircraft chime", [] { plat::playSound(core::Sound::NewAircraft); }, pal().text);
+  actionRow(LV_SYMBOL_PLAY, "Aircraft detected", [] { plat::playSound(core::Sound::NewAircraft); }, pal().text);
+  actionRow(LV_SYMBOL_PLAY, "First time here", [] { plat::playSound(core::Sound::FirstTime); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Proximity alert", [] { plat::playSound(core::Sound::Alert); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Favorite detected", [] { plat::playSound(core::Sound::FavoriteSeen); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Favorite nearby", [] { plat::playSound(core::Sound::FavoriteNear); }, pal().text);
@@ -1489,9 +1493,13 @@ void pageLogbook() {
     if (b.start_date) infoRow("Since", fmtStr("%s, %d", dayName(b.start_date).c_str(), b.start_date / 10000));
   }
   section("FIRST TIME HERE");
-  switchRow("Announce new aircraft", &app::settings().first_time_alert);
-  switchRow("With a sound", &app::settings().sound_first_time);
-  actionRow(LV_SYMBOL_PLAY, "Test the sound", [] { plat::playSound(core::Sound::FirstTime); }, pal().text);
+  switchRow("Announce first-time visitors", &app::settings().first_time_alert);
+  {
+    lv_obj_t* l = label(s.list, "Its sound is on the Sound page (First time here).", font(FontSize::S), pal().text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
   if (b.loaded && b.learning) {
     lv_obj_t* l = label(s.list, "Still learning: announcements start two days after the logbook began.",
                         font(FontSize::S), pal().text_dim);
@@ -1796,8 +1804,6 @@ void pageDayLog() {
   section("TODAY BY HOUR");
   lv_obj_t* busiest_hour = infoRow("Busiest hour", "");
   const std::vector<lv_obj_t*> today_bars = hourChart();
-  navRow(LV_SYMBOL_DIRECTORY, "Logbook", fmtStr("%u aircraft", static_cast<unsigned>(app::logbookSummary(0).aircraft)),
-         Page::Logbook);
   auto& st = app::settings();
   sliderRow("Count aircraft within", 1, 100, static_cast<int>(app::kmToUnits(st.log_radius_km) + 0.5),
             [](int v) { app::settings().log_radius_km = static_cast<float>(app::unitsToKm(v)); },
@@ -2281,7 +2287,6 @@ lv_obj_t* create(Page page, int32_t scroll_y) {
     }
     else if (s.page == Page::TimeZone || s.page == Page::AlarmEdit) showPage(Page::Clock);
     else if (s.page == Page::Silenced) showPage(Page::Sound);
-    else if (s.page == Page::Logbook) showPage(Page::DayLog);
     else if (s.page == Page::PlaceSearch) showPage(Page::Location);
     else showPage(Page::Main);
   });

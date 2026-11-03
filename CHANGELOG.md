@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.34.1] - 2026-11-03
+
+### Changed
+- **Logbook has its own entry in Settings**, after Daily log, instead of
+  being inside the Daily log page.
+- **The "First time here" sound switch is on the Sound page** now (with a
+  test button), next to the other sounds. The Logbook page keeps the switch
+  for the announcement itself.
+- The **New aircraft** sound is now called **Aircraft detected** (Sound page,
+  phone page and guide). The setting is the same, so nothing needs redoing.
+
 ## [v1.34.0] - 2026-11-03
 
 ### Added

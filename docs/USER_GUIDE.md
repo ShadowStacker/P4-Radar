@@ -410,7 +410,8 @@ switches itself off.
 | Sound | Master switch for all sounds | On |
 | Volume | Speaker volume, 0–100 %. A chime plays when you let go of the slider. | 60 % |
 | Touches | Click on button presses | On |
-| New aircraft | Soft chime when 1–3 new aircraft appear. It stays quiet for big batches, e.g. after you pan to a new area. | On |
+| Aircraft detected | Soft chime when 1–3 new aircraft appear. It stays quiet for big batches, e.g. after you pan to a new area. | On |
+| First time here (logbook) | Four rising notes for an aircraft the [logbook](#logbook) has never seen near home. Needs the announcement on (Logbook page). | On |
 | Each sweep (sonar ping) | Sonar ping once per sweep revolution | Off |
 | Emergency squawks | Siren when an aircraft squawks 7500/7600/7700 or declares an emergency | On |
 | Proximity alert | Three beeps when **any** airborne aircraft comes within the alert radius of home, below the altitude limit | **Off** |
@@ -709,14 +710,15 @@ seen near home (within the same distance as the daily log), in
 `logbook.csv`: one line per **visit** (an aircraft seen again after half an
 hour away is a new visit), with the date, time, hex code, callsign,
 registration and type. It opens in any spreadsheet. The **Logbook** page
-(from Daily log) shows how many different aircraft and visits it holds, the
+(Settings → Logbook) shows how many different aircraft and visits it holds, the
 most frequent visitors and the newest ones; the phone page shows the same and
 downloads the file.
 
 **First time here.** When an aircraft the logbook has never seen comes by,
-the radar says *First time here: N123AB (B738)*, with its own sound. Turn
-either off on the Logbook page (or `first_time_alert` / `sound_first_time` in
-`settings.txt`). For the first two days of a new logbook everything is new, so
+the radar says *First time here: N123AB (B738)*, with its own sound. The
+announcement is turned on or off on the Logbook page, the sound on the Sound
+page (**First time here**); in `settings.txt` they're `first_time_alert` and
+`sound_first_time`. For the first two days of a new logbook everything is new, so
 the announcements only start after that. Silenced aircraft are never
 announced.
 
@@ -785,7 +787,7 @@ order:
    back.
 4. **Proximity alert** (off by default): any airborne aircraft below the
    altitude limit enters the alert radius. Once per approach.
-5. **New aircraft**: 1–3 aircraft appeared that weren't there before.
+5. **Aircraft detected**: 1–3 aircraft appeared that weren't there before.
 
 The **watchlist** sound comes right after emergencies (see
 [Watchlist alerts](#watchlist-alerts)).

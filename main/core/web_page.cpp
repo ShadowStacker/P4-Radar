@@ -109,7 +109,7 @@ const LABELS={home_lat:'Home latitude',home_lon:'Home longitude',home_radius_km:
   aircraft_scale:'Aircraft size (%)',sweep_enabled:'Radar sweep',sweep_rpm:'Sweep speed (rpm)',sweep_trail_deg:'Sweep trail (degrees)',sweep_smooth:'Smooth trail fade',
   sweep_reveal:'Echoes fade after the beam',map_style:'Background map',map_labels:'Place names',map_tint:'Tint map to theme color',map_brightness:'Map brightness (%)',
   sd_cache:'Save map tiles on the card',lookup_cache:'Remember lookups on the card',carto_key:'CARTO API key',sound_enabled:'Sound',volume:'Volume (%)',
-  sound_touch:'Touch sounds',sound_new_aircraft:'New aircraft',sound_sweep_ping:'Sonar ping each sweep',sound_alerts:'Emergency squawks',
+  sound_touch:'Touch sounds',sound_new_aircraft:'Aircraft detected',sound_first_time:'First time here (logbook)',sound_sweep_ping:'Sonar ping each sweep',sound_alerts:'Emergency squawks',
   sound_proximity:'Proximity alert',alert_radius_km:'Alert radius (km)',alert_max_alt_ft:'Alert below (ft)',sound_favorite_seen:'Favorite detected',
   sound_favorite_near:'Favorite nearby',favorite_near_radius_km:'Favorite nearby radius (km)',watch_enabled:'Watchlist alerts',watch_military:'Military aircraft',
   watch_rotor:'Helicopters',watch_fast:'Fast jets',watch_types:'Types',watch_callsigns:'Callsigns and tail numbers',watch_radius_km:'Within (km of home)',
