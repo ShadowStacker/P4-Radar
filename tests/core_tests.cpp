@@ -476,10 +476,26 @@ void testNetWatch() {
   w.ok();
   CHECK(!w.failing());
   CHECK(w.poll(900000, true) == A::None);
-  // Wi-Fi down is the Wi-Fi driver's job.
+  // Wi-Fi that never connected since the start is the Wi-Fi driver's job.
   for (int i = 0; i < 5; ++i) w.failed(1000000 + i);
-  w.offline();
+  w.offline(1000010, false);
+  CHECK(!w.failing());
   CHECK(w.poll(2000000, true) == A::None);
+  // Wi-Fi that worked and can't get back: restart after 5 minutes, no rejoin
+  // step (the driver is already retrying).
+  w.offline(3000000, true);
+  CHECK(w.failing());
+  CHECK(w.poll(3000000 + 61000, true) == A::None);
+  w.offline(3000000 + 200000, true);  // still out: the outage keeps its start
+  CHECK(w.poll(3000000 + 299000, true) == A::None);
+  CHECK(w.poll(3000000 + 300000, true) == A::Restart);
+  w.ok();
+  // Failing requests, then Wi-Fi dropping: one outage, timed from the first failure.
+  for (int i = 0; i < 3; ++i) w.failed(4000000 + i);
+  CHECK(w.poll(4000000 + 61000, true) == A::Reconnect);
+  w.offline(4000000 + 62000, true);
+  CHECK(w.poll(4000000 + 300000, true) == A::Restart);
+  w.ok();
   // millis() wrapping around doesn't matter.
   for (int i = 0; i < 3; ++i) w.failed(0xFFFFF000u);
   CHECK(w.poll(0xFFFFF000u + 61000u, true) == A::Reconnect);

@@ -965,14 +965,30 @@ void runUiJobs() {
 // to the Wi-Fi chip stuck): rejoin the network, then restart.
 core::NetWatch s_net_watch;
 
+bool s_wifi_worked = false;  // connected at least once since the start
+
+void netWatchAct(uint32_t now);
+
 void watchNetwork(int code) {
   const uint32_t now = plat::millis();
+  s_wifi_worked = true;
   if (code >= 0) {
     s_net_watch.ok();  // an answer, even an HTTP error: the connection works
     plat::netRestartsClear();
   } else {
     s_net_watch.failed(now);
   }
+  netWatchAct(now);
+}
+
+/** Wi-Fi not connected (network task, every pass while it lasts). */
+void watchOffline() {
+  const uint32_t now = plat::millis();
+  s_net_watch.offline(now, s_wifi_worked);
+  netWatchAct(now);
+}
+
+void netWatchAct(uint32_t now) {
   // A router without internet shouldn't restart the radar over and over:
   // after two restarts in a row that didn't help, only keep rejoining.
   const core::NetWatch::Action action = s_net_watch.poll(now, plat::netRestarts() < 2);
@@ -985,8 +1001,8 @@ void watchNetwork(int code) {
     plat::httpDropKept();
     plat::wifiReconnect();
   } else {
-    std::printf("net: nothing answered for %u s - restarting\n", secs);
-    text = "Still no internet - restarting";
+    std::printf("net: no internet for %u s - restarting (also resets the Wi-Fi chip)\n", secs);
+    text = "No internet for " + std::to_string(secs / 60) + " min - restarting";
   }
   {
     std::lock_guard<std::mutex> lock(s_mu);
@@ -1032,7 +1048,7 @@ void networkLoop() {
       continue;
     }
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
-      s_net_watch.offline();  // the Wi-Fi driver is reconnecting already
+      watchOffline();  // the Wi-Fi driver is reconnecting; restart if that never works
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }

@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.5] - 2026-11-03
+
+### Fixed
+- **The automatic recovery now also covers Wi-Fi that can't reconnect.** If
+  Wi-Fi had been working and then can't get back on (for example, it keeps
+  trying your home network and the other saved networks in turn), the radar
+  restarts after 5 minutes, which also resets the Wi-Fi chip. Before, it
+  only did this while Wi-Fi still showed as connected, so it could keep
+  cycling through the saved networks forever. It still restarts at most
+  twice in a row, and never when Wi-Fi hasn't connected since the radar
+  started (a wrong password, or out of range).
+
 ## [v1.32.4] - 2026-11-03
 
 ### Fixed
