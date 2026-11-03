@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.35.2] - 2026-11-03
+
+### Changed
+- **Faster traffic decoding.** The feed is read directly, field by field,
+  instead of first being turned into a full copy in memory. This is several
+  times faster on a busy response (5–6× in tests with 400 aircraft), which
+  helps most when zoomed far out over a busy area. It also uses less memory
+  and leaves more time for the map and the screen. The results are the same:
+  the tests compare it with the old decoder on thousands of generated and
+  broken responses. The on-screen stats show the time as "decode … ms".
+
 ## [v1.35.1] - 2026-11-03
 
 ### Fixed
