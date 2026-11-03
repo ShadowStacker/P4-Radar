@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.6] - 2026-11-03
+
+### Fixed
+- **The real cause of the Wi-Fi dropouts: the board ran out of internal
+  RAM.** Your serial log showed it at 0 KB free, then the Wi-Fi link
+  couldn't get memory for its transfers ("mempool OOM"), secure connections
+  failed, and the Wi-Fi chip stopped answering. The screen's drawing buffer
+  took half of the internal RAM left after the firmware itself; it is now
+  half the size, which frees 80 KB (72 KB on the 4" board) and more than
+  doubles the room for Wi-Fi, menus and downloads. Full-screen redraws are
+  drawn in more, smaller strips, which should not be noticeable.
+
 ## [v1.32.5] - 2026-11-03
 
 ### Fixed

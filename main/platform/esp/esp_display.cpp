@@ -212,7 +212,11 @@ lv_display_t* displayStart(int quarter_turns) {
   disp_cfg.profile.rotation = ESP_LV_ADAPTER_ROTATE_0;
   disp_cfg.profile.hor_res = BSP_LCD_H_RES;
   disp_cfg.profile.ver_res = BSP_LCD_V_RES;
-  disp_cfg.profile.buffer_height = 100;  // 100-line stripes in internal RAM
+  // 50-line stripes in internal RAM (80 KB at 800 px). 100 lines took half
+  // of the internal RAM left after the firmware itself, and with menus open
+  // and downloads running, Wi-Fi's own transfers (and TLS) ran out of it:
+  // "eh_sdio: mempool OOM", then the Wi-Fi chip stopped answering.
+  disp_cfg.profile.buffer_height = 50;
   disp_cfg.profile.use_psram = false;
   disp_cfg.profile.enable_ppa_accel = false;
   disp_cfg.profile.require_double_buffer = false;

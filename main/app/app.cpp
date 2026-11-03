@@ -2000,7 +2000,7 @@ void startNetworkTask() {
     for (;;) {
       if (!s_card.runOne()) s_card.waitForJob(500);
     }
-  }, 12 * 1024, 2);
+  }, 8 * 1024, 2);
 }
 
 void queueCardJob(std::function<void()> job, size_t bytes, bool droppable) {
