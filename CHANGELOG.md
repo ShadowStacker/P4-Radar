@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.4] - 2026-11-03
+
+### Fixed
+- **Wi-Fi dying, especially with the on-screen stats turned on.** Measuring
+  CPU use per task paused the processor for a moment while it checked every
+  task's memory. With the stats on, that happened every second; with them
+  off, every 30 seconds for the health log. Those pauses broke the link to
+  the Wi-Fi chip, so the data stopped and the screen stuttered. The stats
+  now read only quick counters. The serial health log no longer shows the
+  "largest block" figure, which needed the same kind of pause.
+
 ## [v1.32.3] - 2026-11-03
 
 ### Added

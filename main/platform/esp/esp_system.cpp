@@ -89,59 +89,70 @@ size_t freeInternalHeap() { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 size_t freePsram() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM); }
 
 Health sampleHealth(int slot) {
+  // Only counters that are cheap to read. No heap walk (largest free block)
+  // and no uxTaskGetSystemState(): that one runs with interrupts off and
+  // checks every task's stack byte by byte (the LVGL task's is in PSRAM),
+  // long enough to upset the SDIO link to the Wi-Fi chip. With the
+  // on-screen stats sampling every second, Wi-Fi died within minutes.
   Health h;
   h.ram_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   h.ram_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-  h.ram_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
   h.psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
 #if configUSE_TRACE_FACILITY && configGENERATE_RUN_TIME_STATS
-  // CPU time per task since this slot's previous sample. The counters are
-  // 32-bit microseconds by default and wrap every ~71 min; unsigned
-  // differences in the counter's own type stay right across a wrap.
+  // CPU time since this slot's previous sample. The counters are 32-bit
+  // microseconds by default and wrap every ~71 min; unsigned differences in
+  // the counter's own type stay right across a wrap.
   using Counter = configRUN_TIME_COUNTER_TYPE;
+  // Tasks worth naming. Looked up by name each time (a stopped web server's
+  // task is gone); vTaskGetInfo() without the stack check is quick.
+  static const char* const kTasks[] = {"lvgl", "adsb", "card", "wifi", "httpd", "tiT", "sys_evt", "esp_timer",
+                                       "sdio_read", "sdio_write", "sdio_process_rx", "sdio_rx_buf"};
+  constexpr size_t kN = sizeof(kTasks) / sizeof(kTasks[0]);
   struct Baseline {
-    std::unordered_map<TaskHandle_t, Counter> tasks;
+    Counter tasks[kN] = {};
+    Counter idle[2] = {};
     Counter total = 0;
     bool valid = false;
   };
   static Baseline s_base[2];
   Baseline& base = s_base[slot & 1];
-  const UBaseType_t n = uxTaskGetNumberOfTasks();
-  std::vector<TaskStatus_t> tasks(n + 4);
-  Counter total = 0;
-  tasks.resize(uxTaskGetSystemState(tasks.data(), tasks.size(), &total));
+  const Counter total = static_cast<Counter>(portGET_RUN_TIME_COUNTER_VALUE());
+  Counter idle[2];
+  for (int c = 0; c < 2; ++c) idle[c] = ulTaskGetIdleRunTimeCounterForCore(c);
+  Counter now[kN];
+  bool found[kN];
+  for (size_t i = 0; i < kN; ++i) {
+    now[i] = 0;
+    found[i] = false;
+    if (TaskHandle_t t = xTaskGetHandle(kTasks[i])) {
+      TaskStatus_t st;
+      vTaskGetInfo(t, &st, pdFALSE, eRunning);  // no stack check, no state lookup
+      now[i] = st.ulRunTimeCounter;
+      found[i] = true;
+    }
+  }
   const uint64_t elapsed = static_cast<Counter>(total - base.total);
   if (base.valid && elapsed > 0) {
+    auto pct = [&](uint64_t t) { return static_cast<int>(std::min<uint64_t>(100, t * 100 / elapsed)); };
+    for (int c = 0; c < 2; ++c) h.cpu[c] = 100 - pct(static_cast<Counter>(idle[c] - base.idle[c]));
     struct Use {
       const char* name;
       uint64_t time;
     };
     std::vector<Use> uses;
-    uint64_t idle[2] = {0, 0};
-    for (const TaskStatus_t& t : tasks) {
-      auto it = base.tasks.find(t.xHandle);
-      const uint64_t d = it == base.tasks.end() ? 0 : static_cast<Counter>(t.ulRunTimeCounter - it->second);
-      bool is_idle = false;
-      for (int c = 0; c < 2; ++c) {
-        if (t.xHandle == xTaskGetIdleTaskHandleForCore(c)) {
-          idle[c] = d;
-          is_idle = true;
-        }
-      }
-      if (!is_idle) uses.push_back({t.pcTaskName, d});
+    for (size_t i = 0; i < kN; ++i) {
+      if (found[i]) uses.push_back({kTasks[i], static_cast<Counter>(now[i] - base.tasks[i])});
     }
     std::sort(uses.begin(), uses.end(), [](const Use& a, const Use& b) { return a.time > b.time; });
-    auto pct = [&](uint64_t t) { return static_cast<int>(std::min<uint64_t>(100, t * 100 / elapsed)); };
-    h.cpu[0] = 100 - pct(idle[0]);
-    h.cpu[1] = 100 - pct(idle[1]);
     char buf[48];
     for (size_t i = 0; i < uses.size() && i < 5; ++i) {
       std::snprintf(buf, sizeof(buf), "%s%s %d%%", i ? ", " : "", uses[i].name, pct(uses[i].time));
       h.top += buf;
     }
   }
-  base.tasks.clear();
-  for (const TaskStatus_t& t : tasks) base.tasks[t.xHandle] = t.ulRunTimeCounter;
+  for (size_t i = 0; i < kN; ++i) base.tasks[i] = now[i];
+  base.idle[0] = idle[0];
+  base.idle[1] = idle[1];
   base.total = total;
   base.valid = true;
 #endif

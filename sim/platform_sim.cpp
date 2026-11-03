@@ -395,7 +395,6 @@ Health sampleHealth(int) {
   h.cpu[1] = 41;
   h.ram_free = 412 * 1024;
   h.ram_min = 371 * 1024;
-  h.ram_largest = 280 * 1024;
   h.psram_free = 28 * 1024 * 1024;
   h.top = "adsb 18%, lvgl 35%";
   return h;

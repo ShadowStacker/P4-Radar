@@ -229,7 +229,7 @@ size_t freePsram();
 /** Memory and CPU use, for the serial log and the on-screen stats. */
 struct Health {
   int cpu[2] = {-1, -1};  // % busy per core since the previous sample in the same slot; -1 = unknown
-  size_t ram_free = 0, ram_min = 0, ram_largest = 0;  // internal RAM: free, lowest ever, largest block
+  size_t ram_free = 0, ram_min = 0;  // internal RAM: free, lowest ever
   size_t psram_free = 0;
   std::string top;        // busiest tasks, e.g. "adsb 31%, lvgl 22%"
 };

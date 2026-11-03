@@ -223,10 +223,10 @@ void logHealth() {
   if (s_report_ms == 0) s_report_ms = now;
   if (now - s_report_ms < 30000) return;
   const plat::Health hl = plat::sampleHealth(0);
-  std::printf("health: RAM %u KB free (lowest %u, largest block %u), PSRAM %u KB; CPU core0 %d%%, core1 %d%%: %s; "
+  std::printf("health: RAM %u KB free (lowest %u), PSRAM %u KB; CPU core0 %d%%, core1 %d%%: %s; "
               "UI longest pause %u ms (%s)\n",
               static_cast<unsigned>(hl.ram_free / 1024), static_cast<unsigned>(hl.ram_min / 1024),
-              static_cast<unsigned>(hl.ram_largest / 1024), static_cast<unsigned>(hl.psram_free / 1024), hl.cpu[0],
+              static_cast<unsigned>(hl.psram_free / 1024), hl.cpu[0],
               hl.cpu[1], hl.top.c_str(), static_cast<unsigned>(s_worst_gap), s_settings_screen ? "menu" : "radar");
   s_report_ms = now;
   s_worst_gap = 0;
