@@ -777,7 +777,6 @@ void testAdsbStreaming() {
       "{\"ac\":[{\"lat\":-,\"lon\":2,\"hex\":\"c\"}]}",
       "{\"ac\":[{\"lat\":1.5.5,\"lon\":2,\"hex\":\"c\"}]}",
       "{\"ac\":[{\"lat\":1e5,\"lon\":+2,\"hex\":\"c\"}]}",
-      "{\"ac\":[{\"lat\":0.000000000000000000000000000000000000000000000000000000000000000000000001,\"lon\":2,\"hex\":\"c\"}]}",
       "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"d\",\"alt_baro\":\"ground\"}]}",
       "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"e\",\"flight\":\"ABCDEFGHIJKLMNOP   \"}]}",
       "{\"ac\":[{\"lat\":1,\"lon\":2,\"hex\":\"f\"}]}garbage",
@@ -798,6 +797,14 @@ void testAdsbStreaming() {
     const bool g = core::adsb::parse(c, std::strlen(c), {}, &got);
     if (w != g || !sameAircraft(got, want)) std::printf("  adsb case differs (%d vs %d): %s\n", g, w, c);
     CHECK(w == g && sameAircraft(got, want));
+  }
+  {
+    // A number longer than 63 characters: older cJSON versions refuse it,
+    // newer ones read it, so it's checked on its own instead of against
+    // the reference. The streaming reader reads it.
+    const char* c =
+        "{\"ac\":[{\"lat\":0.000000000000000000000000000000000000000000000000000000000000000000000001,\"lon\":2,\"hex\":\"c\"}]}";
+    CHECK(core::adsb::parse(c, std::strlen(c), {}, &got) && got.size() == 1 && std::fabs(got[0].lat) < 1e-9);
   }
 
   // Speed: a busy response (400 aircraft).
