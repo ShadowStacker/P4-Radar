@@ -9,6 +9,7 @@
 #include <ctime>
 
 #include "esp_app_desc.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -51,6 +52,28 @@ void startTask(const char* name, std::function<void()> fn, size_t stack_bytes, i
 void sleepMs(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 
 void restart() { esp_restart(); }
+
+namespace {
+// Kept across a software restart (not across power off): restarts in a row
+// for a dead internet connection.
+RTC_NOINIT_ATTR uint32_t s_net_restart_magic;
+RTC_NOINIT_ATTR uint32_t s_net_restart_count;
+constexpr uint32_t kNetRestartMagic = 0x4E455452;  // "NETR"
+}  // namespace
+
+int netRestarts() { return s_net_restart_magic == kNetRestartMagic ? static_cast<int>(s_net_restart_count) : 0; }
+
+void netRestartsClear() {
+  if (netRestarts() == 0) return;
+  s_net_restart_count = 0;
+}
+
+void restartForNetwork() {
+  const int n = netRestarts();
+  s_net_restart_magic = kNetRestartMagic;
+  s_net_restart_count = static_cast<uint32_t>(n + 1);
+  esp_restart();
+}
 
 const char* firmwareVersion() { return esp_app_get_description()->version; }
 

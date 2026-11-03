@@ -117,8 +117,13 @@ void updateStatus() {
     const uint32_t age_s = (plat::millis() - fs.last_ok_ms) / 1000;
     const size_t n = RadarView::get().visibleCount();
     if (!fs.last_ok && age_s > 20) {
-      std::snprintf(txt, sizeof(txt), LV_SYMBOL_WARNING "  %u aircraft  -  data %us old", static_cast<unsigned>(n),
-                    static_cast<unsigned>(age_s));
+      // Why, too: "No connection", "Rate limited", "HTTP 503"...
+      if (fs.error[0]) {
+        std::snprintf(txt, sizeof(txt), LV_SYMBOL_WARNING "  Data %us old - %s", static_cast<unsigned>(age_s), fs.error);
+      } else {
+        std::snprintf(txt, sizeof(txt), LV_SYMBOL_WARNING "  %u aircraft  -  data %us old", static_cast<unsigned>(n),
+                      static_cast<unsigned>(age_s));
+      }
       dot = p.warn;
     } else {
       char r[20];

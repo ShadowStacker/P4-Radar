@@ -114,6 +114,14 @@ KeptClient* keptClientFor(const std::string& host, const char* url, int timeout_
 
 }  // namespace
 
+void httpDropKept() {
+  for (KeptClient& k : s_kept) {
+    if (k.client != nullptr) esp_http_client_cleanup(k.client);
+    k.client = nullptr;
+    k.host.clear();
+  }
+}
+
 int httpGetKeepAlive(const char* url, std::string* body, int timeout_ms) {
   const std::string host = hostOf(url);
   for (int attempt = 0; attempt < 2; ++attempt) {

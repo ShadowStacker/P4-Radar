@@ -42,6 +42,7 @@
 #include "core/tiles.h"
 #include "core/trace.h"
 #include "core/update.h"
+#include "core/net_watch.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "data/jpeg_fixtures.h"
@@ -451,6 +452,37 @@ void testPlaces() {
   CHECK(sw.sweep_rpm == 4);
   CHECK(core::settings_text::parse("sweep_rpm = 1\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);
   CHECK(core::settings_text::parse("sweep_rpm = 0\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);  // clamped
+}
+
+void testNetWatch() {
+  using A = core::NetWatch::Action;
+  core::NetWatch w;
+  CHECK(w.poll(0, true) == A::None);
+  // Two failures aren't an outage, however long ago the first was.
+  w.failed(1000);
+  w.failed(70000);
+  CHECK(!w.failing());
+  CHECK(w.poll(400000, true) == A::None);
+  w.failed(71000);
+  CHECK(w.failing());
+  CHECK(w.poll(50000, true) == A::None);   // under a minute
+  CHECK(w.poll(61000, true) == A::Reconnect);
+  CHECK(w.poll(62000, true) == A::None);   // once
+  CHECK(w.poll(181000, true) == A::Reconnect);  // again two minutes later
+  CHECK(w.poll(300500, false) == A::None);  // restart not allowed (and no reconnect due yet)
+  CHECK(w.poll(302000, true) == A::Restart);
+  CHECK(w.poll(303000, true) != A::Restart);  // restart only once
+  // Any HTTP answer clears it.
+  w.ok();
+  CHECK(!w.failing());
+  CHECK(w.poll(900000, true) == A::None);
+  // Wi-Fi down is the Wi-Fi driver's job.
+  for (int i = 0; i < 5; ++i) w.failed(1000000 + i);
+  w.offline();
+  CHECK(w.poll(2000000, true) == A::None);
+  // millis() wrapping around doesn't matter.
+  for (int i = 0; i < 3; ++i) w.failed(0xFFFFF000u);
+  CHECK(w.poll(0xFFFFF000u + 61000u, true) == A::Reconnect);
 }
 
 void testJobQueue() {
@@ -1805,6 +1837,7 @@ int main() {
   testAdsbParse();
   testBackup();
   testJobQueue();
+  testNetWatch();
   testLogbook();
   testPlaces();
   testReplay();

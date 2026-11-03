@@ -129,6 +129,7 @@ WifiStatus wifiStatus() {
 }
 
 void wifiConnect(const char*, const char*) {}
+void wifiReconnect() { std::printf("[sim] wifi reconnect\n"); }
 
 namespace {
 bool s_hotspot = false;
@@ -311,6 +312,16 @@ void startTask(const char*, std::function<void()> fn, size_t, int) { std::thread
 void sleepMs(uint32_t ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
 void restart() { std::printf("[sim] restart requested\n"); }
+namespace {
+int s_net_restarts = 0;
+}
+void restartForNetwork() {
+  ++s_net_restarts;
+  std::printf("[sim] restart for network requested\n");
+}
+int netRestarts() { return s_net_restarts; }
+void netRestartsClear() { s_net_restarts = 0; }
+void httpDropKept() {}
 
 int httpGetKeepAlive(const char* url, std::string* body, int timeout_ms) {
   return httpGet(url, body, timeout_ms);

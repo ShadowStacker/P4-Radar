@@ -10,6 +10,21 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.32.3] - 2026-11-03
+
+### Added
+- **Automatic recovery when the internet stops answering.** Sometimes Wi-Fi
+  says it is connected but nothing gets through. If no request has had an
+  answer for a minute, the radar rejoins the Wi-Fi network (again every
+  2 minutes while it lasts). After 5 minutes it restarts, which also resets
+  the Wi-Fi chip. A notice says what it is doing. It restarts at most twice
+  in a row: if your router itself has no internet, the radar just keeps
+  rejoining instead of restarting over and over.
+
+### Changed
+- **The status pill says why the data is old**, for example "Data 85s old -
+  No connection", "- Rate limited" or "- HTTP 503", instead of only the age.
+
 ## [v1.32.2] - 2026-11-02
 
 ### Fixed

@@ -29,6 +29,7 @@
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
 #include "core/job_queue.h"
+#include "core/net_watch.h"
 #include "core/logbook.h"
 #include "core/lookup_cache.h"
 #include "core/png.h"
@@ -714,7 +715,7 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     } else if (code == 429) {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "Rate limited - slow down polling");
     } else if (code < 0) {
-      std::snprintf(s_feed.error, sizeof(s_feed.error), "Network error (%d)", code);
+      std::snprintf(s_feed.error, sizeof(s_feed.error), "No connection");
     } else {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "HTTP %d", code);
     }
@@ -960,6 +961,43 @@ void runUiJobs() {
   }
 }
 
+// Wi-Fi can say "connected" while nothing gets through (seen with the link
+// to the Wi-Fi chip stuck): rejoin the network, then restart.
+core::NetWatch s_net_watch;
+
+void watchNetwork(int code) {
+  const uint32_t now = plat::millis();
+  if (code >= 0) {
+    s_net_watch.ok();  // an answer, even an HTTP error: the connection works
+    plat::netRestartsClear();
+  } else {
+    s_net_watch.failed(now);
+  }
+  // A router without internet shouldn't restart the radar over and over:
+  // after two restarts in a row that didn't help, only keep rejoining.
+  const core::NetWatch::Action action = s_net_watch.poll(now, plat::netRestarts() < 2);
+  if (action == core::NetWatch::Action::None) return;
+  const unsigned secs = s_net_watch.failingForMs(now) / 1000;
+  std::string text;
+  if (action == core::NetWatch::Action::Reconnect) {
+    std::printf("net: nothing answered for %u s - rejoining Wi-Fi\n", secs);
+    text = "No internet for " + std::to_string(secs / 60) + " min - reconnecting Wi-Fi";
+    plat::httpDropKept();
+    plat::wifiReconnect();
+  } else {
+    std::printf("net: nothing answered for %u s - restarting\n", secs);
+    text = "Still no internet - restarting";
+  }
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    s_notices.push_back(text);
+  }
+  if (action == core::NetWatch::Action::Restart) {
+    plat::sleepMs(3000);  // long enough to read the notice
+    plat::restartForNetwork();
+  }
+}
+
 void networkLoop() {
   std::string body;
   std::vector<core::Aircraft> parsed;
@@ -994,6 +1032,7 @@ void networkLoop() {
       continue;
     }
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
+      s_net_watch.offline();  // the Wi-Fi driver is reconnecting already
       if (menu || !maps::service(false)) plat::sleepMs(100);
       continue;
     }
@@ -1028,6 +1067,7 @@ void networkLoop() {
     // Kept open between updates: no new TLS handshake every few seconds.
     const int code = plat::httpGetKeepAlive(url.c_str(), &body, 10000);
     const bool ok = ingestImpl(code, body, &parsed, source);
+    watchNetwork(code);
     const core::SourceFailover::Change change = s_failover.report(ok, plat::millis());
     if (change != core::SourceFailover::Change::None) {
       const std::string text =

@@ -38,6 +38,7 @@ bool s_radio_ok = true;
 // copies, and the "wifi" task below does the slow asking (signal strength,
 // reconnecting, hotspot clients).
 std::atomic<bool> s_retry_due{false};
+std::atomic<bool> s_rejoin_due{false};
 std::atomic<int> s_hotspot_clients{0};
 TaskHandle_t s_wifi_task = nullptr;
 
@@ -72,6 +73,22 @@ void wifiTask(void*) {
   uint32_t next_rssi_ms = 0, rssi_every_ms = 5000;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+    if (s_rejoin_due.exchange(false)) {
+      bool rejoin = false;
+      {
+        std::lock_guard<std::mutex> lock(s_mu);
+        if (s_want_connected) {
+          s_status.state = WifiState::Connecting;
+          rejoin = true;
+        }
+      }
+      if (rejoin) {
+        ESP_LOGW(TAG, "rejoining the network (internet not answering)");
+        esp_wifi_disconnect();  // reported as ASSOC_LEAVE: no automatic retry
+        vTaskDelay(pdMS_TO_TICKS(500));
+        esp_wifi_connect();
+      }
+    }
     if (s_retry_due.exchange(false)) {
       bool connect = false;
       {
@@ -284,6 +301,11 @@ void wifiConnect(const char* ssid, const char* pass) {
     std::snprintf(s_status.ssid, sizeof(s_status.ssid), "%s", ssid);
   }
   esp_wifi_connect();
+}
+
+void wifiReconnect() {
+  s_rejoin_due = true;
+  if (s_wifi_task != nullptr) xTaskNotifyGive(s_wifi_task);
 }
 
 void wifiScanStart() {

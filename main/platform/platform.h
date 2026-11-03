@@ -58,6 +58,8 @@ struct WifiNetwork {
 WifiStatus wifiStatus();
 /** Connects (and keeps reconnecting) to the network. Empty ssid disconnects. */
 void wifiConnect(const char* ssid, const char* pass);
+/** Drops and rejoins the current network (in the background; returns at once). */
+void wifiReconnect();
 void wifiScanStart();
 /** True once the last scan finished; fills `out` sorted by signal strength. */
 bool wifiScanResults(std::vector<WifiNetwork>* out);
@@ -89,6 +91,8 @@ int httpGet(const char* url, std::string* body, int timeout_ms, const char* cons
  * call from one task.
  */
 int httpGetKeepAlive(const char* url, std::string* body, int timeout_ms);
+/** Closes the connections httpGetKeepAlive() keeps open (same task only). */
+void httpDropKept();
 
 // --- SD card (call from the network task only) ---------------------------------
 struct SdInfo {
@@ -129,6 +133,14 @@ void setVolume(int percent);
 void startTask(const char* name, std::function<void()> fn, size_t stack_bytes, int priority);
 void sleepMs(uint32_t ms);
 void restart();
+/**
+ * Restarts because the internet stopped answering (this also resets the
+ * Wi-Fi chip). netRestarts() counts these restarts in a row, across them;
+ * netRestartsClear() once the internet answers again.
+ */
+void restartForNetwork();
+int netRestarts();
+void netRestartsClear();
 const char* firmwareVersion();
 /** Board variant of this build, as in the release file names: "4in-720x720-chip-v1". */
 const char* firmwareVariant();
