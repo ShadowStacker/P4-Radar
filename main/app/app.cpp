@@ -30,6 +30,7 @@
 #include "core/inflate.h"
 #include "core/job_queue.h"
 #include "core/net_watch.h"
+#include "core/wav.h"
 #include "core/logbook.h"
 #include "core/lookup_cache.h"
 #include "core/png.h"
@@ -789,6 +790,65 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
 
 bool cardReady() { return maps::sdStatus().state == maps::SdState::Mounted; }
 
+// Your own sounds: sounds/*.wav on the card replace the built-in ones. Read
+// and decoded on the card task; the clips themselves live in PSRAM.
+std::mutex s_sounds_mu;
+std::vector<std::string> s_sounds_status;  // guarded by s_sounds_mu
+bool s_sounds_custom[static_cast<int>(core::Sound::kCount)] = {};  // card task only
+constexpr long kMaxSoundFile = 8L * 1024 * 1024;
+
+/** Card task. */
+void loadSoundsNow() {
+  if (!cardReady()) return;
+  std::vector<std::string> status;
+  const int rate = plat::soundSampleRate();
+  for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) {
+    const core::Sound snd = static_cast<core::Sound>(i);
+    const char* name = core::wav::fileName(snd);
+    if (name == nullptr) continue;
+    auto builtIn = [&] {
+      if (s_sounds_custom[i]) plat::setSoundClip(snd, {});  // gone from the card: the built-in one again
+      s_sounds_custom[i] = false;
+    };
+    FILE* f = std::fopen(sdPath((std::string("sounds/") + name).c_str()).c_str(), "rb");
+    if (f == nullptr) {
+      builtIn();
+      continue;
+    }
+    std::fseek(f, 0, SEEK_END);
+    const long size = std::ftell(f);
+    std::fseek(f, 0, SEEK_SET);
+    std::string err;
+    std::vector<int16_t> pcm;
+    if (size <= 0 || size > kMaxSoundFile) {
+      err = size <= 0 ? "empty" : "too big (8 MB at most)";
+    } else {
+      std::vector<uint8_t> data(static_cast<size_t>(size));  // PSRAM (large)
+      if (std::fread(data.data(), 1, data.size(), f) != data.size()) {
+        err = "couldn't be read";
+      } else if (!core::wav::decode(data.data(), data.size(), rate, core::wav::maxSeconds(snd), &pcm, &err) ||
+                 pcm.empty()) {
+        if (err.empty()) err = "no sound in it";
+        pcm.clear();
+      }
+    }
+    std::fclose(f);
+    if (!pcm.empty()) {
+      char line[96];
+      std::snprintf(line, sizeof(line), "%s: OK, %.1f s", name, static_cast<double>(pcm.size()) / rate);
+      status.push_back(line);
+      plat::setSoundClip(snd, std::move(pcm));
+      s_sounds_custom[i] = true;
+    } else {
+      status.push_back(std::string(name) + ": " + err);
+      builtIn();
+    }
+  }
+  for (const std::string& l : status) std::printf("sounds: %s\n", l.c_str());
+  std::lock_guard<std::mutex> lock(s_sounds_mu);
+  s_sounds_status = std::move(status);
+}
+
 int today() { return plat::timeValid() ? core::daylog::dateOf(core::localTime(plat::unixTimeMs() / 1000)) : 0; }
 
 // Lookups kept on the card. Guarded by s_route_mu (with the route state).
@@ -1204,6 +1264,7 @@ void factoryReset() {
 }
 
 void sdFilesMounted() {
+  reloadSounds();
   bool first, settings_behind, favorites_behind;
   {
     std::lock_guard<std::mutex> lock(s_files_mu);
@@ -2051,6 +2112,13 @@ void startNetworkTask() {
       if (!s_card.runOne()) s_card.waitForJob(500);
     }
   }, 8 * 1024, 2);
+}
+
+void reloadSounds() { s_card.push(loadSoundsNow, 0, false); }
+
+std::vector<std::string> customSounds() {
+  std::lock_guard<std::mutex> lock(s_sounds_mu);
+  return s_sounds_status;
 }
 
 void queueCardJob(std::function<void()> job, size_t bytes, bool droppable) {

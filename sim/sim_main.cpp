@@ -6,6 +6,8 @@
 #include <zlib.h>
 
 #include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <chrono>
 #include <thread>
 #include <cmath>
@@ -1482,6 +1484,57 @@ int main(int argc, char** argv) {
     ui::closeSettings();
     rv.goHome(false);
     run(2000);
+  }
+
+  // Your own sounds: a WAV in sounds/ on the card replaces a built-in sound;
+  // a broken one is reported; deleting them brings the built-in ones back.
+  {
+    const std::string dir = std::string(plat::sdRoot()) + "/sounds";
+    std::filesystem::create_directories(dir);
+    {
+      // 0.5 s of a 440 Hz tone, 16-bit stereo at 44.1 kHz.
+      std::string data;
+      for (int i = 0; i < 22050; ++i) {
+        const int16_t v = static_cast<int16_t>(std::lround(std::sin(i * 2 * 3.14159265 * 440 / 44100) * 12000));
+        for (int c = 0; c < 2; ++c) data.append(reinterpret_cast<const char*>(&v), 2);
+      }
+      auto le = [](uint32_t v, int n) {
+        std::string o;
+        for (int i = 0; i < n; ++i) o.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+        return o;
+      };
+      const std::string wav = "RIFF" + le(36 + data.size(), 4) + "WAVEfmt " + le(16, 4) + le(1, 2) + le(2, 2) +
+                              le(44100, 4) + le(44100 * 4, 4) + le(4, 2) + le(16, 2) + "data" + le(data.size(), 4) + data;
+      std::ofstream(dir + "/first_time.wav", std::ios::binary) << wav;
+      std::ofstream(dir + "/alarm.wav", std::ios::binary) << "this is not a sound";
+    }
+    app::reloadSounds();
+    run(300);
+    std::vector<std::string> lines = app::customSounds();
+    auto has = [&](const char* needle) {
+      for (const std::string& l : lines) {
+        if (l.find(needle) != std::string::npos) return true;
+      }
+      return false;
+    };
+    const bool loaded = has("first_time.wav: OK, 0.5 s") && has("alarm.wav: not a WAV file") && lines.size() == 2;
+    ui::openSettings(ui::Page::Sound);
+    run(500);
+    const bool listed = hasLabel(lv_screen_active(), "first_time.wav: OK") && hasLabel(lv_screen_active(), "Load them again");
+    if (lv_obj_t* l = findLabel(lv_screen_active(), "YOUR OWN SOUNDS (SD CARD)")) lv_obj_scroll_to_view_recursive(l, LV_ANIM_OFF);
+    run(300);
+    shot((p + "83_custom_sounds").c_str());
+    std::filesystem::remove(dir + "/first_time.wav");
+    std::filesystem::remove(dir + "/alarm.wav");
+    app::reloadSounds();
+    run(300);
+    lines = app::customSounds();
+    const bool cleared = lines.empty();
+    std::printf("custom sounds: loaded %s, listed %s, removed %s\n", loaded ? "OK" : "FAILED", listed ? "OK" : "FAILED",
+                cleared ? "OK" : "FAILED");
+    if (!loaded || !listed || !cleared) return 1;
+    ui::closeSettings();
+    run(300);
   }
 
   // Logbook: a new visitor is announced; the page lists the book.

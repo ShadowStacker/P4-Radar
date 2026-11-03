@@ -425,6 +425,37 @@ switches itself off.
 
 See [Alerts explained](#alerts-explained) for exactly when each one fires.
 
+#### Your own sounds
+
+Any sound can be replaced with a WAV file of your own. Put it in a `sounds`
+folder on the SD card, named after the sound, then tap **Load them again** at
+the bottom of the Sound page. They're also read whenever a card is put in and
+at startup.
+
+| File | Plays for |
+|---|---|
+| `click.wav` | Touches (cut to 1 s) |
+| `ping.wav` | Each sweep (cut to 1 s) |
+| `aircraft_detected.wav` | Aircraft detected |
+| `first_time.wav` | First time here (logbook) |
+| `proximity.wav` | Proximity alert |
+| `emergency.wav` | Emergency squawks |
+| `favorite_seen.wav` / `favorite_near.wav` | Favorite detected / nearby |
+| `watchlist.wav` | Watchlist alerts |
+| `alarm.wav` | Alarm clock (up to 20 s) |
+| `startup.wav` | Start |
+| `home.wav` | The Home button |
+
+- **Formats:** any ordinary WAV works: 8, 16, 24 or 32-bit, or 32-bit float,
+  mono or stereo, any sample rate. It's converted to mono at 22 kHz.
+- **Length:** sounds are cut to 8 seconds unless noted above. Files can be up
+  to 8 MB.
+- **Checking:** the page lists each file it found and whether it worked, for
+  example *not a WAV file*, or *unsupported format* for compressed ones like
+  ADPCM or MP3.
+- **Going back:** delete a file and tap **Load them again** to get the
+  built-in sound back. The on/off switches above still apply to your sounds.
+
 ### Traffic & data
 
 | Option | What it does | Default |

@@ -1201,6 +1201,39 @@ void pageSound() {
   actionRow(LV_SYMBOL_PLAY, "Favorite nearby", [] { plat::playSound(core::Sound::FavoriteNear); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Emergency", [] { plat::playSound(core::Sound::Emergency); }, pal().text);
   actionRow(LV_SYMBOL_PLAY, "Watchlist", [] { plat::playSound(core::Sound::Watch); }, pal().text);
+
+  section("YOUR OWN SOUNDS (SD CARD)");
+  const bool card = app::maps::sdStatus().state == app::maps::SdState::Mounted;
+  const std::vector<std::string> custom = app::customSounds();
+  for (const std::string& line : custom) {
+    lv_obj_t* l = label(s.list, line.c_str(), font(FontSize::M), pal().text);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  }
+  if (card) {
+    actionRow(LV_SYMBOL_REFRESH, "Load them again", [] {
+      app::reloadSounds();
+      toast(LV_SYMBOL_REFRESH "  Reading the sounds folder...", 2000);
+      lv_timer_create([](lv_timer_t* t) {
+        lv_timer_delete(t);
+        if (settingsOpen() && currentPage() == Page::Sound) refresh();
+      }, 2500, nullptr);
+    }, pal().text);
+  }
+  lv_obj_t* note = label(s.list,
+                         !card ? "With an SD card, WAV files in a sounds folder on it replace the built-in sounds."
+                         : custom.empty()
+                             ? "None found. Put WAV files in a sounds folder on the SD card, named click, ping, "
+                               "aircraft_detected, proximity, emergency, startup, home, favorite_seen, "
+                               "favorite_near, alarm, watchlist or first_time (.wav), then tap Load them again. "
+                               "Missing ones keep the built-in sound."
+                             : "WAV files in the card's sounds folder replace the built-in sounds; delete one and "
+                               "load again to get the built-in sound back.",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
 }
 
 void pageFavorites() {

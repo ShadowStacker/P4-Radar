@@ -10,6 +10,20 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.35.0] - 2026-11-03
+
+### Added
+- **Your own sounds.** WAV files in a `sounds` folder on the SD card replace
+  the built-in sounds: `aircraft_detected.wav`, `first_time.wav`,
+  `proximity.wav`, `emergency.wav`, `favorite_seen.wav`, `favorite_near.wav`,
+  `watchlist.wav`, `alarm.wav`, `startup.wav`, `home.wav`, `click.wav` and
+  `ping.wav`. Any ordinary WAV works (8 to 32-bit, float, mono or stereo, any
+  sample rate). The bottom of the Sound page lists what it found and whether
+  each file worked, with **Load them again** after you change the card. Delete
+  a file to get the built-in sound back. The files are read in the background
+  and kept in the large external memory, so they don't take the memory Wi-Fi
+  needs.
+
 ## [v1.34.1] - 2026-11-03
 
 ### Changed

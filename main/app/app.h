@@ -128,6 +128,12 @@ void lookupFavorite(const std::string& registration_or_hex);
 /** Runs a pending lookup (network task); true if it made a request. */
 bool serviceFavoriteLookup();
 
+// --- Your own sounds (sounds/*.wav on the SD card) ---------------------------------
+/** Reads the sounds folder again (soon, on the card task); also done when a card is mounted. */
+void reloadSounds();
+/** What the last reading found, a line per file ("first_time.wav: OK, 1.2 s"); empty if none. */
+std::vector<std::string> customSounds();
+
 // --- Place search (Location page) -------------------------------------------------
 enum class PlaceSearchState { Idle, Searching, Done, Failed };
 struct PlaceSearch {

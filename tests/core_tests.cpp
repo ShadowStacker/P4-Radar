@@ -43,6 +43,7 @@
 #include "core/trace.h"
 #include "core/update.h"
 #include "core/geocode.h"
+#include "core/wav.h"
 #include "core/net_watch.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
@@ -461,6 +462,68 @@ void testPlaces() {
   CHECK(sw.sweep_rpm == 4);
   CHECK(core::settings_text::parse("sweep_rpm = 1\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);
   CHECK(core::settings_text::parse("sweep_rpm = 0\n", &sw, nullptr) == 1 && sw.sweep_rpm == 1);  // clamped
+}
+
+std::string makeWav(int format, int channels, int rate, int bits, const std::vector<double>& mono_samples) {
+  std::string data;
+  for (double v : mono_samples) {
+    for (int c = 0; c < channels; ++c) {
+      if (format == 3) {
+        float f = static_cast<float>(v);
+        data.append(reinterpret_cast<const char*>(&f), 4);
+      } else if (bits == 8) {
+        data.push_back(static_cast<char>(static_cast<int>(std::lround(v * 127)) + 128));
+      } else {
+        const int64_t x = std::llround(v * ((1LL << (bits - 1)) - 1));
+        for (int b = 0; b < bits / 8; ++b) data.push_back(static_cast<char>((x >> (8 * b)) & 0xFF));
+      }
+    }
+  }
+  auto le = [](uint32_t v, int n) {
+    std::string s;
+    for (int i = 0; i < n; ++i) s.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+    return s;
+  };
+  std::string fmt = le(format, 2) + le(channels, 2) + le(rate, 4) + le(rate * channels * bits / 8, 4) +
+                    le(channels * bits / 8, 2) + le(bits, 2);
+  std::string out = "RIFF" + le(4 + 8 + 16 + 8 + 8 + data.size(), 4) + "WAVE";
+  out += "LIST" + le(4, 4) + "INFO";  // a chunk to skip
+  out += "fmt " + le(16, 4) + fmt + "data" + le(data.size(), 4) + data;
+  return out;
+}
+
+void testWav() {
+  namespace wav = core::wav;
+  std::vector<double> ramp;
+  for (int i = 0; i < 1000; ++i) ramp.push_back(std::sin(i * 0.05) * 0.5);
+  std::vector<int16_t> out;
+  std::string err;
+  for (int bits : {8, 16, 24, 32}) {
+    for (int ch : {1, 2}) {
+      const std::string w = makeWav(1, ch, 22050, bits, ramp);
+      CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 10, &out, &err));
+      CHECK(out.size() == 1000);
+      if (out.size() == 1000) CHECK(std::abs(out[100] - std::lround(std::sin(5.0) * 0.5 * 32767)) < (bits == 8 ? 300 : 3));
+    }
+  }
+  std::string w = makeWav(3, 2, 44100, 32, ramp);
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 10, &out, &err) && out.size() == 500);
+  CHECK(std::abs(out[50] - std::lround(std::sin(5.0) * 0.5 * 32767)) < 3);  // every other one
+  // Cut to the longest allowed.
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(w.data()), w.size(), 22050, 0.01, &out, &err) && out.size() == 220);
+  // Broken files.
+  CHECK(!wav::decode(reinterpret_cast<const uint8_t*>("RIFF"), 4, 22050, 10, &out, &err));
+  std::string adpcm = makeWav(2, 1, 22050, 16, ramp);
+  CHECK(!wav::decode(reinterpret_cast<const uint8_t*>(adpcm.data()), adpcm.size(), 22050, 10, &out, &err) &&
+        err.find("unsupported") != std::string::npos);
+  std::string cut = makeWav(1, 1, 22050, 16, ramp).substr(0, 600);
+  CHECK(wav::decode(reinterpret_cast<const uint8_t*>(cut.data()), cut.size(), 22050, 10, &out, &err) && !out.empty() &&
+        out.size() < 300);
+  for (size_t n = 0; n < 80; ++n) wav::decode(reinterpret_cast<const uint8_t*>(w.data()), n, 22050, 10, &out, &err);
+  CHECK(std::string(wav::fileName(core::Sound::FirstTime)) == "first_time.wav");
+  CHECK(std::string(wav::fileName(core::Sound::NewAircraft)) == "aircraft_detected.wav");
+  CHECK(std::string(wav::fileName(core::Sound::Alert)) == "proximity.wav");
+  for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) CHECK(wav::fileName(static_cast<core::Sound>(i)) != nullptr);
 }
 
 void testGeocode() {
@@ -1898,6 +1961,7 @@ int main() {
   testJobQueue();
   testNetWatch();
   testGeocode();
+  testWav();
   testLogbook();
   testPlaces();
   testReplay();
