@@ -28,6 +28,7 @@
 #include "app/web.h"
 #include "app/wifi_internal.h"
 #include "core/inflate.h"
+#include "core/hidden.h"
 #include "core/job_queue.h"
 #include "core/net_watch.h"
 #include "core/wav.h"
@@ -92,6 +93,18 @@ core::SourceFailover s_failover;    // network task only
 std::mutex s_favorites_mu;  // also guards s_silenced
 std::vector<core::Favorite> s_favorites;
 std::vector<core::Favorite> s_silenced;  // no sounds for these (but emergencies)
+
+// Hidden aircraft: hidden.txt on the card, read when it's mounted. Dropped
+// from every feed update before anything else sees them.
+std::mutex s_hidden_mu;
+core::hidden::List s_hidden;  // guarded by s_hidden_mu
+bool s_hidden_loaded = false;  // read from the card (or found missing) since it was mounted
+constexpr const char* kHiddenFile = "hidden.txt";
+
+void filterHidden(std::vector<core::Aircraft>* aircraft) {
+  std::lock_guard<std::mutex> lock(s_hidden_mu);
+  s_hidden.filter(aircraft);
+}
 
 constexpr uint32_t kMinFetchSpacingMs = 1500;  // public APIs allow ~1 req/s
 
@@ -487,6 +500,7 @@ bool serviceReplayImpl() {
     }
     std::fclose(f);
   }
+  filterHidden(&frame);  // recorded before it was hidden
   const std::vector<core::Favorite> favs = favorites();
   frame.erase(std::remove_if(frame.begin(), frame.end(),
                              [&](const core::Aircraft& a) {
@@ -685,6 +699,7 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const uint64_t parse_t0 = plat::micros();
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
   const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
+  if (ok) filterHidden(parsed);  // as if they weren't there: no logs, replays, alerts or sounds
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
   if (ok) recordReplay(*parsed);
@@ -1265,6 +1280,26 @@ void factoryReset() {
 
 void sdFilesMounted() {
   reloadSounds();
+  {
+    std::lock_guard<std::mutex> lock(s_hidden_mu);
+    s_hidden_loaded = false;
+  }
+  queueCardJob([] {
+    // No size cap: the list has no limit.
+    core::hidden::List list;
+    if (FILE* f = std::fopen(sdPath(kHiddenFile).c_str(), "rb")) {
+      std::fseek(f, 0, SEEK_END);
+      const long size = std::ftell(f);
+      std::fseek(f, 0, SEEK_SET);
+      std::string text(size > 0 ? static_cast<size_t>(size) : 0, '\0');
+      if (size > 0 && std::fread(&text[0], 1, text.size(), f) == text.size()) list.parse(text);
+      std::fclose(f);
+    }
+    std::printf("hidden: %u aircraft\n", static_cast<unsigned>(list.size()));
+    std::lock_guard<std::mutex> lock(s_hidden_mu);
+    s_hidden = std::move(list);
+    s_hidden_loaded = true;
+  }, 0, false);
   bool first, settings_behind, favorites_behind;
   {
     std::lock_guard<std::mutex> lock(s_files_mu);
@@ -1757,6 +1792,49 @@ bool toggleFavorite(const core::Aircraft& a) {
   if (quiet) plat::silencedSave(*quiet);
   queueFavoritesFile();
   return now_favorite;
+}
+
+HideResult hideAircraft(const core::Aircraft& a) {
+  std::string text;
+  {
+    std::lock_guard<std::mutex> lock(s_hidden_mu);
+    if (!s_hidden_loaded || maps::sdStatus().state != maps::SdState::Mounted) return HideResult::NoCard;
+    if (core::hidden::keyOf(a.hex) == 0) return HideResult::NoCode;
+    if (!s_hidden.add(a)) return HideResult::AlreadyHidden;
+    text = s_hidden.serialize();
+  }
+  writeText(kHiddenFile, text);
+  // Hidden is neither a favorite nor silenced; and it goes from the screen now.
+  if (isFavorite(a.hex)) removeFavorite(a.hex);
+  if (isSilenced(a.hex)) removeSilenced(a.hex);
+  s_traffic.remove(a.hex);
+  return HideResult::Hidden;
+}
+
+bool unhideAircraft(uint32_t key) {
+  std::string text;
+  {
+    std::lock_guard<std::mutex> lock(s_hidden_mu);
+    if (!s_hidden.remove(key)) return false;
+    text = s_hidden.serialize();
+  }
+  if (maps::sdStatus().state == maps::SdState::Mounted) writeText(kHiddenFile, text);
+  return true;
+}
+
+std::vector<core::hidden::Entry> hiddenAircraft() {
+  std::lock_guard<std::mutex> lock(s_hidden_mu);
+  return s_hidden.entries();
+}
+
+size_t hiddenCount() {
+  std::lock_guard<std::mutex> lock(s_hidden_mu);
+  return s_hidden.size();
+}
+
+bool hiddenAvailable() {
+  std::lock_guard<std::mutex> lock(s_hidden_mu);
+  return s_hidden_loaded && maps::sdStatus().state == maps::SdState::Mounted;
 }
 
 void removeFavorite(const char* hex) {

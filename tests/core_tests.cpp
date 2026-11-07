@@ -45,6 +45,7 @@
 #include "core/trace.h"
 #include "core/update.h"
 #include "core/geocode.h"
+#include "core/hidden.h"
 #include "core/wav.h"
 #include "core/net_watch.h"
 #include "core/traffic.h"
@@ -526,6 +527,55 @@ void testWav() {
   CHECK(std::string(wav::fileName(core::Sound::NewAircraft)) == "aircraft_detected.wav");
   CHECK(std::string(wav::fileName(core::Sound::Alert)) == "proximity.wav");
   for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) CHECK(wav::fileName(static_cast<core::Sound>(i)) != nullptr);
+}
+
+void testHidden() {
+  namespace h = core::hidden;
+  CHECK(h::keyOf("a1b2c3") != 0 && h::keyOf("A1B2C3") == h::keyOf("a1b2c3"));
+  CHECK(h::keyOf("000000") != 0);
+  CHECK(h::keyOf("~a1b2c3") != 0 && h::keyOf("~a1b2c3") != h::keyOf("a1b2c3"));
+  CHECK(h::keyOf("") == 0 && h::keyOf("xyz") == 0 && h::keyOf("a1b2c") == 0 && h::keyOf("a1b2c3d") == 0);
+  h::List list;
+  core::Aircraft a;
+  std::snprintf(a.hex, sizeof(a.hex), "A1B2C3");
+  std::snprintf(a.callsign, sizeof(a.callsign), "N123AB  ");
+  std::snprintf(a.type, sizeof(a.type), "C172");
+  CHECK(list.add(a) && !list.add(a) && list.size() == 1);
+  CHECK(list.contains("a1b2c3") && std::strcmp(list.entries()[0].label, "N123AB") == 0);
+  core::Aircraft b;
+  std::snprintf(b.hex, sizeof(b.hex), "~0000ff");
+  std::snprintf(b.reg, sizeof(b.reg), "TISB-1");
+  CHECK(list.add(b) && list.size() == 2);
+  core::Aircraft bad;
+  CHECK(!list.add(bad));  // no hex code
+  // No limit.
+  for (int i = 0; i < 5000; ++i) {
+    core::Aircraft x;
+    std::snprintf(x.hex, sizeof(x.hex), "%06x", 0x100000 + i);
+    list.add(x);
+  }
+  CHECK(list.size() == 5002 && list.contains("101387") && !list.contains("200000"));
+  CHECK(std::is_sorted(list.entries().begin(), list.entries().end(),
+                       [](const h::Entry& x, const h::Entry& y) { return x.key < y.key; }));
+  // Filtering a feed.
+  std::vector<core::Aircraft> feed(3);
+  std::snprintf(feed[0].hex, sizeof(feed[0].hex), "a1b2c3");
+  std::snprintf(feed[1].hex, sizeof(feed[1].hex), "abcdef");
+  std::snprintf(feed[2].hex, sizeof(feed[2].hex), "~0000ff");
+  list.filter(&feed);
+  CHECK(feed.size() == 1 && std::strcmp(feed[0].hex, "abcdef") == 0);
+  // The file, both ways.
+  h::List small;
+  small.add(a);
+  small.add(b);
+  const std::string text = small.serialize();
+  CHECK(text.find("a1b2c3 N123AB C172\n") != std::string::npos && text.find("~0000ff TISB-1\n") != std::string::npos);
+  h::List back;
+  back.parse(text + "\n  bad line\nabcdef  # just a hex\n123456 - B738\nzzzzzz X\n");
+  CHECK(back.size() == 4 && back.contains("a1b2c3") && back.contains("~0000ff") && back.contains("abcdef") &&
+        back.contains("123456"));
+  CHECK(std::strcmp(back.entries()[0].type, "B738") == 0 || std::strcmp(back.entries()[1].type, "B738") == 0);
+  CHECK(back.remove(h::keyOf("abcdef")) && !back.remove(h::keyOf("abcdef")) && back.size() == 3);
 }
 
 void testGeocode() {
@@ -2165,6 +2215,7 @@ int main() {
   testJobQueue();
   testNetWatch();
   testGeocode();
+  testHidden();
   testWav();
   testLogbook();
   testPlaces();

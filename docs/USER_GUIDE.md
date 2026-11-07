@@ -127,9 +127,35 @@ Card buttons:
   squawks still sound. Silencing a favorite takes it off the favorites, and
   starring a silenced aircraft un-silences it. Manage the list under
   **Sound → Silenced aircraft** (or the phone page's Favorites tab).
+- 👁 **Hide** (crossed-out eye): hide this aircraft for good, after asking.
+  See [Hidden aircraft](#hidden-aircraft).
 - ➤ **Follow**: keep this aircraft on screen. The map re-centers whenever it
   drifts away from the middle. Panning or pinching stops following.
 - ✕ **Close**: close the card.
+
+### Hidden aircraft
+
+Some aircraft you never want to see, such as a training flight that circles
+all day. Tap it on the radar, then the crossed-out eye on its info card, and
+confirm. From then on it is treated as if it wasn't in the data:
+
+- it isn't drawn and isn't in the Nearby list;
+- it makes no sound or alert of any kind, **not even in an emergency**
+  (unlike silenced aircraft);
+- it isn't counted in the daily log or the logbook, and isn't recorded for
+  replays (replays recorded earlier skip it too).
+
+Hiding a favorite or a silenced aircraft takes it off those lists. There is
+no limit on how many you can hide.
+
+**Settings → Hidden aircraft** lists them, 100 to a page, with the name and
+type each had when hidden. The open eye next to one brings it back; it
+reappears with the next traffic update.
+
+The list is kept on the SD card in `hidden.txt`, one aircraft per line (hex
+code, then the name and type). You can edit it on a computer: delete a line to
+bring an aircraft back, or add a hex code to hide one. Hiding needs the card.
+Without it, the button says so.
 
 **Where the airline and route come from.** When you tap an aircraft, the radar
 looks it up on [adsbdb.com](https://www.adsbdb.com), a free database of

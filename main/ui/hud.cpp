@@ -270,7 +270,22 @@ void updateCard() {
   if (!show) return;
 
   const core::Aircraft& a = t->ac;
-  setLabelText(h.card_title, a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+  {
+    // Five buttons share the row: a name that doesn't fit is shortened with "...".
+    std::string name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    while (!name.empty() && name.back() == ' ') name.pop_back();
+    const lv_font_t* f = font(FontSize::XL);
+    auto width = [f](const std::string& t) {
+      lv_point_t sz;
+      lv_text_get_size(&sz, t.c_str(), f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+      return sz.x;
+    };
+    if (width(name) > sc(160)) {
+      while (name.size() > 1 && width(name + "...") > sc(160)) name.pop_back();
+      name += "...";
+    }
+    setLabelText(h.card_title, name.c_str());
+  }
   char badge[16];
   std::snprintf(badge, sizeof(badge), "%s%s", a.type[0] ? a.type : "?", a.military ? "  MIL" : "");
   setLabelText(h.card_type, badge);
@@ -495,8 +510,10 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(head, sc(10), 0);
+  lv_obj_set_style_pad_column(head, sc(6), 0);
 
+  // Five buttons share the row: the callsign gets what's left, ending in "..."
+  // if it ever needs more.
   h.card_title = label(head, "", font(FontSize::XL), p.text);
   h.card_type = label(head, "", font(FontSize::M), lv_color_black());
   lv_obj_set_style_bg_color(h.card_type, p.accent, 0);
@@ -511,7 +528,7 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_set_height(spacer, 1);
 
   // Favorite toggle: a round button holding the star image (no star glyph in the fonts).
-  h.fav_btn = iconButton(head, "", sc(52), [] {
+  h.fav_btn = iconButton(head, "", sc(46), [] {
     const core::Track* t = RadarView::get().selected();
     if (t == nullptr) return;
     if (!app::isFavorite(t->ac.hex) && app::favorites().size() >= core::kMaxFavorites) {
@@ -527,7 +544,7 @@ void buildCard(lv_obj_t* parent) {
   lv_obj_set_style_image_recolor_opa(h.fav_img, LV_OPA_COVER, 0);
 
   // Silence: no sounds for this aircraft (the opposite of a favorite).
-  h.mute_ac_btn = iconButton(head, LV_SYMBOL_MUTE, sc(52), [] {
+  h.mute_ac_btn = iconButton(head, LV_SYMBOL_MUTE, sc(46), [] {
     const core::Track* t = RadarView::get().selected();
     if (t == nullptr) return;
     if (!app::isSilenced(t->ac.hex) && app::silenced().size() >= core::kMaxFavorites) {
@@ -548,12 +565,43 @@ void buildCard(lv_obj_t* parent) {
     updateCard();
   });
 
-  h.follow_btn = iconButton(head, LV_SYMBOL_GPS, sc(52), [] {
+  // Hide: gone from the radar for good (no sounds either, even emergencies);
+  // Settings -> Hidden aircraft brings it back.
+  iconButton(head, LV_SYMBOL_EYE_CLOSE, sc(46), [] {
+    const core::Track* t = RadarView::get().selected();
+    if (t == nullptr) return;
+    const core::Aircraft a = t->ac;
+    const std::string name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    if (!app::hiddenAvailable()) {
+      toast(LV_SYMBOL_SD_CARD "  Hiding needs the SD card: the hidden list is kept on it", 3500);
+      return;
+    }
+    confirm(("Hide " + name + "?").c_str(),
+            "It won't be shown on the radar or make any sound again, emergencies included. "
+            "Settings > Hidden aircraft brings it back.",
+            LV_SYMBOL_EYE_CLOSE "  Hide", [a, name] {
+              switch (app::hideAircraft(a)) {
+                case app::HideResult::Hidden:
+                  RadarView::get().clearSelection();
+                  RadarView::get().markStaticDirty();
+                  updateCard();
+                  toast((std::string(LV_SYMBOL_EYE_CLOSE "  ") + name + " hidden").c_str(), 3000);
+                  break;
+                case app::HideResult::AlreadyHidden: toast("Already hidden"); break;
+                case app::HideResult::NoCard:
+                  toast(LV_SYMBOL_SD_CARD "  Hiding needs the SD card: the hidden list is kept on it", 3500);
+                  break;
+                case app::HideResult::NoCode: toast(LV_SYMBOL_WARNING "  This aircraft has no code to hide it by"); break;
+              }
+            });
+  });
+
+  h.follow_btn = iconButton(head, LV_SYMBOL_GPS, sc(46), [] {
     RadarView& rv = RadarView::get();
     rv.setFollow(!rv.following());
     updateCard();
   });
-  iconButton(head, LV_SYMBOL_CLOSE, sc(52), [] {
+  iconButton(head, LV_SYMBOL_CLOSE, sc(46), [] {
     RadarView::get().clearSelection();
     updateCard();
   });

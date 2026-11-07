@@ -1,5 +1,6 @@
 #include "core/traffic.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace core {
@@ -136,6 +137,17 @@ void TrafficStore::clear() {
   std::lock_guard<std::mutex> lock(mu_);
   tracks_.clear();
   ++version_;
+}
+
+bool TrafficStore::remove(const char* hex) {
+  std::lock_guard<std::mutex> lock(mu_);
+  const size_t n = tracks_.size();
+  tracks_.erase(std::remove_if(tracks_.begin(), tracks_.end(),
+                               [hex](const Track& t) { return std::strcmp(t.ac.hex, hex) == 0; }),
+                tracks_.end());
+  if (tracks_.size() == n) return false;
+  ++version_;
+  return true;
 }
 
 }  // namespace core

@@ -8,6 +8,7 @@
 #include "core/daylog.h"
 #include "core/favorites.h"
 #include "core/geocode.h"
+#include "core/hidden.h"
 #include "core/logbook.h"
 #include "core/geo.h"
 #include "core/route.h"
@@ -147,6 +148,21 @@ void searchPlaces(const std::string& query);
 PlaceSearch placeSearch();
 /** Runs a pending search (network task); true if it made a request. */
 bool servicePlaceSearch();
+// --- Hidden aircraft (thread-safe; hidden.txt on the SD card) ---------------------
+/**
+ * Never shown, counted, recorded or announced, not even in an emergency. No
+ * limit. Needs the SD card, where the list is kept.
+ */
+enum class HideResult { Hidden, AlreadyHidden, NoCard, NoCode };
+HideResult hideAircraft(const core::Aircraft& a);
+/** Brings one back (key from core::hidden::keyOf). False if it wasn't hidden. */
+bool unhideAircraft(uint32_t key);
+/** The list, sorted by hex code. */
+std::vector<core::hidden::Entry> hiddenAircraft();
+size_t hiddenCount();
+/** True once the list was read from a card that's in. */
+bool hiddenAvailable();
+
 // --- Silenced aircraft (thread-safe): the opposite of favorites -------------------
 /**
  * No sounds or watchlist notices for these: no new-aircraft chime, proximity

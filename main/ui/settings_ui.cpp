@@ -320,6 +320,8 @@ void pageMain() {
     navRowImage(sprites::planeIcon(sc(30) | 1), "Nearby aircraft", fmtStr("%u", static_cast<unsigned>(all.size())),
                 Page::Nearby);
   }
+  navRow(LV_SYMBOL_EYE_CLOSE, "Hidden aircraft",
+         app::hiddenCount() ? fmtStr("%u", static_cast<unsigned>(app::hiddenCount())) : std::string(), Page::Hidden);
   navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
@@ -1350,6 +1352,74 @@ void pageSilenced() {
   }
 }
 
+/** Hidden aircraft, 100 to a page (the list has no limit); the eye brings one back. */
+int s_hidden_page = 0;
+
+void pageHidden() {
+  const Palette& p = pal();
+  const std::vector<core::hidden::Entry> list = app::hiddenAircraft();
+  auto note = [&](const std::string& text) {
+    lv_obj_t* l = label(s.list, text.c_str(), font(FontSize::S), p.text_dim);
+    lv_obj_set_width(l, lv_pct(90));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+  };
+  note("Never shown on the radar, counted in the logs, or announced with a sound, not even in an emergency. To "
+       "hide one, tap it on the radar, then the " LV_SYMBOL_EYE_CLOSE " button on its info card. "
+       "Tap " LV_SYMBOL_EYE_OPEN " to bring one back.");
+  if (!app::hiddenAvailable()) {
+    note(LV_SYMBOL_SD_CARD "  The list is kept on the SD card (hidden.txt): put the card in to hide aircraft.");
+  }
+  if (list.empty()) {
+    lv_obj_t* l = label(s.list, "No hidden aircraft.", font(FontSize::M), p.text_dim);
+    lv_obj_set_style_pad_top(l, sc(20), 0);
+    lv_obj_set_style_pad_left(l, sc(16), 0);
+    return;
+  }
+  constexpr int kPerPage = 100;
+  const int pages = static_cast<int>((list.size() + kPerPage - 1) / kPerPage);
+  s_hidden_page = std::max(0, std::min(s_hidden_page, pages - 1));
+  const size_t first = static_cast<size_t>(s_hidden_page) * kPerPage;
+  const size_t last = std::min(list.size(), first + kPerPage);
+  section(pages > 1 ? fmtStr("%u HIDDEN (%u-%u)", static_cast<unsigned>(list.size()), static_cast<unsigned>(first + 1),
+                             static_cast<unsigned>(last)).c_str()
+                    : fmtStr("%u HIDDEN", static_cast<unsigned>(list.size())).c_str());
+  for (size_t i = first; i < last; ++i) {
+    const core::hidden::Entry& e = list[i];
+    lv_obj_t* r = baseRow(s.list);
+    label(r, LV_SYMBOL_EYE_CLOSE, font(FontSize::L), p.text_dim);
+    lv_obj_t* col = lv_obj_create(r);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    label(col, e.label[0] ? e.label : e.hex, font(FontSize::M), p.text);
+    label(col, fmtStr("%s  %s", e.type[0] ? e.type : "?", e.hex).c_str(), font(FontSize::S), p.text_dim);
+    const uint32_t key = e.key;
+    const std::string name = e.label[0] ? e.label : e.hex;
+    lv_obj_t* back = iconButton(r, LV_SYMBOL_EYE_OPEN, sc(56), nullptr);
+    onClick(back, [key, name] {
+      if (app::unhideAircraft(key)) {
+        toast((std::string(LV_SYMBOL_EYE_OPEN "  ") + name + " is shown again").c_str());
+        app::requestRefresh();
+      }
+      refresh();
+    });
+  }
+  if (s_hidden_page > 0) {
+    actionRow(LV_SYMBOL_UP, "Previous 100", [] {
+      --s_hidden_page;
+      showPage(Page::Hidden);
+    }, p.accent);
+  }
+  if (s_hidden_page + 1 < pages) {
+    actionRow(LV_SYMBOL_DOWN, "Next 100", [] {
+      ++s_hidden_page;
+      showPage(Page::Hidden);
+    }, p.accent);
+  }
+}
+
 /** Filters apply from the next fetch; clear the screen so the change shows at once. */
 void refilter() {
   app::traffic().clear();
@@ -2227,6 +2297,7 @@ const char* pageTitle(Page p) {
     case Page::Nearby: return "Nearby aircraft";
     case Page::Bookmarks: return "Bookmarks";
     case Page::PlaceSearch: return "Search places";
+    case Page::Hidden: return "Hidden aircraft";
     case Page::Updates: return "Updates";
     case Page::About: return "About";
     case Page::CustomTheme: return "Custom colors";
@@ -2268,6 +2339,7 @@ void showPage(Page page) {
     case Page::Nearby: pageNearby(); break;
     case Page::Bookmarks: pageBookmarks(); break;
     case Page::PlaceSearch: pagePlaceSearch(); break;
+    case Page::Hidden: pageHidden(); break;
     case Page::Updates: pageUpdates(); break;
     case Page::About: pageAbout(); break;
     case Page::CustomTheme: pageCustomTheme(); break;

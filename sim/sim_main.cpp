@@ -1537,6 +1537,74 @@ int main(int argc, char** argv) {
     run(300);
   }
 
+  // Hidden aircraft: the eye button on the info card hides one for good (gone
+  // now and after later updates, written to hidden.txt); the Hidden aircraft
+  // page lists it and brings it back.
+  {
+    ui::RadarView& rv = ui::RadarView::get();
+    rv.goHome(false);
+    run(3000);
+    std::vector<core::Track> all;
+    app::traffic().snapshot(all);
+    std::string hex, name;
+    for (const core::Track& t : all) {
+      if (t.ac.hex[0] && t.ac.hex[0] != '~' && !t.ac.on_ground && t.ac.callsign[0]) {
+        hex = t.ac.hex;
+        name = t.ac.callsign;
+        while (!name.empty() && name.back() == ' ') name.pop_back();
+        break;
+      }
+    }
+    auto present = [&] {
+      std::vector<core::Track> now;
+      app::traffic().snapshot(now);
+      for (const core::Track& t : now) {
+        if (hex == t.ac.hex) return true;
+      }
+      return false;
+    };
+    const bool had = !hex.empty() && present();
+    rv.selectAircraft(hex, true);
+    run(600);
+    if (lv_obj_t* eye = findLabel(lv_screen_active(), LV_SYMBOL_EYE_CLOSE)) {
+      lv_obj_send_event(lv_obj_get_parent(eye), LV_EVENT_CLICKED, nullptr);
+    }
+    run(300);
+    const bool asked = hasLabel(lv_layer_top(), ("Hide " + name + "?").c_str());
+    shot((p + "84_hide_confirm").c_str());
+    if (lv_obj_t* yes = findLabel(lv_layer_top(), LV_SYMBOL_EYE_CLOSE "  Hide")) {
+      lv_obj_send_event(lv_obj_get_parent(yes), LV_EVENT_CLICKED, nullptr);
+    }
+    run(300);
+    const bool gone_now = !present() && rv.selected() == nullptr;
+    run(12000);  // several feed updates that still carry it
+    const bool stays_gone = !present();
+    std::string file;
+    {
+      std::ifstream in(std::string(plat::sdRoot()) + "/hidden.txt");
+      file.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    const bool saved = file.find(hex + " " + name) != std::string::npos;
+    ui::openSettings(ui::Page::Hidden);
+    run(500);
+    const bool listed = hasLabel(lv_screen_active(), name.c_str()) && hasLabel(lv_screen_active(), "1 HIDDEN");
+    shot((p + "85_hidden_aircraft").c_str());
+    if (lv_obj_t* back = findLabel(lv_screen_active(), LV_SYMBOL_EYE_OPEN)) {
+      lv_obj_send_event(lv_obj_get_parent(back), LV_EVENT_CLICKED, nullptr);
+    }
+    run(500);
+    const bool emptied = hasLabel(lv_screen_active(), "No hidden aircraft.") && app::hiddenCount() == 0;
+    ui::closeSettings();
+    run(12000);
+    const bool back_again = present();
+    std::printf("hidden aircraft (%s): picked %s, asked %s, gone %s, stays gone %s, saved %s, listed %s, "
+                "unhidden %s, back %s\n",
+                name.c_str(), had ? "OK" : "FAILED", asked ? "OK" : "FAILED", gone_now ? "OK" : "FAILED",
+                stays_gone ? "OK" : "FAILED", saved ? "OK" : "FAILED", listed ? "OK" : "FAILED",
+                emptied ? "OK" : "FAILED", back_again ? "OK" : "FAILED");
+    if (!had || !asked || !gone_now || !stays_gone || !saved || !listed || !emptied || !back_again) return 1;
+  }
+
   // Logbook: a new visitor is announced; the page lists the book.
   {
     auto& st = app::settings();

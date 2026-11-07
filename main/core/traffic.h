@@ -115,6 +115,8 @@ class TrafficStore {
   uint32_t version() const;
   uint32_t lastUpdateMs() const;
   void clear();
+  /** Drops one aircraft right away (hidden). False if it wasn't there. */
+  bool remove(const char* hex);
 
  private:
   mutable std::mutex mu_;

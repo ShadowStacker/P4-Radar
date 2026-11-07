@@ -10,6 +10,22 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.36.0] - 2026-11-07
+
+### Added
+- **Hidden aircraft.** A new button on the info card (crossed-out eye) hides
+  an aircraft for good, after asking. It disappears from the radar at once
+  and from then on is treated as if it wasn't in the data: not drawn, not in
+  Nearby, no sounds or alerts of any kind (not even emergencies), not counted
+  in the daily log or logbook, not recorded for replays. There is no limit on
+  how many. **Settings → Hidden aircraft** lists them (100 to a page), with a
+  button to bring each one back. The list is kept on the SD card as
+  `hidden.txt`, which you can also edit on a computer.
+
+### Changed
+- The info card's buttons are slightly smaller to make room for the new one.
+  A very long callsign is shortened with "...".
+
 ## [v1.35.2] - 2026-11-03
 
 ### Changed
