@@ -403,8 +403,11 @@ void RadarView::frame() {
 
   const bool view_changed = vp_.center().lat != static_center_.lat ||
                             vp_.center().lon != static_center_.lon || vp_.kmPerPx() != static_kmpp_;
-  const bool want_trails = st.show_trails && !busy;
-  const bool need_static = static_dirty_ || view_changed || (want_trails && !static_has_trails_) ||
+  busy_ = busy;
+  // In echo mode the trails fade with their aircraft: the overlay draws them.
+  const bool want_trails = st.show_trails && !busy && !(st.sweep_enabled && st.sweep_reveal);
+  // (Trails also come off it when echo mode starts: the overlay draws them then.)
+  const bool need_static = static_dirty_ || view_changed || (want_trails != static_has_trails_ && !busy) ||
                            (want_trails && tracks_version_ != static_tracks_version_);
   const uint64_t s0 = plat::micros();
   const bool redraw_now = view_changed || busy || !static_shown_ || back_canvas_ == nullptr;
@@ -807,6 +810,9 @@ void RadarView::prepareBlips(uint32_t now) {
   const auto& st = app::settings();
   const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
   blips_.clear();
+  trail_segs_.clear();
+  const bool echo_mode = st.sweep_enabled && st.sweep_reveal;
+  const bool fade_trails = echo_mode && st.show_trails && !busy_;
 
   // The beam rotates around home when it's reasonably close, else the screen center.
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
@@ -840,6 +846,38 @@ void RadarView::prepareBlips(uint32_t now) {
                                                           : p.aircraft;
     if (b.emergency) b.color = p.danger;
     b.opa = LV_OPA_COVER;
+    b.echo = 15;
+    if (echo_mode && !(b.selected || b.emergency || b.favorite)) {
+      // How long ago the beam passed, from where the aircraft really is.
+      float brg = std::atan2(s.x - sweep_center_.x, -(s.y - sweep_center_.y)) * 57.29578f;
+      if (brg < 0) brg += 360.0f;
+      float since = sweep_deg_ - brg;
+      if (since < 0) since += 360.0f;
+      // The icons' fade (255 down to 60), in 16 steps: a trail is only redrawn
+      // when its step changes, not on every frame.
+      b.echo = static_cast<uint8_t>(std::lround((255.0f - 195.0f * (since / 360.0f)) / 255.0f * 15.0f));
+    }
+    if (fade_trails && t.trail_count >= 2) {
+      core::PointF prev = vp_.project({t.trailAt(0).lat, t.trailAt(0).lon});
+      for (int k = 1; k < t.trail_count; ++k) {
+        const core::TrailPoint& tp = t.trailAt(k);
+        const core::PointF cur = vp_.project({tp.lat, tp.lon});
+        if (distPx(prev.x, prev.y, cur.x, cur.y) < 3.0f && k != t.trail_count - 1) continue;
+        if (distPx(cur.x, cur.y, cx, cy) < R + 50 || distPx(prev.x, prev.y, cx, cy) < R + 50) {
+          TrailSeg sg;
+          sg.x1 = std::round(prev.x);
+          sg.y1 = std::round(prev.y);
+          sg.x2 = std::round(cur.x);
+          sg.y2 = std::round(cur.y);
+          sg.color = useAltitudeColors(st) ? altitudeColor(tp.alt_ft, t.ac.on_ground) : p.trail;
+          // Same as the background layer's trails (older parts fainter), times the echo.
+          const int base = 40 + 170 * k / t.trail_count;
+          sg.opa = static_cast<lv_opa_t>(base * b.echo / 15);
+          trail_segs_.push_back(sg);
+        }
+        prev = cur;
+      }
+    }
 
     if (d > R - sc(12)) {
       // Beyond the bezel: a direction cue on the rim, like the original radar.
@@ -1054,12 +1092,17 @@ void RadarView::overlayAreas(OverlayShapes* out) const {
       }
     }
   }
+  // Echo-mode trails: a segment is redrawn when it moved or its brightness step changed.
+  for (const TrailSeg& sg : trail_segs_) {
+    item = KeyHash{6}.add(&sg.color, sizeof(sg.color)).i(sg.opa).h;
+    seg(sg.x1, sg.y1, sg.x2, sg.y2, 3);
+  }
   const lv_color_t pal_key[] = {pal().label, pal().label_dim, pal().favorite, pal().select, pal().danger, pal().vector};
   for (const Blip& b : blips_) {
     // Everything drawOverlay() draws for the aircraft (its coordinates are whole pixels).
     KeyHash k;
     k.add(pal_key, sizeof(pal_key)).px(b.x).px(b.y).i(b.kind).add(&b.color, sizeof(b.color));
-    const uint8_t flags[] = {b.opa, b.selected, b.favorite, b.small, b.label, b.has_head, b.has_vector, light_map_};
+    const uint8_t flags[] = {b.opa, b.selected, b.favorite, b.small, b.label, b.has_head, b.has_vector, light_map_, b.echo};
     k.add(flags, sizeof(flags));
     if (b.kind != 0xFF) {
       const lv_draw_buf_t* img = sprites::get(static_cast<sprites::Kind>(b.kind), b.heading, b.small);
@@ -1280,11 +1323,18 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
   if (st.sweep_enabled) drawSweep(layer);
   if (st.clock_mode) drawClockHands(layer);
 
+  // Echo-mode trails (otherwise they're on the background layer).
+  const int32_t trail_w = sc(2) > 1 ? sc(2) : 1;
+  for (const TrailSeg& sg : trail_segs_) {
+    if (sg.opa < 4 || !areasOverlap(segBox(sg.x1, sg.y1, sg.x2, sg.y2, 3), clip)) continue;
+    drawLine(layer, sg.x1, sg.y1, sg.x2, sg.y2, sg.color, trail_w, sg.opa, true);
+  }
+
   // Trail heads and speed vectors under the symbols.
   for (const Blip& b : blips_) {
     if (b.kind == 0xFF) continue;
     if (b.has_head && areasOverlap(segBox(b.hx, b.hy, b.x, b.y, 4), clip)) {
-      drawLine(layer, b.hx, b.hy, b.x, b.y, b.color, sc(2) > 1 ? sc(2) : 1, 200, true);
+      drawLine(layer, b.hx, b.hy, b.x, b.y, b.color, trail_w, static_cast<lv_opa_t>(200 * b.echo / 15), true);
     }
     if (b.has_vector && areasOverlap(segBox(b.x, b.y, b.vx, b.vy, 4), clip)) {
       drawLine(layer, b.x, b.y, b.vx, b.vy, p.vector, sc(2) > 1 ? sc(2) : 1,

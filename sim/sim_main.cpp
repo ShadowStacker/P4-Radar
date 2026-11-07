@@ -1761,10 +1761,18 @@ int main(int argc, char** argv) {
     st.clock_smooth_seconds = false;
     st.sweep_enabled = true;
     st.sweep_reveal = true;
+    st.show_trails = true;
     ui::RadarView::get().markStaticDirty();
     run(3000);
     ok &= check("echoes fade");
+    // The trails fade with their aircraft (drawn on the overlay then), also
+    // across a traffic update that moves them on.
+    run(6000);
+    ok &= check("echoes fade, trails after an update");
+    shot((p + "86_echo_trails").c_str());
     st.sweep_reveal = false;
+    run(1500);
+    ok &= check("trails back on the background");
     int x = 0, y = 0;
     if (findAircraftOnScreen(&x, &y)) {
       tap(x, y);

@@ -96,6 +96,7 @@ class RadarView {
     float vx, vy;  // speed vector end
     bool has_head;
     float hx, hy;  // last trail point (trail head joins it to the blip)
+    uint8_t echo;  // echo mode: how lit by the last pass of the beam, 0-15 (15 = full)
     bool selected;
     bool emergency;
     bool favorite;
@@ -171,6 +172,15 @@ class RadarView {
 
   // Crowded, zoomed-out views switch to smaller symbols (cheaper and clearer).
   bool small_sprites_ = false;
+  // Echo mode (sweep + "echoes fade"): the trails fade with their aircraft,
+  // so they're drawn on the overlay instead of the background layer.
+  struct TrailSeg {
+    float x1, y1, x2, y2;
+    lv_color_t color;
+    lv_opa_t opa;
+  };
+  std::vector<TrailSeg> trail_segs_;
+  bool busy_ = false;  // panning, zooming or animating: no trails on the overlay either
 
   // Sweep
   float sweep_deg_ = 0;

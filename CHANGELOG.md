@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.36.1] - 2026-11-07
+
+### Changed
+- **Trails fade with their aircraft in echo mode.** With the sweep on,
+  **Echoes fade after the beam** on and trails on, each trail dims and
+  brightens with its aircraft as the beam goes round, instead of staying at
+  full brightness. Selected aircraft, emergencies and favorites keep bright
+  trails, as their icons do. The fade comes in small steps, so a trail is
+  only redrawn now and then, not on every frame. In this mode a traffic
+  update also no longer rebuilds the whole background just for the trails.
+
 ## [v1.36.0] - 2026-11-07
 
 ### Added

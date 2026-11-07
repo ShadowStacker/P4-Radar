@@ -376,7 +376,7 @@ them all, in that order.
 | Sweep speed | Revolutions per minute, 1–60 | 4 rpm |
 | Sweep trail | Length of the glowing trail behind the beam, 0–180°. **0 = clean bar** (just the beam line). | 70° |
 | Smooth trail fade | Draws the trail in finer steps with a softer, longer fade (no visible bands). Uses slightly more processing. | Off |
-| Echoes fade after the beam | Aircraft dim after the beam passes and brighten on the next pass, like a real radar scope. Selected aircraft, emergencies and favorites stay bright. | Off |
+| Echoes fade after the beam | Aircraft dim after the beam passes and brighten on the next pass, like a real radar scope. Their trails fade with them. Selected aircraft, emergencies and favorites stay bright. | Off |
 | Dim when idle | Lower the backlight after Never / 1 / 5 / 15 / 30 minutes without a touch. Touch to wake. | Never |
 | Dimmed brightness | Backlight level while dimmed, 0–50 % | 10 % |
 | Night mode | Do something different between two times of day (needs the time from the internet) | Off |
