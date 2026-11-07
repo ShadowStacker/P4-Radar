@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Renders the aircraft SVG icons (assets/aircraft_icons, by ADS-B Radar -
-// https://adsb-radar.com) into compressed alpha masks for the firmware:
+// https://adsb-radar.com, and assets/aircraft_icons/generated, drawn in their
+// style by scripts/aircraft_families.py) into compressed alpha masks:
 //   main/data/aircraft_icons_data.cpp
 //
 // Needs Node and Playwright with Chromium (the SVGs are drawn by the browser).
@@ -17,12 +18,17 @@ const SIZE = 128;      // mask edge, px
 const FILL = 0.92;     // the shape's share of the mask: room for wingtips when rotated
 
 (async () => {
-  const files = fs.readdirSync(SRC).filter((f) => f.endsWith('.svg')).sort();
+  // The ADS-B Radar icons, plus the ones scripts/aircraft_families.py draws in their style.
+  const GEN = path.join(SRC, 'generated');
+  const files = [
+    ...fs.readdirSync(SRC).filter((f) => f.endsWith('.svg')).map((f) => path.join(SRC, f)),
+    ...(fs.existsSync(GEN) ? fs.readdirSync(GEN).filter((f) => f.endsWith('.svg')).map((f) => path.join(GEN, f)) : []),
+  ].sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
   const browser = await chromium.launch();
   const page = await browser.newPage();
   const masks = [];
   for (const f of files) {
-    const svg = fs.readFileSync(path.join(SRC, f), 'utf8');
+    const svg = fs.readFileSync(f, 'utf8');
     const alpha = await page.evaluate(async ({ svg, size, fill }) => {
       const img = new Image();
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));

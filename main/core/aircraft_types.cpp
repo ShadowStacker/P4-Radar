@@ -13,18 +13,22 @@ struct TypeIcon {
   Icon icon;
 };
 
-// ICAO type designators, sorted (binary search). Based on the lists on
-// https://adsb-radar.com/help/icons.html, with a few corrected (the 737-800
+// ICAO type designators, sorted (binary search). The airliner groups follow
+// https://adsb-radar.com/help/icons.html, corrected in places (the 737-800
 // and the C-17 under one icon each, A350 and 787-10 with the twins, no
-// regional jets on the MD-11) and more common types added.
+// regional jets on the MD-11); the rest match the generated icons: each
+// type goes with the shape it really has (props or jets, how many engines
+// and where, rotor blades).
 const TypeIcon kTypes[] = {
-    {"A10", Icon::Fighter},
-    {"A109", Icon::Rotor},
-    {"A119", Icon::Rotor},
+    {"A10", Icon::Attack},
+    {"A109", Icon::Heli4},
+    {"A119", Icon::Heli4},
     {"A124", Icon::Freighter},
-    {"A139", Icon::Rotor},
-    {"A169", Icon::Rotor},
-    {"A189", Icon::Rotor},
+    {"A129", Icon::HeliAttack},
+    {"A139", Icon::Heli5},
+    {"A149", Icon::Heli5},
+    {"A169", Icon::Heli4},
+    {"A189", Icon::Heli5},
     {"A19N", Icon::A320},
     {"A20N", Icon::A320},
     {"A21N", Icon::A320},
@@ -48,54 +52,78 @@ const TypeIcon kTypes[] = {
     {"A359", Icon::A330},
     {"A35K", Icon::A330},
     {"A388", Icon::A380},
-    {"A400", Icon::Freighter},
-    {"AA1", Icon::SingleProp},
-    {"AA5", Icon::SingleProp},
-    {"AC90", Icon::TwinProp},
-    {"AC95", Icon::TwinProp},
-    {"AJET", Icon::Fighter},
+    {"A3ST", Icon::A330},
+    {"A4", Icon::FighterSingle},
+    {"A400", Icon::C130},
+    {"A50", Icon::Awacs},
+    {"AA1", Icon::SingleLow},
+    {"AA5", Icon::SingleLow},
+    {"AC11", Icon::TwinTurboprop},
+    {"AC90", Icon::TwinTurboprop},
+    {"AC95", Icon::TwinTurboprop},
+    {"AEST", Icon::TwinPiston},
+    {"AJ27", Icon::E195},
+    {"AJET", Icon::JetTrainer},
+    {"ALO2", Icon::Heli3},
+    {"ALO3", Icon::Heli3},
+    {"AMX", Icon::FighterSingle},
     {"AN12", Icon::C130},
     {"AN22", Icon::Freighter},
     {"AN24", Icon::Turboprop},
     {"AN26", Icon::Turboprop},
-    {"AN32", Icon::C130},
+    {"AN28", Icon::TwinHigh},
+    {"AN32", Icon::Turboprop},
     {"AS21", Icon::Glider},
-    {"AS32", Icon::Rotor},
-    {"AS50", Icon::Rotor},
-    {"AS55", Icon::Rotor},
-    {"AS65", Icon::Rotor},
+    {"AS32", Icon::HeliLarge},
+    {"AS3B", Icon::HeliLarge},
+    {"AS50", Icon::Heli3},
+    {"AS55", Icon::Heli3},
+    {"AS65", Icon::Heli4},
     {"ASK21", Icon::Glider},
+    {"ASK3", Icon::Glider},
     {"ASTR", Icon::BigBizJet},
-    {"AT3T", Icon::SingleProp},
+    {"ASW2", Icon::Glider},
+    {"AT3T", Icon::TurbopropSingle},
     {"AT43", Icon::Turboprop},
     {"AT44", Icon::Turboprop},
     {"AT45", Icon::Turboprop},
     {"AT46", Icon::Turboprop},
-    {"AT5T", Icon::SingleProp},
-    {"AT6T", Icon::SingleProp},
+    {"AT4T", Icon::TurbopropSingle},
+    {"AT5T", Icon::TurbopropSingle},
+    {"AT6T", Icon::TurbopropSingle},
     {"AT72", Icon::Turboprop},
     {"AT73", Icon::Turboprop},
     {"AT75", Icon::Turboprop},
     {"AT76", Icon::Turboprop},
-    {"AT8T", Icon::SingleProp},
-    {"B06", Icon::Rotor},
-    {"B06T", Icon::Rotor},
+    {"AT8T", Icon::TurbopropSingle},
+    {"B06", Icon::Heli2},
+    {"B06T", Icon::Heli2},
+    {"B1", Icon::B1},
     {"B190", Icon::TwinProp},
+    {"B2", Icon::B2},
+    {"B212", Icon::Heli2},
+    {"B222", Icon::Heli2},
     {"B350", Icon::TwinProp},
     {"B37M", Icon::B737},
     {"B38M", Icon::B737},
     {"B39M", Icon::B737},
     {"B3XM", Icon::B737},
-    {"B407", Icon::Rotor},
-    {"B412", Icon::Rotor},
-    {"B429", Icon::Rotor},
+    {"B407", Icon::Heli4},
+    {"B412", Icon::Heli4},
+    {"B427", Icon::Heli4},
+    {"B429", Icon::Heli4},
+    {"B430", Icon::Heli4},
     {"B461", Icon::RearJet},
     {"B462", Icon::RearJet},
     {"B463", Icon::RearJet},
-    {"B505", Icon::Rotor},
+    {"B47G", Icon::Heli2},
+    {"B505", Icon::Heli2},
+    {"B52", Icon::B52},
     {"B609", Icon::Tiltrotor},
-    {"B703", Icon::B767},
+    {"B701", Icon::B707},
+    {"B703", Icon::B707},
     {"B712", Icon::RearJet},
+    {"B720", Icon::B707},
     {"B721", Icon::RearJet},
     {"B722", Icon::RearJet},
     {"B731", Icon::B737},
@@ -133,60 +161,70 @@ const TypeIcon kTypes[] = {
     {"BCS1", Icon::A320},
     {"BCS3", Icon::A320},
     {"BE10", Icon::TwinProp},
+    {"BE19", Icon::SingleLow},
     {"BE20", Icon::TwinProp},
-    {"BE23", Icon::SingleProp},
-    {"BE24", Icon::SingleProp},
+    {"BE23", Icon::SingleLow},
+    {"BE24", Icon::SingleLow},
     {"BE30", Icon::TwinProp},
-    {"BE33", Icon::SingleProp},
-    {"BE35", Icon::SingleProp},
-    {"BE36", Icon::SingleProp},
+    {"BE33", Icon::SingleLow},
+    {"BE35", Icon::SingleLow},
+    {"BE36", Icon::SingleLow},
     {"BE40", Icon::BizJet},
-    {"BE55", Icon::TwinProp},
-    {"BE58", Icon::TwinProp},
-    {"BE60", Icon::TwinProp},
-    {"BE76", Icon::TwinProp},
-    {"BE95", Icon::TwinProp},
+    {"BE55", Icon::TwinPiston},
+    {"BE58", Icon::TwinPiston},
+    {"BE60", Icon::TwinPiston},
+    {"BE76", Icon::TwinPiston},
+    {"BE95", Icon::TwinPiston},
+    {"BE99", Icon::TwinTurboprop},
     {"BE9L", Icon::TwinProp},
     {"BE9T", Icon::TwinProp},
-    {"BK17", Icon::Rotor},
+    {"BK17", Icon::Heli4},
+    {"BL8", Icon::SingleHigh},
     {"BLCF", Icon::B747},
-    {"BN2P", Icon::TwinProp},
+    {"BN2P", Icon::TwinHigh},
+    {"BN2T", Icon::TwinHigh},
     {"C130", Icon::C130},
-    {"C135", Icon::B767},
-    {"C150", Icon::SingleProp},
-    {"C152", Icon::SingleProp},
+    {"C135", Icon::B707},
+    {"C150", Icon::SingleHigh},
+    {"C152", Icon::SingleHigh},
     {"C160", Icon::C130},
-    {"C162", Icon::SingleProp},
+    {"C162", Icon::SingleHigh},
     {"C17", Icon::Freighter},
-    {"C170", Icon::SingleProp},
-    {"C172", Icon::SingleProp},
-    {"C175", Icon::SingleProp},
-    {"C177", Icon::SingleProp},
-    {"C180", Icon::SingleProp},
-    {"C182", Icon::SingleProp},
-    {"C185", Icon::SingleProp},
-    {"C195", Icon::SingleProp},
-    {"C205", Icon::SingleProp},
-    {"C206", Icon::SingleProp},
-    {"C207", Icon::SingleProp},
-    {"C208", Icon::SingleProp},
-    {"C210", Icon::SingleProp},
+    {"C170", Icon::SingleHigh},
+    {"C172", Icon::SingleHigh},
+    {"C175", Icon::SingleHigh},
+    {"C177", Icon::SingleHigh},
+    {"C180", Icon::SingleHigh},
+    {"C182", Icon::SingleHigh},
+    {"C185", Icon::SingleHigh},
+    {"C195", Icon::SingleHigh},
+    {"C2", Icon::Hawkeye},
+    {"C205", Icon::SingleHigh},
+    {"C206", Icon::SingleHigh},
+    {"C207", Icon::SingleHigh},
+    {"C208", Icon::TurbopropSingleHigh},
+    {"C210", Icon::SingleHigh},
+    {"C212", Icon::TwinHigh},
     {"C25A", Icon::BizJet},
     {"C25B", Icon::BizJet},
     {"C25C", Icon::BizJet},
     {"C25M", Icon::BizJet},
     {"C27J", Icon::C130},
     {"C295", Icon::Turboprop},
-    {"C303", Icon::TwinProp},
+    {"C303", Icon::TwinPiston},
     {"C30J", Icon::C130},
-    {"C310", Icon::TwinProp},
-    {"C340", Icon::TwinProp},
-    {"C402", Icon::TwinProp},
-    {"C404", Icon::TwinProp},
-    {"C414", Icon::TwinProp},
-    {"C421", Icon::TwinProp},
-    {"C425", Icon::TwinProp},
-    {"C441", Icon::TwinProp},
+    {"C310", Icon::TwinPiston},
+    {"C320", Icon::TwinPiston},
+    {"C335", Icon::TwinPiston},
+    {"C340", Icon::TwinPiston},
+    {"C401", Icon::TwinPiston},
+    {"C402", Icon::TwinPiston},
+    {"C411", Icon::TwinPiston},
+    {"C414", Icon::TwinPiston},
+    {"C42", Icon::SingleHigh},
+    {"C421", Icon::TwinPiston},
+    {"C425", Icon::TwinTurboprop},
+    {"C441", Icon::TwinTurboprop},
     {"C5", Icon::Freighter},
     {"C500", Icon::BizJet},
     {"C501", Icon::BizJet},
@@ -203,11 +241,14 @@ const TypeIcon kTypes[] = {
     {"C680", Icon::BizJet},
     {"C68A", Icon::BizJet},
     {"C700", Icon::BizJet},
-    {"C72R", Icon::SingleProp},
+    {"C72R", Icon::SingleHigh},
     {"C750", Icon::BizJet},
-    {"C77R", Icon::SingleProp},
-    {"C82R", Icon::SingleProp},
+    {"C77R", Icon::SingleHigh},
+    {"C82R", Icon::SingleHigh},
+    {"C82S", Icon::SingleHigh},
+    {"C82T", Icon::SingleHigh},
     {"C919", Icon::A320},
+    {"CH7A", Icon::SingleHigh},
     {"CL2P", Icon::Amphibian},
     {"CL2T", Icon::Amphibian},
     {"CL30", Icon::BigBizJet},
@@ -215,77 +256,93 @@ const TypeIcon kTypes[] = {
     {"CL4T", Icon::Amphibian},
     {"CL60", Icon::BigBizJet},
     {"CN35", Icon::Turboprop},
-    {"COL3", Icon::SingleProp},
-    {"COL4", Icon::SingleProp},
+    {"COL3", Icon::SingleLow},
+    {"COL4", Icon::SingleLow},
     {"CRJ1", Icon::CRJ},
     {"CRJ2", Icon::CRJ},
     {"CRJ7", Icon::CRJ},
     {"CRJ9", Icon::CRJ},
     {"CRJX", Icon::CRJ},
-    {"CRUZ", Icon::SingleProp},
+    {"CRUZ", Icon::SingleLow},
+    {"D228", Icon::TwinHigh},
     {"D328", Icon::Turboprop},
-    {"DA20", Icon::SingleProp},
-    {"DA40", Icon::SingleProp},
-    {"DA42", Icon::TwinProp},
-    {"DA62", Icon::TwinProp},
+    {"DA20", Icon::SingleLow},
+    {"DA40", Icon::SingleLow},
+    {"DA42", Icon::TwinPiston},
+    {"DA62", Icon::TwinPiston},
     {"DC10", Icon::MD11},
     {"DC91", Icon::RearJet},
+    {"DC92", Icon::RearJet},
     {"DC93", Icon::RearJet},
+    {"DC94", Icon::RearJet},
     {"DC95", Icon::RearJet},
     {"DG1T", Icon::Glider},
+    {"DH3T", Icon::TurbopropSingleHigh},
     {"DH8A", Icon::Turboprop},
     {"DH8B", Icon::Turboprop},
     {"DH8C", Icon::Turboprop},
     {"DH8D", Icon::Turboprop},
-    {"DHC2", Icon::Amphibian},
-    {"DHC3", Icon::Amphibian},
-    {"DHC6", Icon::TwinProp},
+    {"DHC2", Icon::TurbopropSingleHigh},
+    {"DHC3", Icon::TurbopropSingleHigh},
+    {"DHC6", Icon::TwinHigh},
     {"DHC7", Icon::Turboprop},
     {"DISC", Icon::Glider},
-    {"DV20", Icon::SingleProp},
-    {"E120", Icon::TwinProp},
+    {"DO28", Icon::TwinHigh},
+    {"DR40", Icon::SingleLow},
+    {"DUOD", Icon::Glider},
+    {"DV20", Icon::SingleLow},
+    {"E120", Icon::TwinTurboprop},
+    {"E121", Icon::TwinTurboprop},
     {"E135", Icon::ERJ},
     {"E145", Icon::ERJ},
     {"E170", Icon::E195},
     {"E175", Icon::E195},
     {"E190", Icon::E195},
     {"E195", Icon::E195},
+    {"E2", Icon::Hawkeye},
     {"E290", Icon::E195},
     {"E295", Icon::E195},
+    {"E314", Icon::TurbopropSingle},
     {"E35L", Icon::ERJ},
-    {"E3CF", Icon::B767},
-    {"E3TF", Icon::B767},
+    {"E3CF", Icon::Awacs},
+    {"E3TF", Icon::Awacs},
     {"E45X", Icon::ERJ},
     {"E50P", Icon::BizJet},
     {"E545", Icon::BizJet},
     {"E550", Icon::BizJet},
     {"E55P", Icon::BizJet},
-    {"E6", Icon::B767},
+    {"E6", Icon::B707},
+    {"E737", Icon::B737},
     {"E75L", Icon::E195},
     {"E75S", Icon::E195},
-    {"E767", Icon::B767},
-    {"EC20", Icon::Rotor},
-    {"EC25", Icon::Rotor},
-    {"EC30", Icon::Rotor},
-    {"EC35", Icon::Rotor},
-    {"EC45", Icon::Rotor},
-    {"EC55", Icon::Rotor},
-    {"EC75", Icon::Rotor},
-    {"EN28", Icon::Rotor},
-    {"EN48", Icon::Rotor},
-    {"EUFI", Icon::Fighter},
+    {"E767", Icon::Awacs},
+    {"EA18", Icon::FighterTwin},
+    {"EC20", Icon::Heli3},
+    {"EC25", Icon::Heli5},
+    {"EC30", Icon::Heli3},
+    {"EC35", Icon::Heli4},
+    {"EC45", Icon::Heli4},
+    {"EC55", Icon::Heli5},
+    {"EC75", Icon::Heli5},
+    {"EH10", Icon::Heli5},
+    {"EN28", Icon::Heli3},
+    {"EN48", Icon::Heli3},
+    {"EUFI", Icon::FighterDelta},
     {"F100", Icon::RearJet},
-    {"F14", Icon::Fighter},
-    {"F15", Icon::Fighter},
-    {"F16", Icon::Fighter},
-    {"F18", Icon::Fighter},
-    {"F18S", Icon::Fighter},
-    {"F22", Icon::Fighter},
+    {"F14", Icon::FighterTwin},
+    {"F15", Icon::FighterTwin},
+    {"F16", Icon::FighterSingle},
+    {"F18", Icon::FighterTwin},
+    {"F18S", Icon::FighterTwin},
+    {"F2", Icon::FighterSingle},
+    {"F22", Icon::FighterTwin},
+    {"F260", Icon::SingleLow},
     {"F27", Icon::Turboprop},
     {"F2TH", Icon::Falcon},
-    {"F35", Icon::Fighter},
-    {"F4", Icon::Fighter},
-    {"F5", Icon::Fighter},
+    {"F35", Icon::FighterTwin},
+    {"F4", Icon::FighterSingle},
+    {"F406", Icon::TwinTurboprop},
+    {"F5", Icon::FighterSingle},
     {"F50", Icon::Turboprop},
     {"F70", Icon::RearJet},
     {"F900", Icon::Falcon},
@@ -295,16 +352,18 @@ const TypeIcon kTypes[] = {
     {"FA6X", Icon::Falcon},
     {"FA7X", Icon::Falcon},
     {"FA8X", Icon::Falcon},
+    {"G115", Icon::SingleLow},
     {"G280", Icon::BigBizJet},
     {"GA5C", Icon::BigBizJet},
     {"GA6C", Icon::BigBizJet},
     {"GA7C", Icon::BigBizJet},
-    {"GA8", Icon::SingleProp},
+    {"GA8", Icon::SingleHigh},
     {"GA8C", Icon::BigBizJet},
     {"GALX", Icon::BigBizJet},
-    {"GAZL", Icon::Rotor},
+    {"GAZL", Icon::Heli3},
     {"GL5T", Icon::BigBizJet},
     {"GL7T", Icon::BigBizJet},
+    {"GL8T", Icon::BigBizJet},
     {"GLEX", Icon::BigBizJet},
     {"GLF2", Icon::BigBizJet},
     {"GLF3", Icon::BigBizJet},
@@ -312,27 +371,58 @@ const TypeIcon kTypes[] = {
     {"GLF5", Icon::BigBizJet},
     {"GLF6", Icon::BigBizJet},
     {"GLID", Icon::Glider},
-    {"GRIF", Icon::Fighter},
-    {"H160", Icon::Rotor},
+    {"GRIF", Icon::FighterDelta},
+    {"H1", Icon::HeliAttack},
+    {"H160", Icon::Heli5},
     {"H25A", Icon::BizJet},
     {"H25B", Icon::BizJet},
     {"H25C", Icon::BizJet},
-    {"H47", Icon::Rotor},
-    {"H500", Icon::Rotor},
-    {"H60", Icon::Rotor},
-    {"H64", Icon::Rotor},
-    {"HAWK", Icon::Fighter},
+    {"H269", Icon::Heli3},
+    {"H46", Icon::HeliTandem},
+    {"H47", Icon::HeliTandem},
+    {"H500", Icon::Heli5},
+    {"H53", Icon::HeliLarge},
+    {"H53S", Icon::HeliLarge},
+    {"H60", Icon::HeliLarge},
+    {"H64", Icon::HeliAttack},
+    {"HAWK", Icon::JetTrainer},
     {"HDJT", Icon::BizJet},
+    {"HRON", Icon::Reaper},
+    {"IL14", Icon::Turboprop},
+    {"IL18", Icon::C130},
+    {"IL62", Icon::RearJet},
     {"IL76", Icon::Freighter},
-    {"JS41", Icon::Turboprop},
-    {"K35E", Icon::B767},
-    {"K35R", Icon::B767},
-    {"K8", Icon::Fighter},
+    {"J10", Icon::FighterDelta},
+    {"J11", Icon::FighterTwin},
+    {"J15", Icon::FighterTwin},
+    {"J20", Icon::FighterTwin},
+    {"J3", Icon::SingleHigh},
+    {"J328", Icon::ERJ},
+    {"JANU", Icon::Glider},
+    {"JF17", Icon::FighterSingle},
+    {"JS31", Icon::TwinTurboprop},
+    {"JS32", Icon::TwinTurboprop},
+    {"JS41", Icon::TwinTurboprop},
+    {"K35E", Icon::B707},
+    {"K35R", Icon::B707},
+    {"K35T", Icon::B707},
+    {"K46", Icon::B767},
+    {"K8", Icon::JetTrainer},
+    {"KA26", Icon::HeliCoax},
+    {"KA27", Icon::HeliCoax},
+    {"KA32", Icon::HeliCoax},
+    {"KA50", Icon::HeliCoax},
+    {"KA52", Icon::HeliCoax},
     {"KC46", Icon::B767},
-    {"KODI", Icon::SingleProp},
+    {"KFIR", Icon::FighterDelta},
+    {"KODI", Icon::TurbopropSingleHigh},
     {"L101", Icon::MD11},
-    {"L39", Icon::Fighter},
-    {"L410", Icon::TwinProp},
+    {"L159", Icon::JetTrainer},
+    {"L188", Icon::C130},
+    {"L39", Icon::JetTrainer},
+    {"L410", Icon::TwinHigh},
+    {"LAMA", Icon::Heli3},
+    {"LANC", Icon::SingleLow},
     {"LJ31", Icon::BizJet},
     {"LJ35", Icon::BizJet},
     {"LJ40", Icon::BizJet},
@@ -342,204 +432,240 @@ const TypeIcon kTypes[] = {
     {"LJ70", Icon::BizJet},
     {"LJ75", Icon::BizJet},
     {"LS8", Icon::Glider},
-    {"M20J", Icon::SingleProp},
-    {"M20K", Icon::SingleProp},
-    {"M20P", Icon::SingleProp},
-    {"M20T", Icon::SingleProp},
-    {"M346", Icon::Fighter},
+    {"M20J", Icon::SingleLow},
+    {"M20K", Icon::SingleLow},
+    {"M20P", Icon::SingleLow},
+    {"M20R", Icon::SingleLow},
+    {"M20T", Icon::SingleLow},
+    {"M28", Icon::TwinHigh},
+    {"M346", Icon::JetTrainer},
+    {"M5", Icon::SingleHigh},
+    {"M6", Icon::SingleHigh},
+    {"M7", Icon::SingleHigh},
+    {"MA60", Icon::Turboprop},
     {"MD11", Icon::MD11},
-    {"MD52", Icon::Rotor},
-    {"MD60", Icon::Rotor},
+    {"MD60", Icon::Heli4},
     {"MD81", Icon::RearJet},
     {"MD82", Icon::RearJet},
     {"MD83", Icon::RearJet},
     {"MD87", Icon::RearJet},
     {"MD88", Icon::RearJet},
     {"MD90", Icon::RearJet},
-    {"MG29", Icon::Fighter},
-    {"MI17", Icon::Rotor},
-    {"MI24", Icon::Rotor},
-    {"MI8", Icon::Rotor},
-    {"MIR2", Icon::Fighter},
-    {"MRTT", Icon::A330},
-    {"MU2", Icon::TwinProp},
-    {"NH90", Icon::Rotor},
-    {"P180", Icon::TwinProp},
-    {"P210", Icon::SingleProp},
-    {"P28A", Icon::SingleProp},
-    {"P28B", Icon::SingleProp},
-    {"P28R", Icon::SingleProp},
-    {"P28T", Icon::SingleProp},
-    {"P28U", Icon::SingleProp},
+    {"MG21", Icon::FighterSingle},
+    {"MG29", Icon::FighterTwin},
+    {"MG31", Icon::FighterTwin},
+    {"MI14", Icon::Heli5},
+    {"MI17", Icon::Heli5},
+    {"MI24", Icon::HeliAttack},
+    {"MI26", Icon::HeliLarge},
+    {"MI28", Icon::HeliAttack},
+    {"MI8", Icon::Heli5},
+    {"MIR2", Icon::FighterDelta},
+    {"MQ1", Icon::Reaper},
+    {"MQ9", Icon::Reaper},
+    {"MT7", Icon::SingleHigh},
+    {"MU2", Icon::TwinTurboprop},
+    {"NH90", Icon::HeliLarge},
+    {"NIMB", Icon::Glider},
+    {"P180", Icon::TwinTurboprop},
+    {"P210", Icon::SingleHigh},
+    {"P28A", Icon::SingleLow},
+    {"P28B", Icon::SingleLow},
+    {"P28R", Icon::SingleLow},
+    {"P28T", Icon::SingleLow},
+    {"P28U", Icon::SingleLow},
     {"P3", Icon::C130},
-    {"P32R", Icon::SingleProp},
-    {"P32T", Icon::SingleProp},
-    {"P46T", Icon::SingleProp},
-    {"P68", Icon::TwinProp},
-    {"PA11", Icon::SingleProp},
-    {"PA12", Icon::SingleProp},
-    {"PA18", Icon::SingleProp},
-    {"PA20", Icon::SingleProp},
-    {"PA22", Icon::SingleProp},
-    {"PA23", Icon::TwinProp},
-    {"PA24", Icon::SingleProp},
-    {"PA27", Icon::TwinProp},
-    {"PA28", Icon::SingleProp},
-    {"PA30", Icon::TwinProp},
-    {"PA31", Icon::TwinProp},
-    {"PA32", Icon::SingleProp},
-    {"PA34", Icon::TwinProp},
-    {"PA38", Icon::SingleProp},
-    {"PA44", Icon::TwinProp},
-    {"PA46", Icon::SingleProp},
-    {"PAY1", Icon::TwinProp},
-    {"PAY2", Icon::TwinProp},
-    {"PAY3", Icon::TwinProp},
-    {"PAY4", Icon::TwinProp},
+    {"P32R", Icon::SingleLow},
+    {"P32T", Icon::SingleLow},
+    {"P46T", Icon::TurbopropSingle},
+    {"P68", Icon::TwinHigh},
+    {"P8", Icon::B737},
+    {"PA12", Icon::SingleHigh},
+    {"PA14", Icon::SingleHigh},
+    {"PA18", Icon::SingleHigh},
+    {"PA20", Icon::SingleHigh},
+    {"PA22", Icon::SingleHigh},
+    {"PA23", Icon::TwinPiston},
+    {"PA24", Icon::SingleLow},
+    {"PA27", Icon::TwinPiston},
+    {"PA28", Icon::SingleLow},
+    {"PA30", Icon::TwinPiston},
+    {"PA31", Icon::TwinPiston},
+    {"PA32", Icon::SingleLow},
+    {"PA34", Icon::TwinPiston},
+    {"PA38", Icon::SingleLow},
+    {"PA42", Icon::TwinTurboprop},
+    {"PA44", Icon::TwinPiston},
+    {"PA46", Icon::TurbopropSingle},
+    {"PAY1", Icon::TwinTurboprop},
+    {"PAY2", Icon::TwinTurboprop},
+    {"PAY3", Icon::TwinTurboprop},
+    {"PAY4", Icon::TwinTurboprop},
     {"PBY", Icon::Amphibian},
-    {"PC12", Icon::SingleProp},
-    {"PC21", Icon::SingleProp},
+    {"PC12", Icon::TurbopropSingle},
+    {"PC21", Icon::TurbopropSingle},
     {"PC24", Icon::BizJet},
-    {"PC6T", Icon::SingleProp},
+    {"PC6P", Icon::TurbopropSingleHigh},
+    {"PC6T", Icon::TurbopropSingleHigh},
+    {"PC7", Icon::TurbopropSingle},
+    {"PC9", Icon::TurbopropSingle},
     {"PRM1", Icon::BizJet},
-    {"R22", Icon::Rotor},
-    {"R44", Icon::Rotor},
-    {"R66", Icon::Rotor},
-    {"RFAL", Icon::Fighter},
+    {"Q1", Icon::Reaper},
+    {"Q4", Icon::Reaper},
+    {"Q9", Icon::Reaper},
+    {"R135", Icon::B707},
+    {"R22", Icon::Heli2},
+    {"R44", Icon::Heli2},
+    {"R66", Icon::Heli2},
+    {"RFAL", Icon::FighterDelta},
     {"RJ1H", Icon::RearJet},
     {"RJ70", Icon::RearJet},
     {"RJ85", Icon::RearJet},
-    {"RV10", Icon::SingleProp},
-    {"RV12", Icon::SingleProp},
-    {"RV14", Icon::SingleProp},
-    {"RV4", Icon::SingleProp},
-    {"RV6", Icon::SingleProp},
-    {"RV7", Icon::SingleProp},
-    {"RV8", Icon::SingleProp},
-    {"RV9", Icon::SingleProp},
-    {"S22T", Icon::SingleProp},
-    {"S61", Icon::Rotor},
-    {"S76", Icon::Rotor},
-    {"S92", Icon::Rotor},
+    {"RQ4", Icon::Reaper},
+    {"RV10", Icon::SingleLow},
+    {"RV12", Icon::SingleLow},
+    {"RV14", Icon::SingleLow},
+    {"RV4", Icon::SingleLow},
+    {"RV6", Icon::SingleLow},
+    {"RV7", Icon::SingleLow},
+    {"RV8", Icon::SingleLow},
+    {"RV9", Icon::SingleLow},
+    {"S22T", Icon::SingleLow},
+    {"S61", Icon::Heli5},
+    {"S70", Icon::HeliLarge},
+    {"S76", Icon::Heli4},
+    {"S92", Icon::HeliLarge},
+    {"SAVG", Icon::SingleHigh},
     {"SB20", Icon::Turboprop},
+    {"SC7", Icon::TwinHigh},
     {"SF34", Icon::Turboprop},
     {"SF50", Icon::BizJet},
+    {"SH33", Icon::Turboprop},
     {"SH36", Icon::Turboprop},
     {"SHIP", Icon::Airship},
-    {"SR20", Icon::SingleProp},
-    {"SR22", Icon::SingleProp},
-    {"SU27", Icon::Fighter},
-    {"SU30", Icon::Fighter},
-    {"SU35", Icon::Fighter},
-    {"SW4", Icon::TwinProp},
-    {"T210", Icon::SingleProp},
-    {"T34", Icon::SingleProp},
-    {"T38", Icon::Fighter},
-    {"T45", Icon::Fighter},
-    {"T50", Icon::Fighter},
-    {"T6", Icon::SingleProp},
-    {"T7", Icon::Fighter},
-    {"TBM7", Icon::SingleProp},
-    {"TBM8", Icon::SingleProp},
-    {"TBM9", Icon::SingleProp},
-    {"TOR", Icon::Fighter},
-    {"UH1", Icon::Rotor},
+    {"SR20", Icon::SingleLow},
+    {"SR22", Icon::SingleLow},
+    {"SU25", Icon::FighterSingle},
+    {"SU27", Icon::FighterTwin},
+    {"SU30", Icon::FighterTwin},
+    {"SU33", Icon::FighterTwin},
+    {"SU34", Icon::FighterTwin},
+    {"SU35", Icon::FighterTwin},
+    {"SU57", Icon::FighterTwin},
+    {"SU95", Icon::E195},
+    {"SW2", Icon::TwinTurboprop},
+    {"SW3", Icon::TwinTurboprop},
+    {"SW4", Icon::TwinTurboprop},
+    {"T154", Icon::RearJet},
+    {"T210", Icon::SingleHigh},
+    {"T34", Icon::TurbopropSingle},
+    {"T38", Icon::JetTrainer},
+    {"T45", Icon::JetTrainer},
+    {"T50", Icon::JetTrainer},
+    {"T6", Icon::TurbopropSingle},
+    {"T7", Icon::JetTrainer},
+    {"TB10", Icon::SingleLow},
+    {"TB20", Icon::SingleLow},
+    {"TB21", Icon::SingleLow},
+    {"TB9", Icon::SingleLow},
+    {"TBM7", Icon::TurbopropSingle},
+    {"TBM8", Icon::TurbopropSingle},
+    {"TBM9", Icon::TurbopropSingle},
+    {"TEX2", Icon::TurbopropSingle},
+    {"TIGR", Icon::HeliAttack},
+    {"TOBA", Icon::SingleLow},
+    {"TOR", Icon::FighterSingle},
+    {"UH1", Icon::Heli2},
     {"ULAC", Icon::Ultralight},
     {"V22", Icon::Tiltrotor},
+    {"VENT", Icon::Glider},
+    {"YK13", Icon::JetTrainer},
+    {"YK42", Icon::RearJet},
 };
+
+struct IconInfo {
+  const char* mask;
+  uint8_t size;
+};
+
+const IconInfo kInfo[] = {
+    {"a0", 40},  // Generic
+    {"g_single_high", 30},  // Light
+    {"a2", 34},  // Small
+    {"a3", 42},  // Large
+    {"a4", 46},  // HighVortex
+    {"a5", 48},  // Heavy
+    {"a6", 36},  // HighPerf
+    {"a7", 38},  // Rotor
+    {"b0", 22},  // Drone
+    {"b1", 32},  // Glider
+    {"b2", 30},  // Airship
+    {"b3", 20},  // Parachute
+    {"b4", 28},  // Ultralight
+    {"c0", 18},  // Ground
+    {"a320", 42},  // A320
+    {"a330", 48},  // A330
+    {"a340", 50},  // A340
+    {"a380", 56},  // A380
+    {"b737", 42},  // B737
+    {"b747", 54},  // B747
+    {"b767", 46},  // B767
+    {"b777", 50},  // B777
+    {"b787", 48},  // B787
+    {"md11", 48},  // MD11
+    {"f100", 40},  // RearJet
+    {"crjx", 38},  // CRJ
+    {"erj", 38},  // ERJ
+    {"e195", 40},  // E195
+    {"dh8a", 40},  // Turboprop
+    {"beechcraft", 36},  // TwinProp
+    {"learjet", 34},  // BizJet
+    {"glf5", 38},  // BigBizJet
+    {"fa7x", 38},  // Falcon
+    {"c130", 44},  // C130
+    {"heavyfreighter", 54},  // Freighter
+    {"tiltrotorcraft", 40},  // Tiltrotor
+    {"amphibian", 36},  // Amphibian
+    {"g_single_high", 30},  // SingleHigh
+    {"g_single_low", 30},  // SingleLow
+    {"g_turboprop_single", 34},  // TurbopropSingle
+    {"g_turboprop_single_high", 34},  // TurbopropSingleHigh
+    {"g_twin_piston", 32},  // TwinPiston
+    {"g_twin_turboprop", 36},  // TwinTurboprop
+    {"g_twin_high", 38},  // TwinHigh
+    {"g_b707", 48},  // B707
+    {"g_awacs", 50},  // Awacs
+    {"g_hawkeye", 40},  // Hawkeye
+    {"g_b52", 56},  // B52
+    {"g_b1", 50},  // B1
+    {"g_b2", 54},  // B2
+    {"g_mq9", 32},  // Reaper
+    {"g_fighter_single", 34},  // FighterSingle
+    {"g_fighter_twin", 38},  // FighterTwin
+    {"g_fighter_delta", 36},  // FighterDelta
+    {"g_attack", 38},  // Attack
+    {"g_jet_trainer", 32},  // JetTrainer
+    {"g_heli_2", 32},  // Heli2
+    {"g_heli_3", 34},  // Heli3
+    {"g_heli_4", 36},  // Heli4
+    {"g_heli_5", 40},  // Heli5
+    {"g_heli_large", 42},  // HeliLarge
+    {"g_heli_tandem", 44},  // HeliTandem
+    {"g_heli_attack", 38},  // HeliAttack
+    {"g_heli_coax", 38},  // HeliCoax
+};
+static_assert(sizeof(kInfo) / sizeof(kInfo[0]) == static_cast<size_t>(Icon::kCount), "one entry per icon");
 
 }  // namespace
 
 const char* iconName(Icon icon) {
-  switch (icon) {
-    case Icon::Generic: return "a0";
-    case Icon::Light: return "a1";
-    case Icon::Small: return "a2";
-    case Icon::Large: return "a3";
-    case Icon::HighVortex: return "a4";
-    case Icon::Heavy: return "a5";
-    case Icon::HighPerf: return "a6";
-    case Icon::Rotor: return "a7";
-    case Icon::Drone: return "b0";
-    case Icon::Glider: return "b1";
-    case Icon::Airship: return "b2";
-    case Icon::Parachute: return "b3";
-    case Icon::Ultralight: return "b4";
-    case Icon::Ground: return "c0";
-    case Icon::A320: return "a320";
-    case Icon::A330: return "a330";
-    case Icon::A340: return "a340";
-    case Icon::A380: return "a380";
-    case Icon::B737: return "b737";
-    case Icon::B747: return "b747";
-    case Icon::B767: return "b767";
-    case Icon::B777: return "b777";
-    case Icon::B787: return "b787";
-    case Icon::MD11: return "md11";
-    case Icon::RearJet: return "f100";
-    case Icon::CRJ: return "crjx";
-    case Icon::ERJ: return "erj";
-    case Icon::E195: return "e195";
-    case Icon::Turboprop: return "dh8a";
-    case Icon::TwinProp: return "beechcraft";
-    case Icon::SingleProp: return "cessna";
-    case Icon::BizJet: return "learjet";
-    case Icon::BigBizJet: return "glf5";
-    case Icon::Falcon: return "fa7x";
-    case Icon::C130: return "c130";
-    case Icon::Freighter: return "heavyfreighter";
-    case Icon::Fighter: return "fighter";
-    case Icon::Tiltrotor: return "tiltrotorcraft";
-    case Icon::Amphibian: return "amphibian";
-    case Icon::kCount: break;
-  }
-  return "a0";
+  const auto i = static_cast<size_t>(icon);
+  return i < static_cast<size_t>(Icon::kCount) ? kInfo[i].mask : "a0";
 }
 
 int baseSize(Icon icon) {
-  switch (icon) {
-    case Icon::Ground: return 18;
-    case Icon::Parachute: return 20;
-    case Icon::Drone: return 22;
-    case Icon::Ultralight: return 28;
-    case Icon::Airship:
-    case Icon::Light:
-    case Icon::SingleProp: return 30;
-    case Icon::Glider: return 32;
-    case Icon::Small:
-    case Icon::TwinProp:
-    case Icon::BizJet: return 34;
-    case Icon::HighPerf:
-    case Icon::Fighter:
-    case Icon::Amphibian: return 36;
-    case Icon::Rotor:  // thin rotor blades: a little bigger so they still show
-    case Icon::BigBizJet:
-    case Icon::Falcon:
-    case Icon::CRJ:
-    case Icon::ERJ: return 38;
-    case Icon::Generic:
-    case Icon::Tiltrotor:
-    case Icon::E195:
-    case Icon::Turboprop:
-    case Icon::RearJet: return 40;
-    case Icon::Large:
-    case Icon::A320:
-    case Icon::B737: return 42;
-    case Icon::C130: return 44;
-    case Icon::HighVortex:
-    case Icon::B767: return 46;
-    case Icon::Heavy:
-    case Icon::A330:
-    case Icon::B787:
-    case Icon::MD11: return 48;
-    case Icon::A340:
-    case Icon::B777: return 50;
-    case Icon::B747:
-    case Icon::Freighter: return 54;
-    case Icon::A380: return 56;
-    case Icon::kCount: break;
-  }
-  return 40;
+  const auto i = static_cast<size_t>(icon);
+  return i < static_cast<size_t>(Icon::kCount) ? kInfo[i].size : 40;
 }
 
 bool iconForType(const char* type, Icon* out) {

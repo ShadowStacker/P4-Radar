@@ -10,6 +10,28 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.38.0] - 2026-11-07
+
+### Changed
+- **Icons that match what the aircraft really is.** 27 new icons, drawn in
+  the same style as the ADS-B Radar set from each type's real span, length
+  and layout. They cover:
+  - **Propeller aircraft:** high- and low-wing singles (Cessna, Piper,
+    Cirrus), single turboprops (PC-12, TBM, Caravan), piston twins (Baron,
+    Seneca), twin turboprops (Beech 99, Metro, Jetstream) and high-wing
+    twins (Twin Otter, Islander). Propellers are drawn as bars, so these no
+    longer look like small jets.
+  - **Helicopters by rotor layout:** two, three, four and five blades, large
+    four-blade (UH-60, S-92), tandem (Chinook), attack (Apache) and coaxial
+    (Kamov).
+  - **Military:** single-fin, twin-fin and delta fighters, the A-10, jet
+    trainers, the 707/KC-135 family, AWACS, E-2 Hawkeye, B-52, B-1, B-2 and
+    MQ-9 Reaper.
+- The type table now covers about 560 type codes (was 430). For example the
+  BE99 is a twin turboprop and the PC-12 a single turboprop. A light aircraft
+  with no type in the feed now shows as a high-wing single with a propeller.
+- The user guide shows the whole icon set (docs/images/aircraft_icons.png).
+
 ## [v1.37.0] - 2026-11-07
 
 ### Changed
