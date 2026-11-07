@@ -10,6 +10,18 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.36.2] - 2026-11-07
+
+### Fixed
+- **Wi-Fi connecting only briefly, or not at all (v1.36.0 and v1.36.1).** The
+  firmware is built with parts downloaded from Espressif's component library,
+  and nothing pinned their versions, so each release took whatever was newest.
+  v1.36.0 picked up a new Wi-Fi driver (esp-hosted 3.1.0) whose new receive
+  buffers are too small for messages from this board's Wi-Fi chip. It dropped
+  them ("SDIO RX read (2048 bytes) exceeds staging target") and lost the link
+  within seconds of starting. Every part is now pinned to the exact versions
+  of v1.35.2, so a release only changes what was changed on purpose.
+
 ## [v1.36.1] - 2026-11-07
 
 ### Changed

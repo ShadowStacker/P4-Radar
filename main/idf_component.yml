@@ -1,13 +1,38 @@
+# Every component is pinned to an exact version, the set the GitHub build
+# resolved for v1.35.2 (the last one checked on the board). With open ranges
+# each release silently took whatever was newest: v1.36.0 got esp_hosted
+# 3.1.0, whose SDIO receive path drops 2 KB reads from this C6 firmware and
+# lost the Wi-Fi link within seconds. Update these on purpose, one at a time,
+# and test on the board before releasing.
 dependencies:
   idf: ">=5.5"
   # Board support: MIPI-DSI JD9365 panel, GT911 touch, ES8311 audio, backlight.
   # The same BSP drives the 3.4" (800x800) and 4" (720x720) round boards.
-  waveshare/esp32_p4_wifi6_touch_lcd_xc: "^3"
+  waveshare/esp32_p4_wifi6_touch_lcd_xc: "==3.0.1"
   # The LVGL adapter used by the BSP needs LVGL >= 9.4.
-  lvgl/lvgl: ">=9.4,<10"
-  espressif/esp_lcd_touch: ">=1.2,<2"
+  lvgl/lvgl: "==9.6.0~1"
+  espressif/esp_lcd_touch: "==1.2.1"
   # Wi-Fi 6 lives on the on-board ESP32-C6, reached over SDIO via ESP-Hosted.
-  espressif/esp_wifi_remote: ">=0.10"
-  espressif/esp_hosted: ">=2"
+  espressif/esp_wifi_remote: "==1.6.5"
+  espressif/esp_hosted: "==3.0.10"
   # plane-radar.local for the phone settings page.
-  espressif/mdns: "^1.8"
+  espressif/mdns: "==1.14.1"
+  # Pulled in by the components above; pinned here too so they can't move either.
+  espressif/button: "==4.2.3"
+  espressif/cmake_utilities: "==0.5.3"
+  espressif/eppp_link: "==1.1.6"
+  espressif/esp_codec_dev: "==1.5.11"
+  espressif/esp_lcd_jd9365: "==2.0.2"
+  espressif/esp_lcd_touch_gt911: "==1.2.1"
+  espressif/esp_lv_decoder: "==0.5.0"
+  espressif/esp_lv_fs: "==1.0.1"
+  espressif/esp_lvgl_adapter: "==0.6.4"
+  espressif/esp_mmap_assets: "==2.0.1"
+  espressif/esp_new_jpeg: "==1.0.2"
+  espressif/esp_serial_slave_link: "==1.1.2"
+  espressif/freetype: "==2.14.3~1"
+  espressif/knob: "==1.1.0"
+  espressif/libpng: "==1.6.59"
+  espressif/qoi: "==0.20260529.0"
+  espressif/wifi_remote_over_eppp: "==0.3.3"
+  espressif/zlib: "==1.3.2~2"
