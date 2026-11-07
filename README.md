@@ -310,10 +310,14 @@ The software renderer draws 800×800 at up to 30 fps. To keep that fast, the
 background, rings, compass, runways, airport codes and trails are drawn into a
 cached PSRAM canvas, and that canvas is redrawn only when the view moves or new
 data arrives. The sweep, aircraft and labels are drawn every frame on top of
-it. Aircraft are pre-rendered at 72 headings and recolored when drawn.
+it. Aircraft icons are rotated to 72 headings on first use (alpha-only sprites,
+kept in PSRAM) and drawn in their color.
 
 ## Data and credits
 
+- **Aircraft icons by ADS-B Radar for macOS - https://adsb-radar.com -
+  https://apps.apple.com/app/id1538149835** (free icon set, used with the
+  backlink its license asks for; see `assets/aircraft_icons/README.md`).
 - Airline, route and airframe details come from [adsbdb.com](https://www.adsbdb.com)
   (route data by David Taylor and Jim Mason, aircraft data from PlaneBase).
 - Background maps: [CARTO](https://carto.com/basemaps) Dark Matter (with a

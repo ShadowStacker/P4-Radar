@@ -10,6 +10,22 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.37.0] - 2026-11-07
+
+### Changed
+- **New aircraft icons that match the aircraft type.** About 40 detailed
+  silhouettes: Cessna-style singles, King Air-style twins, Dash 8/ATR
+  turboprops, Learjet, Gulfstream and Falcon business jets, CRJ, ERJ and
+  E-Jets, A320 and 737 families, MD-80s, 757/767, 777, 787, A330/A350,
+  A340, MD-11, 747, A380, C-130, heavy freighters, fighters, helicopters,
+  tiltrotors, amphibians, gliders, ultralights, balloons, drones and ground
+  vehicles. The radar picks the icon from the aircraft's type code (about 430
+  known), and falls back to its size class when the type isn't known. Bigger
+  aircraft get bigger icons. They still turn with the heading and take the
+  altitude colors.
+- Icons by ADS-B Radar for macOS - https://adsb-radar.com -
+  https://apps.apple.com/app/id1538149835 (also credited on the About page).
+
 ## [v1.36.2] - 2026-11-07
 
 ### Fixed

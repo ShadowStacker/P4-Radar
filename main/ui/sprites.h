@@ -1,23 +1,26 @@
 #pragma once
 
+#include "core/aircraft_types.h"
 #include "lvgl.h"
 
 namespace ui::sprites {
 
-enum class Kind : uint8_t { Light = 0, Medium, Heavy, Rotor, Ground, kCount };
+/** The aircraft icon (see core/aircraft_types.h; icons by ADS-B Radar - https://adsb-radar.com). */
+using Kind = core::aircraft::Icon;
 
 constexpr int kRotationSteps = 72;  // 5 degree increments
 
 /**
- * Renders all aircraft sprites (white, to be recolored) at `scale_pct` % of
- * the standard size. Call after LVGL init; calling again with another scale
- * re-renders them (only while nothing is drawing them).
+ * Sets the aircraft sprites' size, `scale_pct` % of the standard size, and
+ * unpacks the icons. Call after LVGL init; calling again with another scale
+ * drops the sprites made so far (only while nothing is drawing them).
  */
 void init(int scale_pct = 100);
 
 /**
- * White ARGB8888 sprite for the heading (degrees, 0 = north). `small` is a
- * ~60 % set for crowded, zoomed-out views (much cheaper to draw).
+ * Alpha-only (A8) sprite for the heading (degrees, 0 = north), drawn in the
+ * image's recolor color. Made on first use, then kept. `small` is a ~60 %
+ * set for crowded, zoomed-out views (much cheaper to draw).
  */
 const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small = false);
 /** Sprite edge length in px (sprites are square, centered on the aircraft). */
@@ -42,7 +45,7 @@ const lv_draw_buf_t* bookmarkIcon(int32_t size);
 /** White magnifying glass (search), `size` px square. Cached. */
 const lv_draw_buf_t* searchIcon(int32_t size);
 
-/** Picks a sprite family from the ADS-B emitter category (A1..A7, C1..). */
-Kind kindFor(const char* category, bool on_ground);
+/** The icon for an aircraft: by its ICAO type ("B738"), else its emitter category ("A3"). */
+Kind kindFor(const char* type, const char* category);
 
 }  // namespace ui::sprites

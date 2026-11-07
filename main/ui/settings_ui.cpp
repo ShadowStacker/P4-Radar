@@ -2073,8 +2073,16 @@ void pageAbout() {
       plat::restart();
     });
   }, pal().danger);
-  label(s.list, "Plane Radar P4 - aircraft data from community\nADS-B feeds; runways from OurAirports.",
-        font(FontSize::S), pal().text_dim);
+  {
+    lv_obj_t* credits = label(s.list,
+                              "Plane Radar P4 - aircraft data from community ADS-B feeds; runways from OurAirports. "
+                              "Aircraft icons by ADS-B Radar for macOS - adsb-radar.com - "
+                              "apps.apple.com/app/id1538149835",
+                              font(FontSize::S), pal().text_dim);
+    lv_obj_set_width(credits, lv_pct(90));
+    lv_label_set_long_mode(credits, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_pad_left(credits, sc(16), 0);
+  }
 
   s.tick = [wifi, feed, mem, up] {
     const unsigned secs = static_cast<unsigned>(plat::millis() / 1000);

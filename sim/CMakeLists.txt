@@ -63,7 +63,7 @@ target_link_libraries(plane_radar_sim PRIVATE lvgl cjson ZLIB::ZLIB pthread m)
 target_compile_options(plane_radar_sim PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
 
 # Host unit tests for the pure core logic.
-file(GLOB CORE_SOURCES ${ROOT}/main/core/*.cpp ${ROOT}/main/third_party/tjpgd/*.c)
+file(GLOB CORE_SOURCES ${ROOT}/main/core/*.cpp ${ROOT}/main/third_party/tjpgd/*.c ${ROOT}/main/data/aircraft_icons_data.cpp)
 add_executable(core_tests ${ROOT}/tests/core_tests.cpp ${CORE_SOURCES})
 target_include_directories(core_tests PRIVATE ${ROOT}/main ${ROOT}/tests)
 target_link_libraries(core_tests PRIVATE cjson ZLIB::ZLIB m pthread)

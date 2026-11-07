@@ -839,7 +839,7 @@ void RadarView::prepareBlips(uint32_t now) {
     b.selected = selected_hex_ == t.ac.hex;
     b.emergency = t.ac.emergency;
     b.favorite = core::containsHex(favorites_, t.ac.hex);
-    b.kind = static_cast<uint8_t>(sprites::kindFor(t.ac.category, t.ac.on_ground));
+    b.kind = static_cast<uint8_t>(sprites::kindFor(t.ac.type, t.ac.category));
     b.small = small_sprites_ && !b.selected && !b.emergency && !b.favorite;
     b.heading = t.ac.heading_deg;
     b.color = useAltitudeColors(st) ? altitudeColor(t.ac.alt_ft, t.ac.on_ground)

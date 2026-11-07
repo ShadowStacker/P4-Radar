@@ -15,6 +15,8 @@
 #include <zlib.h>
 
 #include "core/adsb.h"
+#include "core/inflate.h"
+#include "data/aircraft_icons.h"
 #include "core/backup.h"
 #include "core/job_queue.h"
 #include "core/logbook.h"
@@ -44,7 +46,9 @@
 #include "core/tiles.h"
 #include "core/trace.h"
 #include "core/update.h"
+#include "core/aircraft_types.h"
 #include "core/geocode.h"
+#include "core/sprite_raster.h"
 #include "core/hidden.h"
 #include "core/wav.h"
 #include "core/net_watch.h"
@@ -527,6 +531,83 @@ void testWav() {
   CHECK(std::string(wav::fileName(core::Sound::NewAircraft)) == "aircraft_detected.wav");
   CHECK(std::string(wav::fileName(core::Sound::Alert)) == "proximity.wav");
   for (int i = 0; i < static_cast<int>(core::Sound::kCount); ++i) CHECK(wav::fileName(static_cast<core::Sound>(i)) != nullptr);
+}
+
+void testAircraftIcons() {
+  using core::aircraft::Icon;
+  using core::aircraft::iconFor;
+  CHECK(iconFor("A320", "A3") == Icon::A320 && iconFor("a21n", "") == Icon::A320);
+  CHECK(iconFor("B738", "A3") == Icon::B737);  // not the 767 icon, as on the source page
+  CHECK(iconFor("B789", "A5") == Icon::B787 && iconFor("B78X", nullptr) == Icon::B787);
+  CHECK(iconFor("A359", "A5") == Icon::A330);  // a twin, not the four-engine icon
+  CHECK(iconFor("B744", "A5") == Icon::B747 && iconFor("A388", "A5") == Icon::A380);
+  CHECK(iconFor("C17", "A5") == Icon::Freighter && iconFor("C130", "A3") == Icon::C130);
+  CHECK(iconFor("C172", "A1") == Icon::SingleProp && iconFor("BE20", "A1") == Icon::TwinProp);
+  CHECK(iconFor("CRJ9", "A3") == Icon::CRJ && iconFor("E75L", "A3") == Icon::E195 && iconFor("E145", "A2") == Icon::ERJ);
+  CHECK(iconFor("DH8D", "A2") == Icon::Turboprop && iconFor("MD11", "A5") == Icon::MD11);
+  CHECK(iconFor("H60", "A7") == Icon::Rotor && iconFor("V22", "A7") == Icon::Tiltrotor);
+  CHECK(iconFor("F16", "A6") == Icon::Fighter && iconFor("GLF5", "A2") == Icon::BigBizJet);
+  // Unknown types: the emitter category, then the generic icon.
+  CHECK(iconFor("ZZZZ", "A1") == Icon::Light && iconFor("", "A5") == Icon::Heavy && iconFor(nullptr, "A7") == Icon::Rotor);
+  CHECK(iconFor("", "B1") == Icon::Glider && iconFor("", "B6") == Icon::Drone && iconFor("", "C1") == Icon::Ground);
+  CHECK(iconFor("", "") == Icon::Generic && iconFor(nullptr, nullptr) == Icon::Generic && iconFor("TOOLONGTYPE", "") == Icon::Generic);
+  // Every icon has a mask and a sensible size; heavier ones are bigger.
+  for (int i = 0; i < static_cast<int>(Icon::kCount); ++i) {
+    const Icon ic = static_cast<Icon>(i);
+    bool found = false;
+    for (int m = 0; m < data::kIconMaskCount; ++m) found |= std::strcmp(data::kIconMasks[m].name, core::aircraft::iconName(ic)) == 0;
+    CHECK(found);
+    CHECK(core::aircraft::baseSize(ic) >= 16 && core::aircraft::baseSize(ic) <= 60);
+  }
+  CHECK(core::aircraft::baseSize(Icon::SingleProp) < core::aircraft::baseSize(Icon::A320) &&
+        core::aircraft::baseSize(Icon::A320) < core::aircraft::baseSize(Icon::B777) &&
+        core::aircraft::baseSize(Icon::B777) < core::aircraft::baseSize(Icon::A380));
+  // Each mask unpacks to size x size bytes.
+  for (int m = 0; m < data::kIconMaskCount; ++m) {
+    std::string px;
+    CHECK(core::inflateRaw(data::kIconMasks[m].data, data::kIconMasks[m].len, &px, 1 << 20) &&
+          px.size() == static_cast<size_t>(data::kIconMasks[m].size) * data::kIconMasks[m].size);
+  }
+}
+
+void testSpriteRaster() {
+  // A 32 px mask with a block near the top ("the nose").
+  const int n = 32;
+  std::vector<uint8_t> src(n * n, 0);
+  for (int y = 2; y < 8; ++y)
+    for (int x = 13; x < 19; ++x) src[y * n + x] = 255;
+  const int d = 16;
+  std::vector<uint8_t> dst(d * d);
+  auto centroid = [&](float* cx, float* cy) {
+    double sx = 0, sy = 0, w = 0;
+    for (int y = 0; y < d; ++y)
+      for (int x = 0; x < d; ++x) {
+        sx += dst[y * d + x] * (x + 0.5);
+        sy += dst[y * d + x] * (y + 0.5);
+        w += dst[y * d + x];
+      }
+    *cx = static_cast<float>(sx / w);
+    *cy = static_cast<float>(sy / w);
+    return w;
+  };
+  float cx, cy;
+  core::sprite::rotateMask(src.data(), n, dst.data(), d, d, 0);
+  const double w0 = centroid(&cx, &cy);
+  CHECK(std::fabs(cx - 8) < 0.3f && cy < 4);  // up
+  core::sprite::rotateMask(src.data(), n, dst.data(), d, d, 90);
+  centroid(&cx, &cy);
+  CHECK(cx > 12 && std::fabs(cy - 8) < 0.3f);  // east: right
+  core::sprite::rotateMask(src.data(), n, dst.data(), d, d, 180);
+  const double w180 = centroid(&cx, &cy);
+  CHECK(std::fabs(cx - 8) < 0.3f && cy > 12);  // down
+  core::sprite::rotateMask(src.data(), n, dst.data(), d, d, 270);
+  centroid(&cx, &cy);
+  CHECK(cx < 4 && std::fabs(cy - 8) < 0.3f);  // west: left
+  CHECK(std::fabs(w0 - w180) / w0 < 0.05 && std::fabs(w0 - 255.0 * 36 / 4) / w0 < 0.1);  // scaled area kept
+  // A row stride wider than the image is respected.
+  std::vector<uint8_t> wide(d * 20, 7);
+  core::sprite::rotateMask(src.data(), n, wide.data(), d, 20, 0);
+  CHECK(wide[16] == 7 && wide[19] == 7 && wide[20 + 16] == 7);
 }
 
 void testHidden() {
@@ -2216,6 +2297,8 @@ int main() {
   testNetWatch();
   testGeocode();
   testHidden();
+  testAircraftIcons();
+  testSpriteRaster();
   testWav();
   testLogbook();
   testPlaces();
