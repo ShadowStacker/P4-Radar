@@ -85,7 +85,13 @@ class Shape:
                (cx + ux * radius - px * hw * 0.7, cy + uy * radius - py * hw * 0.7), (cx - px * hw, cy - py * hw)]
         self.poly(pts)
 
-    def rotor(self, cx, cy, radius, blades, width, offset_deg=45):
+    # Blade angles that keep every blade off the nose and the tail boom (a
+    # blade lying along the body just looks like part of it).
+    BLADE_OFFSET = {2: 45, 3: 90, 4: 45, 5: 18, 6: 30, 7: 13, 8: 22.5}
+
+    def rotor(self, cx, cy, radius, blades, width, offset_deg=None):
+        if offset_deg is None:
+            offset_deg = self.BLADE_OFFSET.get(blades, 45)
         width = max(width, max(self.span, self.length) * 0.045)
         for i in range(blades):
             self.blade(cx, cy, radius, offset_deg + i * 360 / blades, width)

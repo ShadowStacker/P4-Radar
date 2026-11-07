@@ -839,7 +839,7 @@ void RadarView::prepareBlips(uint32_t now) {
     b.selected = selected_hex_ == t.ac.hex;
     b.emergency = t.ac.emergency;
     b.favorite = core::containsHex(favorites_, t.ac.hex);
-    b.kind = static_cast<uint8_t>(sprites::kindFor(t.ac.type, t.ac.category));
+    b.kind = static_cast<uint16_t>(sprites::kindFor(t.ac.type, t.ac.category));
     b.small = small_sprites_ && !b.selected && !b.emergency && !b.favorite;
     b.heading = t.ac.heading_deg;
     b.color = useAltitudeColors(st) ? altitudeColor(t.ac.alt_ft, t.ac.on_ground)
@@ -884,7 +884,7 @@ void RadarView::prepareBlips(uint32_t now) {
       const float k = (R - sc(12)) / d;
       b.x = cx + (s.x - cx) * k;
       b.y = cy + (s.y - cy) * k;
-      b.kind = 0xFF;  // rim marker
+      b.kind = kRimMarker;
       b.opa = 170;
       if (b.favorite) {
         b.color = p.favorite;
@@ -968,7 +968,7 @@ void RadarView::placeLabels() {
   placed.reserve(blips_.size() * 2);
   // Symbols are obstacles too, so labels don't cover other aircraft.
   for (const Blip& b : blips_) {
-    if (b.kind == 0xFF) continue;
+    if (b.kind == kRimMarker) continue;
     placed.push_back(boxAround(b.x, b.y, sprites::size(static_cast<sprites::Kind>(b.kind), b.small) * 0.4f));
   }
 
@@ -979,7 +979,7 @@ void RadarView::placeLabels() {
   std::vector<Blip*> order;
   order.reserve(blips_.size());
   for (Blip& b : blips_) {
-    if (b.label && b.kind != 0xFF && !(b.selected || b.emergency || b.favorite)) order.push_back(&b);
+    if (b.label && b.kind != kRimMarker && !(b.selected || b.emergency || b.favorite)) order.push_back(&b);
   }
   if (order.size() > static_cast<size_t>(kMaxLabelTries)) {
     std::nth_element(order.begin(), order.begin() + kMaxLabelTries, order.end(), [cx, cy](const Blip* a, const Blip* b) {
@@ -991,7 +991,7 @@ void RadarView::placeLabels() {
   // Selected and emergency labels get first pick of positions.
   for (int pass = 0; pass < 2; ++pass) {
     for (Blip& b : blips_) {
-      if (!b.label || b.kind == 0xFF) continue;
+      if (!b.label || b.kind == kRimMarker) continue;
       const bool prio = b.selected || b.emergency || b.favorite;
       if ((pass == 0) != prio) continue;
       lv_point_t s1, s2 = {0, 0};
@@ -1104,7 +1104,7 @@ void RadarView::overlayAreas(OverlayShapes* out) const {
     k.add(pal_key, sizeof(pal_key)).px(b.x).px(b.y).i(b.kind).add(&b.color, sizeof(b.color));
     const uint8_t flags[] = {b.opa, b.selected, b.favorite, b.small, b.label, b.has_head, b.has_vector, light_map_, b.echo};
     k.add(flags, sizeof(flags));
-    if (b.kind != 0xFF) {
+    if (b.kind != kRimMarker) {
       const lv_draw_buf_t* img = sprites::get(static_cast<sprites::Kind>(b.kind), b.heading, b.small);
       k.add(&img, sizeof(img));
     }
@@ -1113,7 +1113,7 @@ void RadarView::overlayAreas(OverlayShapes* out) const {
     if (b.label) k.add(&b.label_area, sizeof(b.label_area)).str(b.line1).str(b.line2);
     if (b.emergency) k.i(overlay_frame_);  // its ring pulses: new every frame
     item = k.h;
-    if (b.kind == 0xFF) {
+    if (b.kind == kRimMarker) {
       box(boxAround(b.x, b.y, sc(8)));
       continue;
     }
@@ -1332,7 +1332,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
 
   // Trail heads and speed vectors under the symbols.
   for (const Blip& b : blips_) {
-    if (b.kind == 0xFF) continue;
+    if (b.kind == kRimMarker) continue;
     if (b.has_head && areasOverlap(segBox(b.hx, b.hy, b.x, b.y, 4), clip)) {
       drawLine(layer, b.hx, b.hy, b.x, b.y, b.color, trail_w, static_cast<lv_opa_t>(200 * b.echo / 15), true);
     }
@@ -1345,7 +1345,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
   const lv_font_t* f1 = labelFont();
   const int32_t lh = lv_font_get_line_height(f1);
   for (const Blip& b : blips_) {
-    if (b.kind == 0xFF) {
+    if (b.kind == kRimMarker) {
       if (areasOverlap(boxAround(b.x, b.y, sc(8)), clip)) {
         drawCircle(layer, b.x, b.y, sc(5), b.color, b.opa);
       }
@@ -1534,7 +1534,7 @@ void RadarView::handleTap(lv_point_t p) {
   int best = -1;
   float best_d = static_cast<float>(sc(44));
   for (size_t i = 0; i < blips_.size(); ++i) {
-    if (blips_[i].kind == 0xFF) continue;
+    if (blips_[i].kind == kRimMarker) continue;
     const float d = distPx(blips_[i].x, blips_[i].y, p.x, p.y);
     if (d < best_d) {
       best_d = d;

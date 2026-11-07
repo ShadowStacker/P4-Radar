@@ -10,6 +10,54 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.39.0] - 2026-11-07
+
+### Added
+- **Over 300 more aircraft icons, most drawn for one type.** There are now
+  about 390 icons for about 690 type codes, all in the same style:
+  - **Airliners, variant by variant:** A318/A319/A321, A220, the 737-200
+    to -900, 757-200/-300, 767-200/-400, 777-200/-300/-300ER/777X,
+    787-8/-10, A300/A310, A330-200/neo, A350-900/-1000, A340-600, 747-8 and
+    747SP, Beluga, Dreamlifter, DC-10, TriStar, 717, MD-80/90, DC-9, 727,
+    BAe 146, Tu-154, Il-62, Yak-42, CRJ200/700, E170 to E2, Superjet, ARJ21.
+  - **Regional turboprops:** Dash 8-300 and Q400, ATR 42/72, Saab 340/2000,
+    Do 328, Brasilia, Jetstream 41, F50, Dash 7, An-26, C-295, CN-235.
+  - **About 40 business jets:** each Citation, Learjet, Phenom, Praetor,
+    HondaJet (engines over the wing), Vision Jet, PC-24, Gulfstream, Global,
+    Challenger and Falcon.
+  - **Light aircraft:** Cessna 152 to 210, Cubs, Citabria, Husky, Maule,
+    Piper singles and twins, Cirrus, Diamond, Bonanza (V-tail), Mooney, RVs,
+    Lancair, TBM, PC-12, Kodiak, Beaver, Otter, Caravan, Air Tractor, Barons,
+    Cessna twins, King Air 90/350, Metro, MU-2, Cheyenne, Piaggio Avanti,
+    Skymaster, Islander, Do 228, CASA 212, Skyvan.
+  - **Classics and warbirds:** DC-3, DC-4, DC-6, C-46, Constellation,
+    Electra, Viscount, Ju 52, An-2, Beech 18, Staggerwing, Goose, Catalina,
+    P-51, Spitfire, Hurricane, Bf 109, Fw 190, Zero, Corsair, P-47, P-40,
+    P-38, B-17, B-24, B-25, B-29, Lancaster, Mosquito, T-6, T-28,
+    Skyraider, Stearman, Tiger Moth, Pitts, Yak-52.
+  - **Experimentals and aerobatics:** Long-EZ/VariEze/Cozy, Velocity,
+    Extra, Sukhoi Su-26/29, CAP, light sport, CubCrafters, Glasair, ICON A5,
+    Lake Buccaneer.
+  - **Military:** F-86, MiG-15/21/29, F-104, Vampire, Hunter, L-39, A-4,
+    F-4, F-14, F-15, F/A-18, F-22, F-35, Su-27 family, Tornado, Jaguar,
+    Mirage, Draken, Viggen, Rafale, Gripen, Typhoon, J-10, F-16, F-5/T-38,
+    Hawk, Alpha Jet, M-346, T-7, A-10, Harrier, F-117, SR-71, U-2, C-5,
+    A400M, P-3, C-160, An-124, An-225, Il-76, Global Hawk, Reaper, KC-135,
+    KC-46.
+  - **50 helicopters** with their real blade count: Robinsons, Bell 206 to
+    525, Huey, Cobra, MD 500/900, the Airbus range, Leonardo A109 to AW189
+    and AW101, S-76, S-92, Black Hawk, CH-53, Sea King, Chinook, CH-46,
+    Apache, Tiger, Mangusta, Mi-8/24/26/28, Kamov, NH90, Lynx, Enstrom,
+    Schweizer, Cabri.
+
+### Changed
+- **Helicopter rotors look tidier.** Blades no longer line up with the nose
+  or tail boom (where they looked like part of the body), and tandem-rotor
+  helicopters show a V forward and a V back like a Chinook from above.
+- **More internal RAM free.** The table of drawn icons is in PSRAM now
+  (v1.37-1.38 kept it in internal RAM), and each icon is unpacked only when
+  an aircraft of that type first appears.
+
 ## [v1.38.0] - 2026-11-07
 
 ### Changed

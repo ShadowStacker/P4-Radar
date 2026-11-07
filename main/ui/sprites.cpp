@@ -9,6 +9,7 @@
 #include "core/inflate.h"
 #include "core/sprite_raster.h"
 #include "data/aircraft_icons.h"
+#include "platform/platform.h"
 #include "ui/image_buf.h"
 #include "ui/lv_compat.h"
 #include "ui/theme.h"
@@ -19,11 +20,31 @@ namespace {
 
 constexpr int kKinds = static_cast<int>(Kind::kCount);
 // [0] full size, [1] small (used when zoomed out with many aircraft).
-lv_draw_buf_t* s_bufs[2][kKinds][kRotationSteps] = {};
-int32_t s_size[2][kKinds] = {};
+// Sprites made so far, [set][kind][heading]: a table in PSRAM (2 x kinds x
+// 72 pointers is far too big for internal RAM, which Wi-Fi needs).
+lv_draw_buf_t** s_bufs = nullptr;
+lv_draw_buf_t*& slot(int set, int k, int idx) { return s_bufs[(set * kKinds + k) * kRotationSteps + idx]; }
+uint8_t s_size[2][kKinds] = {};
 constexpr int kSmallPct = 62;
-std::string s_masks[kKinds];  // alpha, s_mask_size[k] squared; nose up
-int s_mask_size[kKinds] = {};
+// Each kind's mask (index into data::kIconMasks; kinds may share one), and
+// the masks unpacked so far (alpha, size x size, nose up; PSRAM).
+int16_t s_mask_of[kKinds] = {};
+std::vector<std::string> s_mask_px;
+
+/** The unpacked mask for a kind (unpacked on first use), or nullptr. */
+const uint8_t* maskFor(int k, int* size) {
+  const int m = s_mask_of[k];
+  if (m < 0) return nullptr;
+  std::string& px = s_mask_px[static_cast<size_t>(m)];
+  const data::IconMask& im = data::kIconMasks[m];
+  const size_t n = static_cast<size_t>(im.size) * im.size;
+  if (px.empty() && (!core::inflateRaw(im.data, im.len, &px, n) || px.size() != n)) {
+    px.clear();
+    return nullptr;
+  }
+  *size = im.size;
+  return reinterpret_cast<const uint8_t*>(px.data());
+}
 
 struct V {
   float x, y;
@@ -71,29 +92,27 @@ void init(int scale_pct) {
   if (scale_pct > 200) scale_pct = 200;
   if (scale_pct == s_scale) return;
   s_scale = scale_pct;
-  for (auto& set : s_bufs) {
-    for (auto& kind : set) {
-      for (lv_draw_buf_t*& b : kind) {
-        if (b != nullptr) destroyImageBuf(b);
-        b = nullptr;
-      }
-    }
+  const size_t slots = 2u * kKinds * kRotationSteps;
+  if (s_bufs == nullptr) {
+    s_bufs = static_cast<lv_draw_buf_t**>(plat::allocLarge(slots * sizeof(lv_draw_buf_t*)));
+    if (s_bufs == nullptr) return;
+    std::memset(s_bufs, 0, slots * sizeof(lv_draw_buf_t*));
   }
-  // The icon masks, unpacked once (PSRAM). Sprites are made from them on
-  // first use, one heading at a time (see get()).
-  if (s_masks[0].empty()) {
+  for (size_t i = 0; i < slots; ++i) {
+    if (s_bufs[i] != nullptr) destroyImageBuf(s_bufs[i]);
+    s_bufs[i] = nullptr;
+  }
+  // Which mask each kind uses; the masks are unpacked when first needed.
+  if (s_mask_px.empty()) {
+    s_mask_px.resize(static_cast<size_t>(data::kIconMaskCount));
     for (int k = 0; k < kKinds; ++k) {
+      s_mask_of[k] = -1;
       const char* name = core::aircraft::iconName(static_cast<Kind>(k));
       for (int m = 0; m < data::kIconMaskCount; ++m) {
-        const data::IconMask& im = data::kIconMasks[m];
-        if (std::strcmp(im.name, name) != 0) continue;
-        std::string px;
-        if (core::inflateRaw(im.data, im.len, &px, static_cast<size_t>(im.size) * im.size) &&
-            px.size() == static_cast<size_t>(im.size) * im.size) {
-          s_masks[k] = std::move(px);
-          s_mask_size[k] = im.size;
+        if (std::strcmp(data::kIconMasks[m].name, name) == 0) {
+          s_mask_of[k] = static_cast<int16_t>(m);
+          break;
         }
-        break;
       }
     }
   }
@@ -102,7 +121,8 @@ void init(int scale_pct) {
   for (int set = 0; set < 2; ++set) {
     const int pct = set == 0 ? scale_pct : scale_pct * kSmallPct / 100;
     for (int k = 0; k < kKinds; ++k) {
-      s_size[set][k] = (sc(core::aircraft::baseSize(static_cast<Kind>(k))) * pct / 100) | 1;
+      const int32_t sz = (sc(core::aircraft::baseSize(static_cast<Kind>(k))) * pct / 100) | 1;
+      s_size[set][k] = static_cast<uint8_t>(sz > 255 ? 255 : sz);
     }
   }
 
@@ -348,16 +368,19 @@ const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small) {
   if (h < 0) h += 360.0f;
   const int idx = static_cast<int>(std::lround(h / (360.0f / kRotationSteps))) % kRotationSteps;
   const int set = small ? 1 : 0;
-  lv_draw_buf_t*& buf = s_bufs[set][k][idx];
-  if (buf == nullptr && !s_masks[k].empty()) {
+  if (s_bufs == nullptr) return nullptr;
+  lv_draw_buf_t*& buf = slot(set, k, idx);
+  int msize = 0;
+  const uint8_t* mask = buf == nullptr ? maskFor(k, &msize) : nullptr;
+  if (mask != nullptr) {
     // First time this icon is needed at this heading: rotate the mask into an
     // alpha-only sprite (drawn in the aircraft's color). Plain CPU work, so it
     // is fine even in the middle of drawing.
     const int32_t sz = s_size[set][k];
     buf = createImageBuf(sz, sz, LV_COLOR_FORMAT_A8);
     if (buf != nullptr) {
-      core::sprite::rotateMask(reinterpret_cast<const uint8_t*>(s_masks[k].data()), s_mask_size[k], buf->data, sz,
-                               static_cast<int>(buf->header.stride), idx * (360.0f / kRotationSteps));
+      core::sprite::rotateMask(mask, msize, buf->data, sz, static_cast<int>(buf->header.stride),
+                               idx * (360.0f / kRotationSteps));
     }
   }
   return buf;

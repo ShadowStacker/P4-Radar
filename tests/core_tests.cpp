@@ -536,32 +536,29 @@ void testWav() {
 void testAircraftIcons() {
   using core::aircraft::Icon;
   using core::aircraft::iconFor;
-  CHECK(iconFor("A320", "A3") == Icon::A320 && iconFor("a21n", "") == Icon::A320);
-  CHECK(iconFor("B738", "A3") == Icon::B737);  // not the 767 icon, as on the source page
-  CHECK(iconFor("B789", "A5") == Icon::B787 && iconFor("B78X", nullptr) == Icon::B787);
-  CHECK(iconFor("A359", "A5") == Icon::A330);  // a twin, not the four-engine icon
-  CHECK(iconFor("B744", "A5") == Icon::B747 && iconFor("A388", "A5") == Icon::A380);
-  CHECK(iconFor("C17", "A5") == Icon::Freighter && iconFor("C130", "A3") == Icon::C130);
-  CHECK(iconFor("C172", "A1") == Icon::SingleHigh && iconFor("BE20", "A1") == Icon::TwinProp);
-  // Propeller aircraft get propeller icons (not the small-jet look of their size class).
-  CHECK(iconFor("BE99", "A2") == Icon::TwinTurboprop && iconFor("PC12", "A1") == Icon::TurbopropSingle);
-  CHECK(iconFor("PA28", "A1") == Icon::SingleLow && iconFor("C208", "A1") == Icon::TurbopropSingleHigh);
-  CHECK(iconFor("BE58", "A1") == Icon::TwinPiston && iconFor("DHC6", "A2") == Icon::TwinHigh);
-  // Helicopters by rotor layout, military by planform.
-  CHECK(iconFor("R44", "A7") == Icon::Heli2 && iconFor("AS50", "A7") == Icon::Heli3 && iconFor("EC35", "A7") == Icon::Heli4);
-  CHECK(iconFor("A139", "A7") == Icon::Heli5 && iconFor("H47", "A7") == Icon::HeliTandem && iconFor("H64", "A7") == Icon::HeliAttack);
-  CHECK(iconFor("KA52", "A7") == Icon::HeliCoax);
-  CHECK(iconFor("F35", "A6") == Icon::FighterTwin && iconFor("EUFI", "A6") == Icon::FighterDelta && iconFor("A10", "A6") == Icon::Attack);
-  CHECK(iconFor("K35R", "A5") == Icon::B707 && iconFor("E3TF", "A5") == Icon::Awacs && iconFor("B52", "A5") == Icon::B52);
-  CHECK(iconFor("T38", "A6") == Icon::JetTrainer && iconFor("MQ9", "B6") == Icon::Reaper);
-  CHECK(iconFor("CRJ9", "A3") == Icon::CRJ && iconFor("E75L", "A3") == Icon::E195 && iconFor("E145", "A2") == Icon::ERJ);
-  CHECK(iconFor("DH8D", "A2") == Icon::Turboprop && iconFor("MD11", "A5") == Icon::MD11);
-  CHECK(iconFor("H60", "A7") == Icon::HeliLarge && iconFor("V22", "A7") == Icon::Tiltrotor);
-  CHECK(iconFor("F16", "A6") == Icon::FighterSingle && iconFor("GLF5", "A2") == Icon::BigBizJet);
+  // Checked by mask name, so the table can grow without touching this.
+  auto icon = [](const char* type, const char* cat) {
+    return std::string(core::aircraft::iconName(core::aircraft::iconFor(type, cat)));
+  };
+  CHECK(icon("A320", "A3") == "a320" && icon("a21n", "") == "x_a321" && icon("A319", "A3") == "x_a319");
+  CHECK(icon("B738", "A3") == "b737" && icon("B38M", "A3") == "b737" && icon("B739", "A3") == "x_b739");
+  CHECK(icon("B789", "A5") == "b787" && icon("B78X", nullptr) == "x_b78x" && icon("A359", "A5") == "x_a359");
+  CHECK(icon("B744", "A5") == "b747" && icon("A388", "A5") == "a380" && icon("B748", "A5") == "x_b748");
+  CHECK(icon("C17", "A5") == "heavyfreighter" && icon("C130", "A3") == "c130" && icon("A400", "A5") == "x_a400");
+  // Propeller aircraft get propeller icons: BE99 a twin turboprop, PC-12 a single.
+  CHECK(icon("BE99", "A2") == "g_twin_turboprop" && icon("PC12", "A1") == "x_pc12" && icon("C172", "A1") == "x_c172");
+  CHECK(icon("BE20", "A1") == "beechcraft" && icon("B350", "A2") == "x_b350" && icon("DHC6", "A2") == "x_dhc6");
+  // Warbirds, experimentals, military, helicopters.
+  CHECK(icon("P51", "A1") == "x_p51" && icon("SPIT", "A1") == "x_spit" && icon("B17", "A3") == "x_b17");
+  CHECK(icon("LGEZ", "A1") == "x_lgez" && icon("ST75", "A1") == "x_stearman" && icon("PTS2", "A1") == "x_pitts");
+  CHECK(icon("F35", "A6") == "x_f35" && icon("EUFI", "A6") == "x_eufi" && icon("K35R", "A5") == "x_kc135");
+  CHECK(icon("E3TF", "A5") == "g_awacs" && icon("B52", "A5") == "g_b52" && icon("MQ9", "B6") == "x_mq9");
+  CHECK(icon("R44", "A7") == "x_r44" && icon("H47", "A7") == "x_h47" && icon("KA52", "A7") == "x_ka52" && icon("H60", "A7") == "x_h60");
   // Unknown types: the emitter category, then the generic icon.
   CHECK(iconFor("ZZZZ", "A1") == Icon::Light && iconFor("", "A5") == Icon::Heavy && iconFor(nullptr, "A7") == Icon::Rotor);
   CHECK(iconFor("", "B1") == Icon::Glider && iconFor("", "B6") == Icon::Drone && iconFor("", "C1") == Icon::Ground);
   CHECK(iconFor("", "") == Icon::Generic && iconFor(nullptr, nullptr) == Icon::Generic && iconFor("TOOLONGTYPE", "") == Icon::Generic);
+  CHECK(static_cast<int>(Icon::kCount) > 300);
   // Every icon has a mask and a sensible size; heavier ones are bigger.
   for (int i = 0; i < static_cast<int>(Icon::kCount); ++i) {
     const Icon ic = static_cast<Icon>(i);
@@ -570,9 +567,9 @@ void testAircraftIcons() {
     CHECK(found);
     CHECK(core::aircraft::baseSize(ic) >= 16 && core::aircraft::baseSize(ic) <= 60);
   }
-  CHECK(core::aircraft::baseSize(Icon::SingleHigh) < core::aircraft::baseSize(Icon::A320) &&
-        core::aircraft::baseSize(Icon::A320) < core::aircraft::baseSize(Icon::B777) &&
-        core::aircraft::baseSize(Icon::B777) < core::aircraft::baseSize(Icon::A380));
+  auto size = [](const char* type) { return core::aircraft::baseSize(core::aircraft::iconFor(type, "")); };
+  CHECK(size("R22") < size("C172") && size("C172") < size("C56X") && size("C56X") < size("A320") &&
+        size("A320") < size("B77W") && size("B77W") <= size("A388"));
   // Each mask unpacks to size x size bytes.
   for (int m = 0; m < data::kIconMaskCount; ++m) {
     std::string px;

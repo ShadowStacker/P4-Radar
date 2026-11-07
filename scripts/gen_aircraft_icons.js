@@ -40,7 +40,8 @@ const FILL = 0.92;     // the shape's share of the mask: room for wingtips when 
       ctx.drawImage(img, (size - s) / 2, (size - s) / 2, s, s);
       const d = ctx.getImageData(0, 0, size, size).data;
       const a = new Array(size * size);
-      for (let i = 0; i < size * size; ++i) a[i] = d[i * 4 + 3];
+      // 16 alpha levels are plenty for edges at radar size, and compress much better.
+      for (let i = 0; i < size * size; ++i) a[i] = Math.round(d[i * 4 + 3] / 17) * 17;
       return a;
     }, { svg, size: SIZE, fill: FILL });
     const packed = zlib.deflateRawSync(Buffer.from(alpha), { level: 9 });

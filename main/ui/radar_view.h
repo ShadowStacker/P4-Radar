@@ -85,13 +85,14 @@ class RadarView {
  private:
   enum class Gesture { None, Undecided, Drag, Pinch, PinchDone };
 
+  static constexpr uint16_t kRimMarker = 0xFFFF;  // beyond the bezel: a dot on the rim
   struct Blip {
     int track_idx;
     float x, y;
     float heading;
     lv_color_t color;
     lv_opa_t opa;
-    uint8_t kind;
+    uint16_t kind;  // a sprites::Kind, or kRimMarker
     bool has_vector;
     float vx, vy;  // speed vector end
     bool has_head;

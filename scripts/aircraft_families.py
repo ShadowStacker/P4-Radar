@@ -241,18 +241,18 @@ def heli(rotor_d, length, body_w, body_end, blades, stab=1.0, offset=45):
     s.fuselage(body_w, start=r * 0.55, end=body_end, nose=body_w * 0.8, tail=body_w * 1.4, tail_width=body_w * 0.4)
     s.fuselage(body_w * 0.3, start=body_end - body_w, end=length - 0.2, nose=0.1, tail=0.5, tail_width=body_w * 0.25)
     s.wing(length - 1.4, 0.6, stab, 0, 0.45)
-    s.rotor(0, r, r, blades, rotor_d * 0.04, offset_deg=offset)
+    s.rotor(0, r, r, blades, rotor_d * 0.04)  # angles by blade count (see Shape.rotor)
     return s
 
 
 @family('g_heli_2')  # Robinson R22/R44, Bell 206: two blades
 def _():
-    return heli(10.1, 11.7, 1.3, 8.0, 2, stab=0.8, offset=90)
+    return heli(10.1, 11.7, 1.3, 8.0, 2, stab=0.8, offset=55)
 
 
 @family('g_heli_3')  # AS350/H125, AS355, EC130: three blades
 def _():
-    return heli(10.7, 12.9, 1.6, 8.8, 3, stab=1.2, offset=0)
+    return heli(10.7, 12.9, 1.6, 8.8, 3, stab=1.2, offset=40)
 
 
 @family('g_heli_4')  # EC135/H135, H145, Bell 407/429, A109, S-76
@@ -273,9 +273,9 @@ def _():
 @family('g_heli_tandem')  # CH-47 Chinook
 def _():
     s = Shape(18.3, 30.1)
-    s.fuselage(3.8, start=7.1, end=23.0, nose=2.0, tail=1.5, tail_width=3.0)
-    s.rotor(0, 9.15, 9.15, 3, 0.8, offset_deg=0)
-    s.rotor(0, 20.95, 9.15, 3, 0.8, offset_deg=60)
+    s.fuselage(4.9, start=5.0, end=25.1, nose=2.4, tail=2.0, tail_width=3.9)
+    s.rotor(0, 9.15, 9.15, 3, 0.9, offset_deg=60)   # a V forward
+    s.rotor(0, 20.95, 9.15, 3, 0.9, offset_deg=0)   # a V back
     return s
 
 
@@ -291,14 +291,20 @@ def _():
     s = Shape(15.9, 12.3)
     s.fuselage(2.6, start=2.4, end=12.0, nose=1.6, tail=3.0, tail_width=1.2)
     s.wing(10.6, 1.0, 2.3, 0, 1.0)
-    s.rotor(0, 7.95, 7.95, 3, 0.7, offset_deg=0)
-    s.rotor(0, 7.95, 7.95, 3, 0.7, offset_deg=60)
+    s.rotor(0, 7.95, 7.95, 6, 0.7)  # two three-blade rotors
     return s
 
 
 if __name__ == '__main__':
+    from aircraft_catalog import CATALOG  # noqa: E402  (the type-specific icons)
     os.makedirs(OUT, exist_ok=True)
+    for old in os.listdir(OUT):
+        if old.endswith('.svg'):
+            os.remove(os.path.join(OUT, old))
     for name, fn in FAMILIES.items():
         with open(os.path.join(OUT, name + '.svg'), 'w') as f:
             f.write(fn().svg())
-    print(f'{len(FAMILIES)} icons -> {os.path.relpath(OUT)}')
+    for key, _desc, _types, fn in CATALOG:
+        with open(os.path.join(OUT, 'x_' + key + '.svg'), 'w') as f:
+            f.write(fn().svg())
+    print(f'{len(FAMILIES)} family + {len(CATALOG)} type icons -> {os.path.relpath(OUT)}')
