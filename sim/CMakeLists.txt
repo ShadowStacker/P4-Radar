@@ -8,6 +8,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(plane_radar_sim C CXX)
 
+# The simulator reports the firmware's own version (screenshots show it).
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../sdkconfig.defaults" SIM_VER_LINE REGEX "^CONFIG_APP_PROJECT_VER=")
+string(REGEX REPLACE "^CONFIG_APP_PROJECT_VER=\"([^\"]*)\".*" "\\1" SIM_FW_VERSION "${SIM_VER_LINE}")
+add_compile_definitions(SIM_FW_VERSION="${SIM_FW_VERSION}")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT CMAKE_BUILD_TYPE)

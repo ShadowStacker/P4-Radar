@@ -1864,7 +1864,8 @@ int main(int argc, char** argv) {
     ui::RadarView::get().clearSelection();
     std::snprintf(app::settings().last_seen_version, sizeof(app::settings().last_seen_version), "1.10.0");
     run(1500);
-    const bool shown = hasLabel(lv_layer_top(), "What's new in v1.12.1") && hasLabel(lv_layer_top(), "v1.11.0");
+    const std::string title = std::string("What's new in v") + plat::firmwareVersion();
+    const bool shown = hasLabel(lv_layer_top(), title.c_str());
     shot((p + "78_whats_new").c_str());
     const bool remembered = std::strcmp(app::settings().last_seen_version, plat::firmwareVersion()) == 0;
     lv_obj_clean(lv_layer_top());
@@ -1872,7 +1873,7 @@ int main(int argc, char** argv) {
     const bool once = !hasLabel(lv_layer_top(), "What's new in");
     ui::showWhatsNew();
     run(300);
-    const bool again = hasLabel(lv_layer_top(), "What's new in v1.12.1");
+    const bool again = hasLabel(lv_layer_top(), title.c_str());
     lv_obj_clean(lv_layer_top());
     run(300);
     std::printf("what's new: shown %s, once %s, from About %s\n", shown && remembered ? "OK" : "FAILED",
@@ -2181,7 +2182,7 @@ int main(int argc, char** argv) {
     app::settings().auto_update_check = true;
     run(3600 * 1000 + 2000, 500);  // an hour later
     const app::UpdateStatus u = app::updateStatus();
-    const bool found = u.state == app::UpdateState::Available && std::strcmp(u.latest, "v1.13.0") == 0;
+    const bool found = u.state == app::UpdateState::Available && std::string(u.latest) == sim::nextVersionTag();
     std::printf("update auto-check (newer release): %s\n", found ? "OK" : "FAILED");
     if (!found) return 1;
     lv_display_trigger_activity(nullptr);  // the buttons are showing

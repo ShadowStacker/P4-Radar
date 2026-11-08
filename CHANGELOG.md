@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.47.1] - 2026-11-09
+
+### Changed
+- **New README and a reworked user guide.** Every menu, setting and feature
+  is explained, with fresh screenshots of the radar, every settings page and
+  the phone page.
+
+### Fixed
+- settings.txt described the phone page as needing a PIN, which it hasn't
+  since v1.18.2.
+
 ## [v1.47.0] - 2026-11-08
 
 ### Changed

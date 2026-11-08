@@ -214,7 +214,7 @@ const Field kFields[] = {
     BOOL(replay_record, "Record the traffic around home on the SD card for replays (a week is kept)"),
 
     SECTION("Phone page"),
-    BOOL(web_enabled, "Settings page for phones on your network (PIN on the radar's screen)"),
+    BOOL(web_enabled, "Settings page for phones and computers on your network (port 50080)"),
 
     SECTION("Updates"),
     BOOL(auto_update_check, "Look for new firmware on GitHub a minute after start, then hourly"),

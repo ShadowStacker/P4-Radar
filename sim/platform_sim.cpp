@@ -23,6 +23,13 @@
 #include "sim_state.h"
 
 namespace sim {
+
+/** The fake GitHub's "newer release": the running version's next minor ("1.47.0" -> "v1.48.0"). */
+std::string nextVersionTag() {
+  int a = 0, b = 0, c = 0;
+  std::sscanf(SIM_FW_VERSION, "%d.%d.%d", &a, &b, &c);
+  return "v" + std::to_string(a) + "." + std::to_string(b + 1) + ".0";
+}
 uint32_t g_ms = 1000;
 Touch g_touch;
 bool g_preset_wifi = true;
@@ -235,6 +242,29 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
   const bool sat = std::strstr(url, "World_Imagery/MapServer/tile/") != nullptr;
   if (carto || topo || osm || faa || sat) {
     if (std::getenv("SIM_NO_TILES")) return -1;
+    if (std::getenv("SIM_REAL_TILES")) {
+      // Real map tiles, for the documentation's screenshots: fetched once with
+      // curl and kept in a cache folder next to the output (be light on the
+      // free tile services).
+      const std::string dir = sim::g_out_dir + "/../tilecache";
+      std::string key;
+      for (const char* c = url; *c; ++c) key.push_back(std::isalnum(static_cast<unsigned char>(*c)) ? *c : '_');
+      const std::string file = dir + "/" + key.substr(key.size() > 150 ? key.size() - 150 : 0);
+      FILE* f = std::fopen(file.c_str(), "rb");
+      if (f == nullptr) {
+        std::system(("mkdir -p '" + dir + "'").c_str());
+        const std::string cmd = "curl -s -f -m 20 -A 'plane-radar-p4-docs/1.0 (+https://github.com/ShadowStacker/P4-Radar)' -o '" +
+                                file + "' '" + url + "'";
+        if (std::system(cmd.c_str()) != 0) return 404;
+        f = std::fopen(file.c_str(), "rb");
+        if (f == nullptr) return 404;
+      }
+      char buf[16384];
+      size_t n;
+      while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) body->append(buf, n);
+      std::fclose(f);
+      return 200;
+    }
     // .../<z>/<x>/<y>.png
     int z = 0;
     unsigned x = 0, y = 0;
@@ -280,7 +310,7 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
   if (std::strstr(url, "adsbdb.com") != nullptr) return 404;
   if (std::strstr(url, "api.github.com/repos/") != nullptr) {
     // The latest release: the running version, or a newer one with an update image.
-    const char* tag = sim::g_update_available ? "v1.13.0" : "v1.12.1";
+    const std::string tag = sim::g_update_available ? sim::nextVersionTag() : std::string("v") + SIM_FW_VERSION;
     *body = std::string(R"({"tag_name":")") + tag + R"(","assets":[{"name":"plane-radar-4in-720x720-chip-v1-)" + tag +
             R"(-ota.bin","size":6000000,"browser_download_url":"https://github.com/sim/ota.bin"}]})";
     return 200;
@@ -397,7 +427,7 @@ uint64_t micros() {
                                    .count());
 }
 
-const char* firmwareVersion() { return "1.12.1"; }
+const char* firmwareVersion() { return SIM_FW_VERSION; }
 const char* firmwareVariant() { return "4in-720x720-chip-v1"; }
 bool installFirmware(const char*, const std::function<void(size_t, size_t)>& progress, std::string* error) {
   if (std::getenv("SIM_OTA_FAIL")) {

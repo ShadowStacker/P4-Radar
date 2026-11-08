@@ -1,338 +1,382 @@
-# Plane Radar P4
-
-A live ADS-B aircraft radar for the **Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C**
-(3.4", 800×800 round, touch) and its 4" 720×720 sibling (**-4C**). It's a
-higher-resolution, touch-driven take on
-[MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar).
-
 <p align="center">
-  <img src="docs/images/sweep.gif" width="360" alt="Radar sweep">
-  <img src="docs/images/04_aircraft_selected.png" width="360" alt="Selected aircraft">
+  <img src="docs/images/hero.jpg" alt="Plane Radar P4: live ADS-B air traffic on a round touchscreen">
 </p>
 
-> Screenshots come from the desktop simulator in `sim/`. It runs the same UI
-> code against synthetic traffic.
+<p align="center">
+  <a href="https://github.com/ShadowStacker/P4-Radar/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ShadowStacker/P4-Radar?style=flat-square&color=3dff95&labelColor=0b1f14"></a>
+  <a href="https://github.com/ShadowStacker/P4-Radar/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/ShadowStacker/P4-Radar/build.yml?style=flat-square&labelColor=0b1f14"></a>
+  <a href="https://github.com/ShadowStacker/P4-Radar/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ShadowStacker/P4-Radar/total?style=flat-square&color=3dff95&labelColor=0b1f14"></a>
+  <img alt="ESP32-P4" src="https://img.shields.io/badge/ESP32--P4-ESP--IDF%205.5-3dff95?style=flat-square&labelColor=0b1f14">
+  <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-3dff95?style=flat-square&labelColor=0b1f14">
+</p>
 
-## Documentation
+<p align="center">
+  <b><a href="#-get-started-in-5-minutes">Get started</a></b> ·
+  <b><a href="docs/USER_GUIDE.md">User guide</a></b> ·
+  <b><a href="#-a-tour">Tour</a></b> ·
+  <b><a href="docs/AIRCRAFT_ICONS.md">Aircraft icons</a></b> ·
+  <b><a href="CHANGELOG.md">Changelog</a></b> ·
+  <b><a href="https://github.com/ShadowStacker/P4-Radar/releases">Downloads</a></b>
+</p>
+
+---
+
+**Plane Radar P4** turns a Waveshare ESP32-P4 round touch display into a live
+air-traffic radar for your desk, wall or window sill. It shows every aircraft
+around you on a real map, with each one drawn in its own shape, rotated to its
+heading and coloured by altitude. Tap one to see where it's going.
+
+It needs no computer, app or account: Wi-Fi, a home location and a few seconds
+are all it takes. It's also much more than a radar:
+
+<table>
+<tr>
+<td width="33%" valign="top"><h3>✈️ See everything</h3><b>470 aircraft icons</b> covering about 2,900 type codes, from a Cub to an A380, gliders, gyroplanes and balloons. Trails, one-minute speed vectors, 48,000 airports with runways, and smooth motion between updates.</td>
+<td width="33%" valign="top"><h3>🗺️ On a real map</h3>Dark streets, <b>topo</b>, <b>FAA sectional charts</b>, <b>satellite</b> or a street map with names, tinted to the theme. Tiles are saved on an SD card, so a map you've seen also works offline.</td>
+<td width="33%" valign="top"><h3>🔔 Never miss one</h3><b>Favorites</b>, a <b>watchlist</b> (military, helicopters, fast jets, any type or callsign), proximity and emergency alerts, and <i>first time here</i>. Each has its own sound, and you can use your own WAV files.</td>
+</tr>
+<tr>
+<td width="33%" valign="top"><h3>📒 Remember everything</h3>A <b>daily log</b> with hourly charts, a <b>logbook</b> of every aircraft ever seen near home, and <b>a week of replay</b>: scrub through any recorded day of traffic.</td>
+<td width="33%" valign="top"><h3>🏠 Fits your home</h3>A <b>clock face</b> with four alarms, night dimming or sleep (by the clock or sunset to sunrise), five themes, and <b>Home Assistant</b> sensors and events over MQTT.</td>
+<td width="33%" valign="top"><h3>📡 Your data, your way</h3>Three free community feeds with automatic failover, or <b>your own receiver</b> (readsb, tar1090, dump1090, SkyAware). Settings are editable from a <b>phone page</b>, and updates install <b>over Wi-Fi</b>.</td>
+</tr>
+</table>
+
+<p align="center">
+  <img src="docs/images/sweep.gif" width="300" alt="The radar sweep">
+  <img src="docs/images/04_aircraft_selected.png" width="300" alt="An aircraft's info card">
+  <img src="docs/images/35_flight_history.png" width="300" alt="Flight history">
+</p>
+
+---
+
+## 🚀 Get started in 5 minutes
+
+**You need:** a [Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-3.4c.htm)
+(3.4", 800×800) or **-4C** (4", 720×720), a USB-C cable, and optionally a
+microSD card (FAT32) and a small speaker.
+
+1. **Download** the firmware for your board from the
+   [latest release](https://github.com/ShadowStacker/P4-Radar/releases/latest):
+
+   | Board | File |
+   |---|---|
+   | 3.4" round, 800×800 | `plane-radar-3.4in-800x800-chip-v1-<version>.bin` |
+   | 4" round, 720×720 | `plane-radar-4in-720x720-chip-v1-<version>.bin` |
+
+   > Use the file **without** `-ota` in its name. The `-ota.bin` files are for
+   > updates over Wi-Fi.
+
+2. **Flash it at address `0x0`**, either from your browser with
+   [esptool-js](https://espressif.github.io/esptool-js/) (Chrome or Edge;
+   change the address from `0x1000` to **`0x0`**), or from a terminal:
+
+   ```bash
+   pip install --upgrade esptool
+   python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-4in-720x720-chip-v1-<version>.bin
+   ```
+
+3. **Follow the screen.** Pick your Wi-Fi and type the password on the
+   on-screen keyboard. Then set your home: drag a map, type an airport code
+   like `KJFK`, or search for your town. Traffic appears within seconds.
+
+From then on the radar **updates itself**: a button lights up when a new
+version is out. Step-by-step help is in
+[Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware).
+
+<p align="center">
+  <img src="docs/images/01_first_boot_wifi.png" width="250" alt="Wi-Fi setup">
+  <img src="docs/images/02_wifi_password.png" width="250" alt="On-screen keyboard">
+  <img src="docs/images/17_pick_home.png" width="250" alt="Picking home on the map">
+</p>
+
+---
+
+## 🧭 A tour
+
+### The radar
+
+North is up and home is in the middle, with range rings in miles, kilometres or
+nautical miles. Each aircraft's label shows its callsign, its altitude (feet,
+or flight level up high), a climb or descent arrow and its type. Drag to pan,
+pinch to zoom from 1 km to 460 km, and double-tap to zoom in. Long-press any
+spot to make it home or bookmark it.
+
+<p align="center">
+  <img src="docs/images/03_radar_home.png" width="270" alt="The radar">
+  <img src="docs/images/33_central_oregon_30km.png" width="270" alt="Airports and runways">
+  <img src="docs/images/18_emergency.png" width="270" alt="An emergency squawk">
+</p>
+
+Tap an aircraft for its **info card**: route (*Dublin > Lanzarote*), airline
+and exact model, altitude, vertical speed, speed, track, distance from home and
+squawk. Its **whole flight so far** is drawn behind it. The card's buttons
+**★ save it as a favourite**, **mute** it, **hide** it for good, or **follow** it
+across the map.
+
+### Maps
+
+<p align="center"><img src="docs/images/strip_maps.jpg" alt="The five background maps"></p>
+
+Choose a map from the picture button on the radar. It loads the area you're
+looking at, the closest tiles first, and keeps them on the SD card for
+next time.
+
+### Themes and looks
+
+<p align="center"><img src="docs/images/strip_themes.jpg" alt="Green, amber, blue, night and custom themes"></p>
+
+Green phosphor, amber, blue, a dim red **night** theme, or your own colours. You
+can also set:
+
+- **Aircraft colours:** by altitude (orange near the ground → green → blue →
+  magenta up high) or the theme colour;
+- **Size:** of the aircraft symbols and of the labels;
+- **The sweep:** a clean bar or a long smooth trail, at any speed, or a
+  real-scope **echo** mode where aircraft fade until the beam passes them again.
+
+### Alerts that matter
 
 | | |
 |---|---|
-| 📖 **[User guide](docs/USER_GUIDE.md)** | Every screen, gesture and setting explained, plus alerts, flashing and troubleshooting |
-| 📝 **[Changelog](CHANGELOG.md)** | What changed in each version |
-| ⬇️ **[Releases](https://github.com/ShadowStacker/P4-Radar/releases)** | Ready-to-flash firmware for both boards |
+| ⭐ **Favorites** | Up to 32 aircraft, by tail number or from their card. A gold ring, an always-on label, and a fanfare when one shows up and again when it comes near. |
+| 🎯 **Watchlist** | Announces military aircraft, helicopters, fast jets, or any types (`A388, C17, B52`) and callsigns (`RCH*`) within a distance of home. |
+| 🆕 **First time here** | The logbook remembers every aircraft that ever came by; a new one gets its own announcement. |
+| 🚨 **Emergencies** | Squawk 7500/7600/7700 pulses red and sounds a siren. |
+| 📍 **Proximity** | Anything low and close to home. |
+| 🔇 **Silence / hide** | Mute a noisy local trainer, or hide an aircraft completely. |
 
-## Quick start
+<p align="center">
+  <img src="docs/images/24_favorite_on_radar.png" width="270" alt="A favorite on the radar">
+  <img src="docs/images/67_watchlist_alert.png" width="270" alt="A watchlist alert">
+  <img src="docs/images/68_settings_watchlist.png" width="270" alt="Watchlist settings">
+</p>
 
-1. **Download** the image for your board from the
-   [latest release](https://github.com/ShadowStacker/P4-Radar/releases/latest),
-   e.g. `plane-radar-4in-720x720-chip-v1-<version>.bin` for a 4" board (not the
-   `-ota.bin` file, which is for updates over Wi-Fi).
-2. **Flash it at address `0x0`.** In esptool-js, change the default `0x1000`.
-   With esptool:
-   `python -m esptool --chip esp32p4 write_flash 0x0 <file>.bin`
-4. **Set up on the touchscreen.** The device walks you through Wi-Fi, then your
-   home location.
+### Logs, logbook and replay
 
-Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware).
+With an SD card in, the radar keeps:
 
-## Features
+- **a daily log:** how many aircraft flew by, the busiest hour, the closest
+  pass, the highest and fastest, with charts and 7- and 30-day totals;
+- **a logbook:** every aircraft ever seen near home, in a spreadsheet file;
+- **a week of recorded traffic** to replay at up to 300× speed.
 
-**Radar**
-- North-up map centered on your home, with range rings in km, mi or nm and
-  a compass bezel.
-- Aircraft silhouettes rotated to their heading: light aircraft, airliners,
-  heavies and helicopters each get their own shape. Colors can follow
-  altitude (tar1090 style) or the theme.
-- Labels with callsign, flight level or altitude, a climb/descent arrow and
-  the aircraft type. Labels avoid each other and other aircraft.
-- Trails covering the last few minutes, plus one-minute speed vectors. Motion
-  is dead-reckoned between updates, so it stays smooth.
-- Runways and codes for about 48,000 airports worldwide (large, medium and
-  small fields from OurAirports), built into the firmware. Detail grows as you
-  zoom in, and small strips appear below about 35 km. Unpaved and
-  approximately placed runways (strips with no surveyed ends) are drawn thinner
-  and fainter.
-- Aircraft outside the visible area show as direction dots on the rim.
-- Emergency squawks (7500/7600/7700) get a pulsing red ring.
-- Military aircraft (flagged by the feed's aircraft database) get a **MIL**
-  badge on their info card, and there's a military-only filter.
-- **Favorites**: tap the star on an aircraft's info card to save it (up to 32).
-  Saved aircraft get a gold ring, a star and an always-on label. A notice and
-  a sound tell you when one is detected, and a second sound plays when it comes
-  within an adjustable radius of home. Favorites are tracked by the airframe's
-  ICAO address, so they still match when the flight number changes.
+<p align="center">
+  <img src="docs/images/64_daily_log.png" width="250" alt="Daily log">
+  <img src="docs/images/82_logbook.png" width="250" alt="Logbook">
+  <img src="docs/images/85_replay.png" width="250" alt="Replaying a day">
+</p>
 
-**Touch**
-- One finger pans, with momentum. Two fingers pinch-zoom around the midpoint
-  between them.
-- Double-tap zooms in. The **＋/−** buttons also zoom.
-- **Home** button flies back to your home location and zoom. Quick buttons
-  for **Filters**, **Mute**, **Sleep** (screen off, tap to wake) and the
-  **Clock** face, **Screenshot** and update sit around the edge.
-- **Background maps**: dark street map, topo map, FAA VFR sectional charts,
-  satellite photos, or a street map with street names, under the radar (streets and topo tinted to the
-  theme), with tiles saved on an optional microSD card for instant and offline use.
-- **Settings from your phone**: scan the QR code on the radar and change settings, favorites and Wi-Fi
-  networks from a phone page served by the radar itself (on your network only).
-  It also shows the daily log and screenshots, makes and restores a backup of everything (settings, Wi-Fi,
-  favorites, silenced aircraft), and installs firmware files.
-- **Watchlist alerts**: a notice and a sound when military aircraft, helicopters, fast jets, chosen
-  types (A388, C17, ...) or callsigns (RCH*, N123AB) come near home.
-- **Silenced aircraft**: the opposite of favorites. A mute button on the info card stops the sounds
-  for that aircraft (a local flight school's trainers, say); emergencies still sound.
-- **Screenshots**: a camera button saves the radar as a PNG on the SD card.
-- **Flight replay**: a week of traffic around home is recorded on the SD card and plays back on the radar.
-- **Aircraft icons by type**: about 390 icons for over 700 aircraft types, from Cessnas to the A380, warbirds, helicopters and military types. See the [full list](docs/AIRCRAFT_ICONS.md).
-- **Hidden aircraft**: hide any aircraft for good (never shown, counted or heard), as many as you like; the list is on the SD card.
-- **Your own sounds**: WAV files in a `sounds` folder on the SD card replace any of the built-in sounds.
-- **Place search**: type a city, state or country on the Location page to see it, make it home or bookmark it.
-- **Bookmarks**: up to eight places to jump to, from a button on the radar; long-press any spot to bookmark it or make it home.
-- **Nearby aircraft**: a list of what's around, sorted by distance, altitude or speed; tap one to see it on the radar.
-- **Logbook**: every aircraft ever seen near home, with visits, in `logbook.csv`; a "first time here" alert for
-  aircraft it has never seen.
-- **Daily log**: how many different aircraft flew near home today, the busiest moment and hour (with an hourly
-  chart), the closest pass, the highest and fastest, military and emergency aircraft, and favorites seen. Each day
-  is saved on the SD card, with 7- and 30-day totals and a CSV download.
-- **Updates over Wi-Fi**: the radar checks GitHub hourly and an update button on the radar lights up when
-  there is one (also Settings → Updates), with automatic rollback if a new version fails to start, and
-  power-cycling three times quickly goes back to the previous version.
-- **Settings and favorites on the SD card**: `settings.txt` (Wi-Fi included) and `favorites.txt` are kept in the card's
-  root, read at startup and editable on a computer. Add favorites there by hex code or tail number.
-- **Clock mode**: the bezel turns into a clock dial with hour, minute and
-  seconds hands over the live radar. Set the time zone and up to four alarms
-  (with snooze) in **Clock & alarms**.
-- Tap an aircraft to open an info card: route (origin and destination),
-  airline and model, altitude, vertical speed, speed,
-  track, distance and bearing from home, squawk and registration. **Follow**
-  keeps that aircraft on screen.
-- **Flight history**: tapping an aircraft also downloads its whole current
-  flight from the feed and draws it, colored by altitude, with a ring where it
-  took off.
-- Long-press anywhere on the map to make that spot your home.
+### Clock, alarms and night
 
-**Animations and sound**
-- Rotating radar sweep. Speed and trail length are adjustable (trail length 0
-  gives a clean bar with no trail), and there's a smooth-fade option. You can
-  turn it on or off from the radar screen.
-- Optional "echo" mode: aircraft fade after the beam passes and light up
-  again on the next sweep.
-- Smooth fly-to when going home, zooming or following.
-- Sounds are generated on the device, so there are no audio files. You get a
-  sonar ping on each sweep, a chime for new aircraft, a proximity alert when
-  something flies low inside your alert radius (off by default), an emergency
-  siren, "favorite detected" and "favorite nearby" sounds, and touch clicks.
-  Each sound has its own switch, and there's a volume slider.
+Tap the clock button and the compass becomes a clock face, with the radar still
+running under the hands. You can set four alarms with snooze. At night the
+screen can dim, or sleep and wake by itself, by the clock or from sunset to
+sunrise at your home.
 
-**Settings (all on the touchscreen)**
-- **Wi-Fi**: scan, pick a network, enter the password on an on-screen
-  keyboard (with show/hide), join hidden networks. Up to five networks are saved, and the radar
-  switches to another saved one when the current one can't connect.
-- **Location**: pick it on the map with a crosshair, type in lat/lon, or enter
-  an airport code (`KJFK`, `AMS`, …). You can also set the zoom the Home
-  button returns to.
-- **Display**: four themes (Green phosphor, Amber, Blue, red Night mode)
-  plus a **Custom** theme with color sliders, aircraft and label size,
-  brightness, units, screen rotation in 90° steps, auto-hiding the radar buttons after 10 s idle (on by
-  default), label
-  detail, color mode, and toggles for trails, flight history,
-  vectors, rings, runways and airport codes. Sweep settings, dim-when-idle and night dimming (or
-  sleeping), by the clock or from sunset to sunrise, live here too.
-- **Sound**: master switch, volume, a switch for each sound, proximity alert
-  radius and altitude, favorite "nearby" radius, and test buttons.
-- **Favorites**: your saved aircraft, whether each is in range and how far,
-  and a remove button.
-- **Filters**: aircraft kinds (light, small/business, airliners, heavies,
-  fast jets, helicopters, gliders/balloons/drones, unknown), military only,
-  ground traffic, ICAO type codes with wildcards (`B738, A32*`), altitude band
-  and ground-speed band. Favorites are never filtered out. The status pill
-  shows how many aircraft the filters are hiding.
-- **Traffic & data**: the feed
-  (adsb.fi, airplanes.live or adsb.lol) and the update interval.
-- **Daily log**: today's traffic near home, and earlier days from the SD card.
-- **Updates**: installed and latest version, install, and the hourly check switch.
-- **About**: firmware version, IP address and signal strength, feed status (and which source is in
-  use: it switches to another one when the chosen feed stops answering), free memory, diagnostics
-  (uptime, why it last restarted, restart counts), on-screen stats, restart and factory reset.
+<p align="center">
+  <img src="docs/images/39_clock_face.png" width="250" alt="Clock face">
+  <img src="docs/images/43_alarm_ringing.png" width="250" alt="An alarm">
+  <img src="docs/images/69_night_by_sun.png" width="250" alt="Night by the sun">
+</p>
 
-On first boot the device opens Wi-Fi setup, then asks for your location. No
-phone or captive portal is needed.
+### Your phone as a remote
 
-| | | |
-|:-:|:-:|:-:|
-| ![](docs/images/70_phone_qr.png)<br>Phone page QR code | ![](docs/images/71_phone_page_settings.png)<br>Phone page: settings | ![](docs/images/73_phone_page_wifi.png)<br>Phone page: Wi-Fi |
-| ![](docs/images/67_watchlist_alert.png)<br>Watchlist alert | ![](docs/images/68_settings_watchlist.png)<br>Watchlist settings | ![](docs/images/66_camera_button.png)<br>Screenshot button |
-| ![](docs/images/62_map_satellite.png)<br>Satellite map* | ![](docs/images/61_map_street_names.png)<br>Street map* | ![](docs/images/64_daily_log.png)<br>Daily log |
-| ![](docs/images/65_stats_overlay.png)<br>On-screen stats | ![](docs/images/58_update_button_lit.png)<br>Update available | ![](docs/images/50_sleeping.png)<br>Asleep (tap to wake) |
-| ![](docs/images/55_update_available.png)<br>Updates page | ![](docs/images/59_update_confirm.png)<br>Installing an update | ![](docs/images/60_wifi_saved_networks.png)<br>Saved Wi-Fi networks |
-| ![](docs/images/13_settings_about.png)<br>About and diagnostics | ![](docs/images/49_settings_sd_card.png)<br>SD card | ![](docs/images/09_settings_display.png)<br>Display settings |
-| ![](docs/images/01_first_boot_wifi.png)<br>Wi-Fi setup | ![](docs/images/02_wifi_password.png)<br>On-screen keyboard | ![](docs/images/08_settings.png)<br>Settings |
-| ![](docs/images/35_flight_history.png)<br>Flight history of a tapped aircraft | ![](docs/images/04_aircraft_selected.png)<br>Info card | ![](docs/images/09_settings_display.png)<br>Display settings (rotation) |
-| ![](docs/images/51_map_picker.png)<br>Map picker | ![](docs/images/45_map_dark_streets.png)<br>Dark street map* | ![](docs/images/46_map_topo_tinted.png)<br>Topo map, tinted* |
-| ![](docs/images/53_map_faa_sectional.png)<br>FAA sectional* | ![](docs/images/50_sleeping.png)<br>Asleep (tap to wake) | ![](docs/images/47_map_topo_original.png)<br>Topo, original colors* |
-| ![](docs/images/39_clock_face.png)<br>Clock face | ![](docs/images/40_settings_clock.png)<br>Clock & alarms | ![](docs/images/43_alarm_ringing.png)<br>Alarm ringing |
-| ![](docs/images/44_favorite_added_by_tail.png)<br>Favorite added by tail number | ![](docs/images/37_custom_theme_radar.png)<br>Custom theme | ![](docs/images/42_settings_alarm_edit.png)<br>Editing an alarm |
-| ![](docs/images/36_settings_custom_theme.png)<br>Custom colors | ![](docs/images/05_pinch_zoom.png)<br>Pinch zoom | ![](docs/images/21_buttons_hidden.png)<br>Buttons and status auto-hidden |
-| ![](docs/images/23_favorite_card.png)<br>Info card, favorite saved | ![](docs/images/24_favorite_on_radar.png)<br>Favorite on the radar | ![](docs/images/26_settings_favorites.png)<br>Favorites page |
-| ![](docs/images/28_settings_filters.png)<br>Filters | ![](docs/images/30_filter_helicopters.png)<br>Helicopters only | ![](docs/images/33_central_oregon_30km.png)<br>Central Oregon airports |
-| ![](docs/images/31_sweep_clean_bar.png)<br>Clean sweep bar | ![](docs/images/32_sweep_smooth_long.png)<br>Smooth long trail | ![](docs/images/17_pick_home.png)<br>Pick home on the map |
-| ![](docs/images/11_settings_location.png)<br>Location | ![](docs/images/27_settings_sound_favorites.png)<br>Sound and alerts | ![](docs/images/18_emergency.png)<br>Emergency squawk |
-| ![](docs/images/14_theme_amber.png)<br>Amber theme | ![](docs/images/15_theme_ocean.png)<br>Blue theme | ![](docs/images/16_theme_night.png)<br>Night theme |
+Scan the QR code on the radar and change any setting from your phone. From the
+same page you can:
 
-\* Simulator screenshots use generated stand-in map tiles; on the device the real maps appear.
+- add favourites by tail number;
+- manage Wi-Fi networks;
+- read the daily log;
+- download screenshots and backups;
+- install a firmware file.
 
-## Hardware
+<p align="center">
+  <img src="docs/images/70_phone_qr.png" width="230" alt="Phone page QR code">
+  <img src="docs/images/phone_settings.png" width="170" alt="Phone page: settings">
+  <img src="docs/images/phone_watch.png" width="170" alt="Phone page: watchlist">
+  <img src="docs/images/phone_log.png" width="170" alt="Phone page: daily log">
+</p>
+
+### Your own receiver and Home Assistant
+
+Running a Pi with readsb, tar1090, dump1090 or a FlightAware/FR24 feeder?
+Choose **My receiver** and type its address. Traffic then comes straight from
+your antenna, in real time, with no internet needed for it.
+
+Turn on **Home Assistant (MQTT)** and a *Plane Radar* device appears in Home
+Assistant by itself. It has these entities:
+
+- aircraft nearby;
+- the nearest aircraft, its distance and altitude;
+- an emergency sensor;
+- an alert event to trigger automations, such as *flash the porch light when
+  a favourite flies over*.
+
+<p align="center">
+  <img src="docs/images/12_settings_traffic_receiver.png" width="270" alt="Your own receiver">
+  <img src="docs/images/86_settings_home_assistant.png" width="270" alt="Home Assistant">
+  <img src="docs/images/87_nearby_aircraft.png" width="270" alt="Nearby aircraft">
+</p>
+
+### Built to keep running
+
+- **Safe updates:** updates over Wi-Fi are checked before install. A version
+  that fails to start rolls back by itself, and three quick power cycles go
+  back to the previous version.
+- **Automatic recovery:** a feed that stops answering is replaced by another,
+  and lost Wi-Fi is rejoined.
+- **Settings that survive:** they're also kept on the SD card in an editable
+  `settings.txt`, and you can download one backup file with everything.
+- **Diagnostics:** the About page has memory graphs for the last 24 hours, task
+  stack use and restart reasons, and on-screen stats show live performance.
+
+<p align="center">
+  <img src="docs/images/58_update_button_lit.png" width="250" alt="Update available">
+  <img src="docs/images/13_settings_about_memory.png" width="250" alt="Diagnostics">
+  <img src="docs/images/65_stats_overlay.png" width="250" alt="On-screen stats">
+</p>
+
+**Every screen, menu and setting is explained in the [User guide](docs/USER_GUIDE.md).**
+
+---
+
+## 🔩 Hardware
 
 | Part | On the board |
 |---|---|
-| SoC | ESP32-P4 (dual RISC-V, 360 MHz) with 32 MB PSRAM |
-| Display | 3.4" 800×800 (or 4" 720×720) round IPS, MIPI-DSI, JD9365 |
-| Touch | GT911 capacitive, multi-touch over I2C |
-| Wi-Fi | ESP32-C6 co-processor (Wi-Fi 6) over SDIO, via ESP-Hosted |
-| Audio | ES8311 codec + speaker amplifier (connect a small speaker to the speaker connector if your kit has none) |
+| **SoC** | ESP32-P4: dual-core RISC-V at 360 MHz, 32 MB PSRAM (the firmware uses 16 MB of flash) |
+| **Display** | 3.4" 800×800 or 4" 720×720 round IPS, MIPI-DSI |
+| **Touch** | GT911 capacitive multi-touch |
+| **Wi-Fi** | ESP32-C6 co-processor (Wi-Fi 6, 2.4 GHz) over SDIO, via ESP-Hosted |
+| **Audio** | ES8311 codec and amplifier: connect a small speaker to the speaker connector |
+| **Storage** | microSD slot (optional, FAT32): map tiles, logs, replays, settings backup |
 
-Pin mapping comes from Waveshare's BSP
-([`waveshare/esp32_p4_wifi6_touch_lcd_xc`](https://components.espressif.com/components/waveshare/esp32_p4_wifi6_touch_lcd_xc)),
-so you don't need to wire anything.
+The pin mapping comes from Waveshare's BSP, so there's nothing to wire. Both
+boards run the same firmware build with their own screen size.
 
-## Building and flashing
+<p align="center">
+  <img src="docs/images/720_radar_home.png" width="250" alt="The 4-inch 720x720 board">
+  <img src="docs/images/720_aircraft_selected.png" width="250" alt="The 4-inch board, info card">
+  <br><sub>The 4" 720×720 board: the same interface, scaled to fit.</sub>
+</p>
 
-You need **ESP-IDF v5.5.2** or newer (v5.5.6 recommended).
+---
 
-```bash
-# 3.4" 800x800 board (default)
-idf.py set-target esp32p4
-idf.py build flash monitor
+## 🛠️ Building from source
 
-# 4" 720x720 board
-idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch" set-target esp32p4
-idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch" build flash monitor
-```
-
-The first build downloads LVGL 9.4, the Waveshare BSP, `esp_hosted` and
-`esp_wifi_remote` through the IDF Component Manager. If you change
-`sdkconfig.defaults`, delete `sdkconfig` so the new defaults take effect.
-
-LVGL needs to be 9.4 or newer, because the LVGL adapter that Waveshare's BSP
-uses depends on it. `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM` stays off: turning
-it on overflows the P4's internal RAM at link time.
-
-### Chip revision (important)
-
-ESP32-P4 chips come in two incompatible families, **revision v3.x** and
-**v0.x/v1.x**; an image built for one won't boot on the other. The boards
-this project is used with are all v1.x, and releases only include v1.x
-images (`chip-v1` in the file name).
-
-The default build targets v3.x. For a v1.x chip (the released images), add the overlay:
+You need **ESP-IDF v5.5.2 or newer** (CI uses v5.5.6). Every component is
+pinned to an exact version in `main/idf_component.yml`.
 
 ```bash
-idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" build
-# 4" board + v1.x chip:
-idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch;sdkconfig.defaults.p4rev1" build
+# 3.4" board, ESP32-P4 chip revision v1.x (what these boards have)
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" set-target esp32p4
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4rev1" build flash monitor
+
+# 4" board
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.4inch;sdkconfig.defaults.p4rev1" build flash monitor
 ```
 
-Revision v3 support needs ESP-IDF **v5.5.2 or newer** (CI uses v5.5.6).
+<details>
+<summary><b>Chip revisions, releases and CI</b></summary>
 
-### Flashing a prebuilt image
+- **Chip revisions.** ESP32-P4 chips come in two incompatible families,
+  **v3.x** and **v0.x/v1.x**: an image built for one won't boot on the other.
+  The Waveshare boards have v1.x chips, so releases are built with the
+  `sdkconfig.defaults.p4rev1` overlay (`chip-v1` in the file name). Without the
+  overlay the build targets v3.x.
+- **Changed defaults.** If you change `sdkconfig.defaults`, delete `sdkconfig`
+  so the new defaults take effect.
+- **CI.** GitHub Actions (`.github/workflows/build.yml`) builds both boards,
+  runs the unit tests and renders the simulator screenshots on every push.
+- **Releasing.**
+  1. Add a `## [vX.Y.Z]` section to [CHANGELOG.md](CHANGELOG.md) and bump
+     `CONFIG_APP_PROJECT_VER` in `sdkconfig.defaults`.
+  2. Push a `vX.Y.Z` tag, or run the **Build** workflow with *release_version*
+     set.
 
-A merged image (bootloader + partition table + app) is written at offset `0x0`:
+  CI publishes the USB images, the `-ota.bin` update files, `SHA256SUMS.txt`
+  and `symbols-*.elf` files for decoding crash backtraces. The release notes
+  are that version's changelog section, which is also the radar's *What's new*
+  screen.
 
-```bash
-python -m esptool --chip esp32p4 -b 460800 write_flash 0x0 plane-radar-4in-720x720-chip-v1-<version>.bin
-```
+</details>
 
-Ready-made images for both boards are on the
-[Releases](https://github.com/ShadowStacker/P4-Radar/releases) page. To publish a new one, push a
-`v*` tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`), or run the **Build**
-workflow from the Actions tab with a release version filled in. Every CI run also keeps the images as build artifacts. You can also
-flash them from a browser with
-[ESP Web Flasher / esptool-js](https://espressif.github.io/esptool-js/).
+### Desktop simulator and tests
 
-GitHub Actions (`.github/workflows/build.yml`) builds firmware for both
-boards, runs the unit tests and renders simulator screenshots on every push.
-
-### Making a release
-
-1. Add a `## [vX.Y.Z] - date` section to [CHANGELOG.md](CHANGELOG.md), and
-   bump `CONFIG_APP_PROJECT_VER` in `sdkconfig.defaults`.
-2. Push, then either push a `vX.Y.Z` tag, or run the **Build** workflow from the
-   Actions tab with *release_version* set to `vX.Y.Z`.
-3. CI builds an image per board (plus the `-ota.bin` update files) and publishes the release. Its notes start with
-   that version's changelog section.
-
-### If something doesn't work
-
-See [Troubleshooting](docs/USER_GUIDE.md#troubleshooting) in the user guide.
-The two most common problems:
-
-- **Black screen, USB keeps reconnecting**: the image is at the wrong address
-  (flash at `0x0`), or it's the `-ota.bin` update file instead of the USB image.
-- **Crash after "Loading..."**: capture the serial log at 115200 baud and open
-  an issue. Releases include `symbols-*.elf` files for decoding backtraces.
-
-## Desktop simulator and tests
-
-The UI only reaches the hardware through `main/platform/platform.h`.
-`sim/platform_sim.cpp` fakes that interface, so the same code runs on a PC:
+The UI reaches the hardware only through `main/platform/platform.h`, so the
+same code runs on a PC. Every screenshot in this README and the guide comes
+from it.
 
 ```bash
 cmake -S sim -B build-sim && cmake --build build-sim -j
-./build-sim/core_tests                       # geo, pinch/zoom math, ADS-B parsing, trails, alerts, sounds
-./build-sim/plane_radar_sim sim_out          # scripted taps/drags/pinches -> PNG screenshots + WAV sounds
+./build-sim/core_tests                        # ~2,700 checks: geo math, parsing, alerts, logbook, MQTT...
+./build-sim/plane_radar_sim sim_out           # scripted taps, drags and pinches -> PNG screenshots + WAV sounds
 ./build-sim/plane_radar_sim sim_out --size 720
+./build-sim/plane_radar_sim --bench out       # timing with 450 aircraft
+./build-sim/plane_radar_sim --web out         # serves the phone page on http://localhost:8080
+SIM_REAL_TILES=1 ./build-sim/plane_radar_sim sim_out   # real map tiles (cached) instead of stand-ins
 ```
 
-LVGL and cJSON are fetched automatically. To build offline, pass
-`-DLVGL_DIR=…` and `-DCJSON_DIR=…`. The simulator uses LVGL 9.4 by
-default, and the UI code also compiles against 9.2 through 9.6.
+LVGL and cJSON are fetched automatically (`-DLVGL_DIR=…` / `-DCJSON_DIR=…`
+build offline). The UI compiles against LVGL 9.2 through 9.6.
 
-## Project layout
+<details>
+<summary><b>Project layout and how rendering works</b></summary>
 
 ```
 main/
   main.cpp              boot sequence
-  core/                 pure C++, no LVGL/IDF: geo math, viewport (pan/pinch/fling/fly-to),
-                        traffic store with trails + alerts, ADS-B JSON parser, flight-history
-                        (trace) parser, gzip decoder, sound synth, settings
-  app/                  app state: settings persistence glue, ADS-B polling loop, sound policy
-  ui/                   LVGL UI: radar_view (static layer cache + per-frame overlay), hud,
-                        settings_ui, keyboard, sprites, theme, widgets
-  platform/platform.h   hardware abstraction used by app/ui
-  platform/esp/         ESP-IDF implementation: display+multi-touch, Wi-Fi, HTTPS, NVS, audio
-  data/                 embedded airports/runways (scripts/build_airports.py)
-bootloader_components/  bootloader hook that keeps the backlight off until the app draws
-sim/                    desktop simulator (headless LVGL, fake traffic, PNG/WAV output)
+  core/                 pure C++, no LVGL or ESP-IDF: geo math, viewport (pan, pinch, fling, fly-to),
+                        traffic store, alerts, ADS-B parser, flight history, logbook, daily log,
+                        replay, settings text, sound synthesis, MQTT messages, aircraft icon table
+  app/                  the app: network loop, feeds and failover, SD card jobs, updates,
+                        phone web server, Home Assistant bridge
+  ui/                   LVGL UI: radar_view (cached background + per-frame overlay), hud,
+                        settings_ui, keyboard, sprites, theme
+  platform/platform.h   the hardware interface used by app and ui
+  platform/esp/         ESP-IDF implementation: display and touch, Wi-Fi, HTTPS, OTA, NVS, audio, MQTT
+  data/                 built-in airports and runways, aircraft icon masks
+scripts/                generators: airports, aircraft icons and their type table, icon docs
+sim/                    desktop simulator (headless LVGL, fake traffic, PNG/WAV output, bench)
 tests/                  host unit tests
 ```
 
-### How rendering works
+The software renderer draws 800×800 at up to 30 fps.
 
-The software renderer draws 800×800 at up to 30 fps. To keep that fast, the
-background, rings, compass, runways, airport codes and trails are drawn into a
-cached PSRAM canvas, and that canvas is redrawn only when the view moves or new
-data arrives. The sweep, aircraft and labels are drawn every frame on top of
-it. Aircraft icons are rotated to 72 headings on first use (alpha-only sprites,
-kept in PSRAM) and drawn in their color.
+- **Base layer:** map, rings, compass, runways and airport codes, kept in a
+  PSRAM canvas and redrawn only when the view changes.
+- **Trails:** drawn on top of a copy of the base when new traffic arrives, with
+  nearly straight stretches merged into single lines.
+- **Every frame:** the sweep, aircraft and labels are drawn over that.
+- **Aircraft icons:** rotated to 72 headings on first use, kept in a PSRAM cache
+  of at most 4 MB, and tinted to the aircraft's colour as they're drawn.
 
-## Data and credits
+</details>
+
+---
+
+## 🙏 Data and credits
 
 - **Aircraft icons by ADS-B Radar for macOS - https://adsb-radar.com -
-  https://apps.apple.com/app/id1538149835** (free icon set, used with the
-  backlink its license asks for; see `assets/aircraft_icons/README.md`).
-- Airline, route and airframe details come from [adsbdb.com](https://www.adsbdb.com)
-  (route data by David Taylor and Jim Mason, aircraft data from PlaneBase).
-- Background maps: [CARTO](https://carto.com/basemaps) Dark Matter (with a
-  free API key), [OpenStreetMap](https://www.openstreetmap.org) standard tiles
-  and [OpenTopoMap](https://opentopomap.org), all from
-  [OpenStreetMap](https://www.openstreetmap.org/copyright) data (topo also SRTM).
-- FAA VFR Sectional charts: FAA Aeronautical Information Services' public
-  chart tile service. JPEG decoding: [TJpgDec](http://elm-chan.org/fsw/tjpgd/) by ChaN.
-- Aircraft positions come from free community feeds:
+  https://apps.apple.com/app/id1538149835.** The free icon set is used with the
+  backlink its licence asks for. The rest of the icons are drawn in the same
+  style from each aircraft's real dimensions (`scripts/aircraft_catalog.py`).
+- **Aircraft positions** come from the free community feeds
   [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) and
-  [adsb.lol](https://adsb.lol). Please keep the polling interval reasonable
-  (5 s default).
-- Airport and runway data is from [OurAirports](https://ourairports.com/data/)
-  (public domain). Regenerate it with `python3 scripts/build_airports.py`.
-- Inspired by and data-compatible with
-  [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar)
+  [adsb.lol](https://adsb.lol). Please keep the update interval reasonable
+  (5 s by default).
+- **Airline, route and airframe details** come from
+  [adsbdb.com](https://www.adsbdb.com) (route data by David Taylor and Jim
+  Mason, aircraft data from PlaneBase).
+- **Maps:**
+  - [CARTO](https://carto.com/basemaps) Dark Matter, [OpenStreetMap](https://www.openstreetmap.org/copyright)
+    and [OpenTopoMap](https://opentopomap.org) (OpenStreetMap data, SRTM);
+  - Esri World Imagery;
+  - the FAA's VFR Sectional chart tiles. **Not for navigation.**
+- **Place search:** [Nominatim](https://nominatim.org) (OpenStreetMap).
+- **Airports and runways:** [OurAirports](https://ourairports.com/data/) (public
+  domain).
+- **JPEG decoding:** [TJpgDec](http://elm-chan.org/fsw/tjpgd/) by ChaN.
+- **Inspiration:** [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar)
   (MIT).
