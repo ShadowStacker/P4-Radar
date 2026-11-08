@@ -10,6 +10,30 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.42.0] - 2026-11-08
+
+### Added
+- **Every ICAO aircraft type now gets a fitting icon.** A type without an
+  icon of its own (about 1,800 homebuilts, light sport aircraft and rare
+  types) is drawn with the icon for its class in the official ICAO type list:
+  a light single, a light twin, a single or twin turboprop, a business jet, a
+  helicopter and so on. Before, a light twin with an unknown code showed a
+  single-engine icon, and a type with no emitter category showed the generic
+  one. Of every aircraft registered with a type code, 99.5 % now get a fitting
+  icon. Nearly all of the rest report `ZZZZ` (type unknown).
+- **9 more icons:** RANS S-12 (open pusher ultralight), Lockwood Air Cam
+  (twin pusher), EDRA Super Petrel (biplane amphibian), Xian Y-20, Aero L-29
+  Delfin, Mirage F1, Cessna SkyCourier / Tecnam P2012, PZL Wilga, PAC 750XL /
+  Cresco.
+- More types matched to existing icons: Beech U-21, Hawker 4000, Learjet 24/25,
+  DA50, TB-30 Epsilon, CT-4, UH-1Y, Z-10, and the JS3, ASG 29, Arcus and AS 33
+  sailplanes.
+
+### Fixed
+- Emergency vehicles (`EMER`) use the ground vehicle icon, unidentified
+  helicopters (`UHEL`) the helicopter icon, and other drone codes the drone
+  icon.
+
 ## [v1.41.0] - 2026-11-08
 
 ### Added

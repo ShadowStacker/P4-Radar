@@ -571,6 +571,11 @@ void testAircraftIcons() {
   // Codes the table used to miss: the Kodiak's K100, the ICON A5, the SeaRey, light sport aircraft.
   CHECK(icon("K100", "A1") == "x_kodi" && icon("A5", "A1") == "x_icona5" && icon("SREY", "A1") == "x_icona5" &&
         icon("FDCT", "A1") == "x_rv12" && icon("PA11", "A1") == "x_j3" && icon("AC11", "A1") == "x_pa24");
+  // Types without an icon of their own get their ICAO class's: a light twin, a turboprop, a helicopter...
+  CHECK(icon("AP32", "A1") == "g_single_high" && icon("GA7", "A1") == "g_twin_piston" &&
+        icon("RLU1", "") == "g_single_high" && icon("EMER", "C1") == "c0" && icon("UHEL", "") == "a7");
+  CHECK(icon("Y20", "A5") == "x_y20" && icon("L29", "A6") == "x_l29" && icon("ACAM", "A1") == "x_aircam" &&
+        icon("PETR", "A1") == "x_petrel" && icon("C408", "A2") == "x_c408" && icon("FFLO", "B6") == "x_quad");
   // Unknown types: the emitter category, then the generic icon.
   CHECK(iconFor("ZZZZ", "A1") == Icon::Light && iconFor("", "A5") == Icon::Heavy && iconFor(nullptr, "A7") == Icon::Rotor);
   CHECK(iconFor("", "B1") == Icon::Glider && iconFor("", "B6") == Icon::Drone && iconFor("", "C1") == Icon::Ground);

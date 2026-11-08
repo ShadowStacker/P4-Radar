@@ -28,8 +28,13 @@ enum class Icon : uint16_t {
   Ultralight,  // B4 ultralight
   Ground,  // C1-C7 surface vehicles; ground stations
   Turboprop,  // regional turboprops: Dash 8, ATR, Saab, Do 328
+  BizJet,  // Citation, Learjet, Phenom, Hawker
+  BigBizJet,  // Gulfstream, Global, Challenger
+  Falcon,  // Dassault Falcon
+  C130,  // four-turboprop transports: C-130, A400M, P-3
   Freighter,  // heavy jet freighters: C-17, C-5, An-124, Il-76
   Tiltrotor,  // V-22, AW609
+  Amphibian,  // water bombers and floatplanes
   SingleHigh,  // Cessna 150-210 and other high-wing singles
   SingleLow,  // Piper PA-28/32, Cirrus, Diamond, Bonanza, Mooney, RV
   TurbopropSingle,  // PC-12, TBM, PA-46, T-6, Super Tucano, Air Tractor
@@ -45,7 +50,11 @@ enum class Icon : uint16_t {
   FighterTwin,  // twin-fin fighters: F-15, F/A-18, F-22, F-35, F-14, Su-27 family, MiG-29
   FighterDelta,  // delta fighters: Eurofighter, Rafale, Gripen, Mirage 2000, J-10
   JetTrainer,  // jet trainers: T-38, Hawk, L-39, M-346, Alpha Jet, T-45, T-7
+  Heli2,  // two-blade helicopters: Robinson, Bell 206/505/212/222, UH-1
+  Heli3,  // three-blade helicopters: AS350/H125, AS355, EC130, Gazelle
   Heli4,  // four-blade helicopters: H135, H145, Bell 407/429/412, A109, S-76, Dauphin
+  Heli5,  // five-blade helicopters: AW139, H160, H175, H225, Mi-8/17, S-61, AW101
+  HeliAttack,  // attack helicopters: AH-64, AH-1, Mi-24/28, Tiger, Z-10
   X_A318,  // Airbus A318
   X_A319,  // Airbus A319
   X_A321,  // Airbus A321
@@ -466,6 +475,15 @@ enum class Icon : uint16_t {
   X_WW24,  // IAI Westwind
   X_SBR1,  // Sabreliner
   X_AC50,  // Aero Commander / Turbo Commander (high-wing twin)
+  X_RS12,  // RANS S-12 / S-14 and open pusher ultralights
+  X_AIRCAM,  // Lockwood Air Cam (twin pusher)
+  X_PETREL,  // EDRA Super Petrel (biplane amphibian)
+  X_Y20,  // Xian Y-20 Kunpeng
+  X_L29,  // Aero L-29 Delfin
+  X_MRF1,  // Dassault Mirage F1
+  X_C408,  // Cessna SkyCourier / Tecnam P2012 (high-wing twin)
+  X_WILGA,  // PZL-104 Wilga
+  X_P750,  // PAC 750XL / Cresco / Fletcher
   kCount
 };
 

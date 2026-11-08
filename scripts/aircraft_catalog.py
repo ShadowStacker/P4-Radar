@@ -818,10 +818,10 @@ def sailplane(span, L, *, fw=0.66, root=None, tip=None, wpos=0.30, sweep=0.0, th
 
 
 add('glider', 'Sailplane (LS4/LS8, Discus, ASW 20/27, Standard Cirrus, Libelle)',
-    'GLID LS8 LS4 LS6 DISC ASW2 AS20 AS27 AS28 VENT DG1T DG30 DG80 ASK3 SCIR LIBE PW5 L33',
+    'GLID LS8 LS4 LS6 DISC ASW2 AS20 AS27 AS28 AS29 A33P A33E JS3E JS3J VENT DG1T DG30 DG80 ASK3 SCIR LIBE PW5 L33',
     lambda: sailplane(15.0, 6.7))
 add('glider2', 'Two-seat sailplane (ASK 21, Grob Twin Astir, Duo Discus, Janus, Arcus)',
-    'AS21 ASK21 DUOD JANU G103 ARCU AS13', lambda: sailplane(17.0, 8.35, fw=0.78, sweep=-1.5, root=1.15))
+    'AS21 ASK21 DUOD JANU G103 ARCU ARCP AS13', lambda: sailplane(17.0, 8.35, fw=0.78, sweep=-1.5, root=1.15))
 add('glider_open', 'Open class sailplane (Nimbus, ASW 22, ASH 25/31, Quintus)', 'NIMB AS22 AS25 AS31 QUIN ETA',
     lambda: sailplane(25.0, 8.6, fw=0.7, root=1.1, boost=1.9))
 add('blanik', 'LET Blanik (forward-swept two-seater)', 'L13M L13 L23 BLAN',
@@ -1054,6 +1054,57 @@ add('ac50', 'Aero Commander / Turbo Commander (high-wing twin)', 'AC50 AC56 AC68
                  thalf=3.0, troot=1.4))
 
 
+# --- distinctive types from the last of the registry -----------------------------
+
+def open_pusher(span, L, *, twin=False):
+    """Open-frame pusher ultralights (RANS S-12, Air Cam): a small pod, the wing, propeller(s) behind it, a tail boom."""
+    s = Shape(span, L)
+    s.fuselage(0.9, start=0.0, end=L * 0.42, nose=0.7, tail=L * 0.1, tail_width=0.5)
+    s.fuselage(0.2, start=L * 0.3, end=L, nose=0.1, tail=0.3, tail_width=0.18)
+    s.wing(L * 0.16, 1.55, span / 2, 0, 1.45)
+    if twin:
+        s.nacelle(1.1, L * 0.2, L * 0.24, 0.45)
+        s.prop(1.1, L * 0.5, 1.8)
+    else:
+        s.prop(0, L * 0.5, 1.8, mirror=False)
+    s.wing(L - 0.9, 0.9, 1.5, 4, 0.7)
+    return s
+
+
+def _petrel():
+    """EDRA Super Petrel: a biplane flying boat, pusher engine between the wings."""
+    span, L = 9.6, 6.9
+    s = Shape(span, L)
+    s.fuselage(1.25, nose=1.0, tail=L * 0.4, tail_width=0.3)
+    s.wing(L * 0.25, 1.3, span / 2, 0, 1.2)
+    s.wing(L * 0.30, 1.1, span / 2 * 0.86, 0, 1.0)
+    s.prop(0, L * 0.25 + 1.45, 1.8, mirror=False)
+    s.ellipse(span / 2 * 0.86 - 0.3, L * 0.38, 0.22, 0.6, mirror=True)  # wingtip floats
+    s.wing(L - 1.1, 1.0, 1.8, 6, 0.75)
+    return s
+
+
+add('rs12', 'RANS S-12 / S-14 and open pusher ultralights', 'RS12 RS14 CHAL',
+    lambda: open_pusher(10.0, 6.1))
+add('aircam', 'Lockwood Air Cam (twin pusher)', 'ACAM', lambda: open_pusher(10.2, 7.2, twin=True))
+add('petrel', 'EDRA Super Petrel (biplane amphibian)', 'PETR', _petrel)
+add('y20', 'Xian Y-20 Kunpeng', 'Y20',
+    lambda: jet(50.0, 47.0, 5.2, sweep=22, wpos=0.38, pods=(0.27, 0.5), tpos=0.97, thalf=8.5))
+add('l29', 'Aero L-29 Delfin', 'L29',
+    lambda: fighter(10.3, 10.8, 1.3, wpos=0.40, root=2.6, tip=1.3, sweep=2, stab_half=1.7, stab_root=1.2,
+                    inlets=True))
+add('mrf1', 'Dassault Mirage F1', 'MRF1',
+    lambda: fighter(8.4, 15.3, 1.5, wpos=0.45, root=3.6, tip=1.0, sweep=47, stab_half=2.2, stab_root=1.8,
+                    inlets=True))
+add('c408', 'Cessna SkyCourier / Tecnam P2012 (high-wing twin)', 'C408 P212',
+    lambda: prop(22.0, 16.7, 2.3, wpos=0.30, root=2.2, tip=1.6, nacelles=(2.9,), nac_len=3.5, prop_d=3.0, tail=6.0,
+                 thalf=3.6, troot=1.6))
+add('wilga', 'PZL-104 Wilga', 'PZ04',
+    lambda: high_single(11.1, 8.1, fw=1.4, root=1.75, tip=1.75, prop_d=2.6, tail=3.6))
+add('p750', 'PAC 750XL / Cresco / Fletcher', 'P750 CRES FU24',
+    lambda: low_single(12.8, 11.8, fw=1.6, root=2.1, tip=2.0, prop_d=2.7, tail=4.5))
+
+
 # --- more type codes for icons above (light sport, classics, codes the table missed) --
 
 EXTRA_TYPES = {
@@ -1112,6 +1163,13 @@ EXTRA_TYPES = {
     'stearman': 'N3N ST6',
     'lgez': 'VVIG DEFI',
     'kodi': 'K100 K900 K200',
+    'quad': 'FFLO VFHC',
+    'be20': 'U21',
+    'c680': 'HA4T',
+    'lj35': 'LJ25 LJ24 LJ28',
+    'da40': 'DA50',
+    't34': 'TB30 CT4',
+    'uh1': 'UH1Y',
 }
 _by_key = {c[0]: i for i, c in enumerate(CATALOG)}
 for _k, _t in EXTRA_TYPES.items():

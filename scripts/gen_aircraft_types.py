@@ -26,13 +26,13 @@ ICONS = [
  ('HighVortex','a4',46,'A4 (757 class)',''),
  ('Heavy','a5',48,'A5 heavy',''),
  ('HighPerf','a6',36,'A6 high performance',''),
- ('Rotor','a7',38,'A7 rotorcraft (unknown type)',''),
+ ('Rotor','a7',38,'A7 rotorcraft (unknown type)','UHEL'),
  ('Drone','b0',22,'B6 unmanned',''),
  ('Glider','x_glider',32,'B1 glider (a sailplane)',''),
  ('Airship','x_balloon',30,'B2 lighter than air (a hot air balloon)',''),
  ('Parachute','b3',20,'B3 parachutist',''),
  ('Ultralight','b4',28,'B4 ultralight','ULAC PIAT'),
- ('Ground','c0',18,'C1-C7 surface vehicles; ground stations','TWR GND SERV'),
+ ('Ground','c0',18,'C1-C7 surface vehicles; ground stations','TWR GND SERV EMER'),
  # airliners (ADS-B Radar icons)
  ('A320','a320',42,'A320 family, A220, C919','A318 A319 A320 A321 A19N A20N A21N BCS1 BCS3 C919'),
  ('A330','a330',48,'A300/310/330, A350','A306 A30B A310 A332 A333 A337 A338 A339 A359 A35K A3ST'),
@@ -83,7 +83,7 @@ ICONS = [
  ('Heli5','g_heli_5',40,'five-blade helicopters: AW139, H160, H175, H225, Mi-8/17, S-61, AW101','A139 A149 A189 H160 EC55 EC75 EC25 MI8 MI14 MI17 S61 EH10 H500'),
  ('HeliLarge','g_heli_large',42,'big four-blade helicopters: UH-60, S-92, NH90, Super Puma, CH-53','H60 S70 S92 NH90 AS32 AS3B H53 H53S MI26'),
  ('HeliTandem','g_heli_tandem',44,'tandem rotors: CH-47, CH-46','H47 H46'),
- ('HeliAttack','g_heli_attack',38,'attack helicopters: AH-64, AH-1, Mi-24/28, Tiger','H64 H1 MI24 MI28 TIGR A129'),
+ ('HeliAttack','g_heli_attack',38,'attack helicopters: AH-64, AH-1, Mi-24/28, Tiger, Z-10','H64 H1 MI24 MI28 TIGR A129 WZ10'),
  ('HeliCoax','g_heli_coax',38,'coaxial rotors: Kamov','KA26 KA27 KA32 KA50 KA52'),
 ]
 
@@ -102,6 +102,50 @@ seen = {}
 for e, m, sz, c, types in ICONS:
     for t in types.split():
         seen[t] = e  # later (more specific) entries win
+
+# Every other ICAO type designator gets the icon of its class (scripts/data/
+# icao_type_classes.txt, from ICAO Doc 8643): engines, their kind and the wake
+# category say at least "light twin", "turboprop single", "bizjet",
+# "two-turbine helicopter"...
+def class_icon(cls, wtc):
+    kind, n, eng = cls[0], cls[1], cls[2]
+    n = int(n) if n.isdigit() else 0
+    if kind in 'LS':
+        if eng in 'PE':
+            return {1: 'Light', 2: 'TwinPiston', 3: 'X_TRIMOTOR'}.get(n, 'X_DC6')
+        if eng == 'T':
+            return {1: 'TurbopropSingle', 2: 'TwinTurboprop' if wtc == 'L' else 'Turboprop'}.get(n, 'C130')
+        if eng == 'J':
+            if n == 1:
+                return 'JetTrainer'
+            if n == 2:
+                return {'L': 'BizJet', 'M': 'BigBizJet'}.get(wtc, 'Heavy')
+            if n == 3:
+                return 'Falcon' if wtc != 'H' else 'MD11'
+            return 'X_BAE146' if wtc == 'M' else 'Freighter'
+    if kind == 'H':
+        return 'Heli2' if n == 1 and eng == 'P' else {1: 'Heli3', 2: 'Heli4'}.get(n, 'Heli5')
+    if kind == 'A':
+        return {1: 'X_LA4', 2: 'X_G21'}.get(n, 'Amphibian')
+    return {'G': 'X_GYRO', 'R': 'Tiltrotor', 'D': 'X_QUAD', 'B': 'Airship', 'V': 'Ground'}.get(kind)
+
+
+names = {ic[0] for ic in ICONS}
+by_class = 0
+from_class = set()
+for line in open(os.path.join('scripts', 'data', 'icao_type_classes.txt')):
+    if line.startswith('#') or not line.strip():
+        continue
+    code, cls, wtc = line.split()
+    if code in seen:
+        continue
+    e = class_icon(cls, wtc)
+    if e in names:
+        seen[code] = e
+        from_class.add(code)
+        by_class += 1
+print(by_class, 'types by class')
+
 # Drop icons left with no types (all of theirs went to more specific ones),
 # except the size-class icons (Generic ... Ground), used without a type.
 CLASS_ICONS = 14
@@ -167,7 +211,7 @@ struct TypeIcon {
 const TypeIcon kTypes[] = {
 '''
 for t, e in sorted(seen.items()):
-    cpp += f'    {{"{t}", Icon::{e}}},\n'
+    cpp += f'    {{"{t}", Icon::{e}}},' + ('  // by class\n' if t in from_class else '\n')
 cpp += '''};
 
 struct IconInfo {

@@ -107,6 +107,15 @@ KEY_GROUP = {
     'dc8': 'Classic airliners and transports',
     'ww24': 'Business jets',
     'sbr1': 'Business jets',
+    'rs12': 'Light aircraft: singles',
+    'aircam': 'Experimental and aerobatic',
+    'petrel': 'Experimental and aerobatic',
+    'y20': 'Military transports, bombers, tankers and patrol',
+    'l29': 'Military jets',
+    'mrf1': 'Military jets',
+    'c408': 'Light aircraft: twins and utility',
+    'wilga': 'Light aircraft: singles',
+    'p750': 'Light aircraft: singles',
     'dh8a': 'Regional turboprops', 'cl415': 'Classic airliners and transports', 'sling': 'Light aircraft: singles',
 }
 ORDER = ['Airliners and regional jets', 'Regional turboprops', 'Business jets', 'Light aircraft: singles',
@@ -138,8 +147,12 @@ def main():
     icons = re.findall(r'^  (\w+),  // (.*)$', h, re.M)            # enum, description (in order)
     info = {e: (m, int(sz)) for m, sz, e in re.findall(r'\{"([a-z0-9_]+)", (\d+)\},  // (\w+)', c)}
     types = collections.defaultdict(list)
-    for t, e in re.findall(r'\{"([A-Z0-9]+)", Icon::(\w+)\}', c):
-        types[e].append(t)
+    by_class = collections.Counter()
+    for t, e, cls in re.findall(r'\{"([A-Z0-9]+)", Icon::(\w+)\},( +// by class)?', c):
+        if cls:
+            by_class[e] += 1  # the ICAO-class fallback: counted, not listed
+        else:
+            types[e].append(t)
 
     # Which catalogue section each x_ icon comes from.
     section, key_section = None, {}
@@ -179,7 +192,9 @@ def main():
            '(`scripts/gen_icon_docs.py`).', '',
            '**How an icon is picked.** The feed gives most aircraft an ICAO type designator (`B738`, `C172`, '
            '`H60`). If the code is in the table, that icon is used; close variants share one (737-800, MAX 8 and '
-           'P-8 are one icon). If the feed has no type, or one not in the table, the aircraft gets a '
+           'P-8 are one icon). Every other ICAO type code (another ' + f'{sum(by_class.values())}' + ') gets the icon of '
+           'its class from ICAO Doc 8643: a light single, light twin, turboprop, business jet, helicopter and so on '
+           '(those codes are not listed below). If the feed has no type, or one not in ICAO\'s list, the aircraft gets a '
            '[size class](#size-classes-when-the-type-is-unknown) icon from its ADS-B emitter category (light, '
            'large, heavy, rotorcraft, glider...).', '',
            '**Size.** Icons are drawn at the sizes below (pixels on the 800 px screen at 100 % aircraft size), from '
