@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.43.1] - 2026-11-08
+
+### Fixed
+- **Aircraft showing up as "~2b8f47".** These are targets seen only by
+  ground radar and rebroadcast (TIS-B in the US). They have a temporary
+  address and no callsign, registration or type. Often they are an aircraft
+  that is also reporting itself, so the same plane appeared twice. Those
+  copies are now dropped, matched by position and height. The others are
+  labelled "Radar track" instead of the raw code, and no route lookup is
+  attempted for them.
+
 ## [v1.43.0] - 2026-11-08
 
 ### Fixed

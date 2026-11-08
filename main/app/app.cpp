@@ -699,6 +699,9 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const uint64_t parse_t0 = plat::micros();
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
   const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
+  // Ground radar (TIS-B) often repeats an aircraft that also reports itself:
+  // without this it showed twice, once under a "~" address.
+  if (ok) core::adsb::dropRadarDuplicates(parsed);
   if (ok) filterHidden(parsed);  // as if they weren't there: no logs, replays, alerts or sounds
   const int total = ok ? static_cast<int>(parsed->size()) : 0;
   if (ok) dayLogObserve(*parsed);  // everything near home, whatever the display filters
@@ -1742,7 +1745,7 @@ bool toggleSilenced(const core::Aircraft& a) {
       if (s_silenced.size() >= core::kMaxFavorites) return false;
       core::Favorite f;
       std::snprintf(f.hex, sizeof(f.hex), "%s", a.hex);
-      std::snprintf(f.label, sizeof(f.label), "%s", a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+      std::snprintf(f.label, sizeof(f.label), "%s", core::displayName(a));
       std::snprintf(f.type, sizeof(f.type), "%s", a.type);
       s_silenced.push_back(f);
       now_silenced = true;
@@ -1791,7 +1794,7 @@ bool toggleFavorite(const core::Aircraft& a) {
       if (s_favorites.size() >= core::kMaxFavorites) return false;
       core::Favorite f;
       std::snprintf(f.hex, sizeof(f.hex), "%s", a.hex);
-      std::snprintf(f.label, sizeof(f.label), "%s", a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex));
+      std::snprintf(f.label, sizeof(f.label), "%s", core::displayName(a));
       std::snprintf(f.type, sizeof(f.type), "%s", a.type);
       s_favorites.push_back(f);
       now_favorite = true;
@@ -2103,6 +2106,7 @@ uint32_t traceCopy(core::trace::Trace* out) {
 void requestRoute(const char* hex, const char* callsign) {
   std::lock_guard<std::mutex> lock(s_route_mu);
   if (!s_settings.show_route_info) hex = "";
+  if (hex[0] == '~') hex = "";  // a radar-only track: no address to look up
   if (hex[0] == '\0') callsign = "";
   if (sameKey(s_route, hex, callsign)) return;
   s_route = RouteState{};

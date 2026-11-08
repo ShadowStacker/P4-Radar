@@ -78,11 +78,6 @@ void formatAltitude(const core::Aircraft& a, char* out, size_t n) {
   }
 }
 
-const char* displayName(const core::Aircraft& a) {
-  if (a.callsign[0]) return a.callsign;
-  if (a.reg[0]) return a.reg;
-  return a.hex;
-}
 
 void drawLine(lv_layer_t* layer, float x1, float y1, float x2, float y2, lv_color_t c, int32_t w,
               lv_opa_t opa, bool round = false) {
@@ -931,7 +926,7 @@ void RadarView::prepareBlips(uint32_t now) {
 
     const bool want_label = b.selected || b.emergency || b.favorite || st.labels != core::LabelMode::Off;
     if (want_label) {
-      std::snprintf(b.line1, sizeof(b.line1), "%s", displayName(t.ac));
+      std::snprintf(b.line1, sizeof(b.line1), "%s", core::displayName(t.ac));
       if (st.labels == core::LabelMode::Full || b.selected || b.emergency || b.favorite) {
         char alt[12];
         formatAltitude(t.ac, alt, sizeof(alt));

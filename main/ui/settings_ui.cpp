@@ -1734,7 +1734,7 @@ void pageNearby() {
   }
   for (size_t i = 0; i < items.size() && i < kMaxRows; ++i) {
     const core::Aircraft& a = items[i].t->ac;
-    const char* name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    const char* name = core::displayName(a);
     char dist[24], alt[16];
     app::formatDistance(items[i].km, dist, sizeof(dist));
     if (a.on_ground) std::snprintf(alt, sizeof(alt), "ground");

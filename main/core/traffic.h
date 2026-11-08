@@ -62,6 +62,16 @@ struct Track {
   }
 };
 
+/** A target known only from ground radar (TIS-B): a "~" address, no callsign, registration or type. */
+inline bool isRadarTrack(const Aircraft& a) { return a.hex[0] == '~'; }
+
+/** What to call an aircraft: callsign, else registration, else "Radar track" or the address. */
+inline const char* displayName(const Aircraft& a) {
+  if (a.callsign[0]) return a.callsign;
+  if (a.reg[0]) return a.reg;
+  return isRadarTrack(a) ? "Radar track" : a.hex;
+}
+
 /** Dead-reckoned position at now_ms (straight line along track at ground speed). */
 LatLon positionAt(const Track& t, uint32_t now_ms);
 

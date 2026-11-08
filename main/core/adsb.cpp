@@ -546,4 +546,55 @@ bool parse(const char* json, size_t len, const ParseOptions& opt, std::vector<Ai
   return true;
 }
 
+size_t dropRadarDuplicates(std::vector<Aircraft>* list) {
+  constexpr double kSameKm = 2.0;
+  constexpr int32_t kSameFt = 500;
+  constexpr double kKmPerKtS = kKmPerNm / 3600.0;
+  // Where each one is now: its position moved on by its age at its speed.
+  auto now = [](const Aircraft& a) {
+    const LatLon p{a.lat, a.lon};
+    if (a.on_ground || a.gs_kt < 1.0f || a.seen_pos_s <= 0) return p;
+    return destination(p, a.track_deg, a.gs_kt * kKmPerKtS * a.seen_pos_s);
+  };
+  std::vector<LatLon> real;
+  std::vector<const Aircraft*> real_ac;
+  bool any_radar = false;
+  for (const Aircraft& a : *list) {
+    if (a.hex[0] == '~') {
+      any_radar = true;
+    } else {
+      real.push_back(now(a));
+      real_ac.push_back(&a);
+    }
+  }
+  if (!any_radar || real.empty()) return 0;
+  std::vector<bool> drop(list->size(), false);
+  size_t n = 0;
+  for (size_t i = 0; i < list->size(); ++i) {
+    const Aircraft& a = (*list)[i];
+    if (a.hex[0] != '~') continue;
+    const LatLon p = now(a);
+    for (size_t j = 0; j < real.size(); ++j) {
+      const Aircraft& b = *real_ac[j];
+      if (a.alt_valid && b.alt_valid && std::abs(a.alt_ft - b.alt_ft) > kSameFt) continue;
+      if (a.on_ground != b.on_ground) continue;
+      if (distanceKm(p, real[j]) <= kSameKm) {
+        drop[i] = true;
+        ++n;
+        break;
+      }
+    }
+  }
+  if (n == 0) return 0;
+  size_t w = 0;
+  for (size_t i = 0; i < list->size(); ++i) {
+    if (!drop[i]) {
+      if (w != i) (*list)[w] = (*list)[i];
+      ++w;
+    }
+  }
+  list->resize(w);
+  return n;
+}
+
 }  // namespace core::adsb

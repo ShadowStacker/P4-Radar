@@ -31,4 +31,12 @@ struct ParseOptions {
  */
 bool parse(const char* json, size_t len, const ParseOptions& opt, std::vector<Aircraft>* out);
 
+/**
+ * Drops radar-only (TIS-B, "~" address) targets that are the same aircraft as
+ * one reporting with its own address: within 2 km and 500 ft of it, both moved
+ * on to the same moment (radar positions can be tens of seconds old).
+ * Returns how many were dropped.
+ */
+size_t dropRadarDuplicates(std::vector<Aircraft>* list);
+
 }  // namespace core::adsb

@@ -272,7 +272,7 @@ void updateCard() {
   const core::Aircraft& a = t->ac;
   {
     // Five buttons share the row: a name that doesn't fit is shortened with "...".
-    std::string name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    std::string name = core::displayName(a);
     while (!name.empty() && name.back() == ' ') name.pop_back();
     const lv_font_t* f = font(FontSize::XL);
     auto width = [f](const std::string& t) {
@@ -552,7 +552,7 @@ void buildCard(lv_obj_t* parent) {
       return;
     }
     const bool was_favorite = app::isFavorite(t->ac.hex);
-    const char* name = t->ac.callsign[0] ? t->ac.callsign : (t->ac.reg[0] ? t->ac.reg : t->ac.hex);
+    const char* name = core::displayName(t->ac);
     if (app::toggleSilenced(t->ac)) {
       toast((std::string(LV_SYMBOL_MUTE "  ") + name + " silenced" +
              (was_favorite ? " (and removed from favorites)" : "") + " - emergencies still sound")
@@ -571,7 +571,7 @@ void buildCard(lv_obj_t* parent) {
     const core::Track* t = RadarView::get().selected();
     if (t == nullptr) return;
     const core::Aircraft a = t->ac;
-    const std::string name = a.callsign[0] ? a.callsign : (a.reg[0] ? a.reg : a.hex);
+    const std::string name = core::displayName(a);
     if (!app::hiddenAvailable()) {
       toast(LV_SYMBOL_SD_CARD "  Hiding needs the SD card: the hidden list is kept on it", 3500);
       return;

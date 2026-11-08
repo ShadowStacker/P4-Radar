@@ -1011,6 +1011,37 @@ core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
   return a;
 }
 
+void testRadarTracks() {
+  auto mk2 = [](const char* hex, double lat, double lon, int alt, float age_s = 0, float gs = 0) {
+    core::Aircraft a;
+    std::snprintf(a.hex, sizeof(a.hex), "%s", hex);
+    a.lat = lat;
+    a.lon = lon;
+    a.alt_ft = alt;
+    a.alt_valid = true;
+    a.seen_pos_s = age_s;
+    a.gs_kt = gs;
+    a.track_deg = 0;  // north
+    return a;
+  };
+  // A TIS-B copy 50 m from the real aircraft at the same height: dropped.
+  // One 1,500 ft below it: a different aircraft, kept. One far away: kept.
+  std::vector<core::Aircraft> v = {mk2("ac9cb1", 33.60, -84.40, 1200), mk2("~27205c", 33.6004, -84.4002, 1200),
+                                   mk2("~272000", 33.6004, -84.4002, 2700), mk2("~272111", 34.2, -84.4, 1200)};
+  CHECK(core::adsb::dropRadarDuplicates(&v) == 1 && v.size() == 3 && std::strcmp(v[1].hex, "~272000") == 0);
+  // A radar position 40 s old, 6 km behind an aircraft flying north at 300 kt: the same one once moved on.
+  std::vector<core::Aircraft> w = {mk2("a18195", 40.054, -74.0, 2800, 0, 300), mk2("~272052", 40.0, -74.0, 2800, 40, 300)};
+  CHECK(core::adsb::dropRadarDuplicates(&w) == 1 && w.size() == 1);
+  // Nothing to compare against: kept.
+  std::vector<core::Aircraft> only = {mk2("~272052", 40.0, -74.0, 2800)};
+  CHECK(core::adsb::dropRadarDuplicates(&only) == 0 && only.size() == 1);
+  // A radar-only track is called that, not "~27205c".
+  CHECK(std::string(core::displayName(only[0])) == "Radar track" && core::isRadarTrack(only[0]));
+  std::snprintf(only[0].callsign, sizeof(only[0].callsign), "N911ZR");
+  CHECK(std::string(core::displayName(only[0])) == "N911ZR");
+  CHECK(std::string(core::displayName(v[0])) == "ac9cb1");
+}
+
 void testMemHistory() {
   core::MemHistory m;
   CHECK(m.count() == 0);
@@ -2386,6 +2417,7 @@ int main() {
   testPlaces();
   testReplay();
   testAdsbStreaming();
+  testRadarTracks();
   testMemHistory();
   testTraffic();
   testFavorites();

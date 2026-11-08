@@ -21,12 +21,6 @@ void pushTrail(Track& t, const Aircraft& a) {
   if (t.trail_count < kTrailLen) ++t.trail_count;
 }
 
-std::string displayName(const Aircraft& a) {
-  if (a.callsign[0]) return a.callsign;
-  if (a.reg[0]) return a.reg;
-  return a.hex;
-}
-
 bool inZone(const Aircraft& a, const AlertZone& z) {
   if (z.radius_km <= 0 || a.on_ground) return false;
   if (a.alt_valid && a.alt_ft > z.max_alt_ft) return false;
