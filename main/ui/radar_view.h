@@ -57,6 +57,8 @@ class RadarView {
     static_dirty_ = true;
     overlay_full_ = true;
   }
+  /** Redraws the background's trails (only), as after a traffic update (benchmarks). */
+  void markTrailsDirty() { trails_dirty_ = true; }
 
   size_t visibleCount() const { return blips_.size(); }
   const MapLayer& mapLayer() const { return map_; }
@@ -74,6 +76,9 @@ class RadarView {
     uint32_t labels = 0;      // labels drawn (summed over frames)
     uint32_t rested = 0;      // frames with nothing to redraw (nothing moved by a pixel)
     uint32_t static_shown = 0;  // background builds finished and put on screen
+    uint32_t trail_segs = 0;    // trail segments drawn into the background (summed over builds)
+    uint64_t trail_us = 0;      // of static_us: building and drawing those
+    uint32_t base_reuses = 0;   // background bands that copied the cached base instead of drawing it
   };
   Stats& stats() { return stats_; }
   /** The same, never reset (for the on-screen stats, which take differences). */
@@ -121,7 +126,10 @@ class RadarView {
   void prepareBlips(uint32_t now);
   void placeLabels();
   /** Renders the static layer into `target`; `band` 0..kStaticBands-1 renders only that strip, -1 all of it. */
-  void renderStatic(bool with_trails, lv_obj_t* target, int band);
+  void renderStatic(bool with_trails, lv_obj_t* target, int band, bool reuse_base = false);
+  void drawBase(lv_obj_t* target, int band, bool with_trails);
+  struct TrailSeg;
+  void trailSegments(const core::Track& t, float cx, float cy, float R, int scale, std::vector<TrailSeg>* out) const;
   void drawHistory(lv_layer_t* layer, bool fine);
   void syncTrace();
   void drawOverlay(lv_layer_t* layer);
@@ -155,6 +163,12 @@ class RadarView {
   lv_draw_buf_t* back_buf_ = nullptr;
   int back_band_ = -1;          // next band to render into the back buffer, -1 = none
   bool back_trails_ = false;
+  bool back_reuse_ = false;       // the background build in progress copies the base (only trails changed)
+  // The background without trails (PSRAM): reused when only the traffic changed.
+  lv_draw_buf_t* base_buf_ = nullptr;
+  lv_obj_t* base_canvas_ = nullptr;
+  bool base_valid_ = false;
+  bool trails_dirty_ = false;     // markTrailsDirty(): the trails only, again
   bool static_shown_ = false;   // the on-screen buffer holds a complete render
   lv_obj_t* overlay_ = nullptr;  // per-frame drawing + touch target
   lv_timer_t* timer_ = nullptr;
@@ -182,6 +196,7 @@ class RadarView {
     lv_opa_t opa;
   };
   std::vector<TrailSeg> trail_segs_;
+  std::vector<TrailSeg> static_segs_;  // the background's trails, built once per background render
   bool busy_ = false;  // panning, zooming or animating: no trails on the overlay either
 
   // Sweep

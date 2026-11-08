@@ -10,6 +10,27 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.47.0] - 2026-11-08
+
+### Changed
+- **Trails are much cheaper to draw in busy areas.** With 400 aircraft, the
+  background takes about half the time to rebuild, and a traffic update
+  (every few seconds) a quarter to a third of the time it used to (measured on a
+  computer; the on-screen stats show it on the board):
+  - nearly straight parts of a trail are drawn as one line instead of many
+    short ones (a straight flight: a handful instead of up to 47);
+  - the map, range rings, runways and airport names are kept as a finished
+    picture, so a traffic update only draws the trails on top instead of
+    everything again (uses 1.3 MB more PSRAM);
+  - trail lines have square ends, which cost much less than rounded ones and
+    look the same (no more darker dots where pieces met);
+  - each background build now prepares the trails once, not once per strip.
+
+### Added
+- **Trail figures in the on-screen stats:** trail segments per rebuild, their
+  time, and how often the stored map picture was reused. The serial log's
+  30-second performance line shows them too.
+
 ## [v1.46.0] - 2026-11-08
 
 ### Added

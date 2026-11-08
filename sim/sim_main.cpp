@@ -429,8 +429,8 @@ int runBench() {
   ui::init(g_disp);
   run(2000);
   auto& rv = ui::RadarView::get();
-  std::printf("%-6s %-7s %6s %6s %8s %9s %9s %8s\n", "map", "radius", "blips", "labels", "frame_us",
-              "static_us", "overlay_us", "lvgl_us");
+  std::printf("%-6s %-7s %6s %6s %8s %9s %9s %8s %9s %6s\n", "map", "radius", "blips", "labels", "frame_us",
+              "static_us", "overlay_us", "lvgl_us", "update_us", "segs");
   // BENCH_MAP / BENCH_RADIUS limit the run to one case (for profilers).
   const int only_map = std::getenv("BENCH_MAP") ? std::atoi(std::getenv("BENCH_MAP")) : -1;
   if (std::getenv("BENCH_NO_TRAILS")) st.show_trails = false;
@@ -449,12 +449,20 @@ int runBench() {
       g_step_hook = [&rv] { rv.markStaticDirty(); };  // measure a static render every frame
       run(3000);
       g_step_hook = nullptr;
-      const auto& x = rv.stats();
+      const auto x = rv.stats();
+      // A traffic update with trails on: just the trails redrawn (the base copied).
+      rv.stats() = {};
+      g_step_hook = [&rv] { rv.markTrailsDirty(); };
+      run(3000);
+      g_step_hook = nullptr;
+      const auto& u = rv.stats();
       const unsigned f = x.frames ? x.frames : 1;
-      std::printf("%-6d %-7.0f %6u %6u %8llu %9llu %9llu %8.0f\n", map, r, x.blips / f, x.labels / f,
+      std::printf("%-6d %-7.0f %6u %6u %8llu %9llu %9llu %8.0f %9llu %6u\n", map, r, x.blips / f, x.labels / f,
                   static_cast<unsigned long long>(x.frame_us / f),
                   static_cast<unsigned long long>(x.static_renders ? x.static_us / x.static_renders : 0),
-                  static_cast<unsigned long long>(x.overlay_us / f), g_render_ms_total * 1000 / std::max(1, g_render_count));
+                  static_cast<unsigned long long>(x.overlay_us / f), g_render_ms_total * 1000 / std::max(1, g_render_count),
+                  static_cast<unsigned long long>(u.static_renders ? u.static_us / u.static_renders : 0),
+                  static_cast<unsigned>(x.static_renders ? x.trail_segs / x.static_renders : 0));
     }
     if (only_r > 0) continue;
     // A pinch out while zoomed out (busy frames: static layer every frame).

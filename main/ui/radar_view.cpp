@@ -192,6 +192,13 @@ void RadarView::create(lv_obj_t* parent) {
 
   static_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
   back_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);
+  base_buf_ = createImageBuf(screenW(), screenH(), LV_COLOR_FORMAT_RGB565);  // without it: drawn whole each time
+  if (base_buf_ != nullptr) {
+    base_canvas_ = lv_canvas_create(parent);
+    lv_canvas_set_draw_buf(base_canvas_, base_buf_);
+    lv_obj_add_flag(base_canvas_, LV_OBJ_FLAG_HIDDEN);
+  }
+  base_valid_ = false;
   map_.create(parent);
   if (back_buf_ != nullptr) {
     back_canvas_ = lv_canvas_create(parent);
@@ -230,6 +237,10 @@ void RadarView::destroy() {
   static_buf_ = nullptr;
   destroyImageBuf(back_buf_);
   back_buf_ = nullptr;
+  base_canvas_ = nullptr;  // (with its screen)
+  destroyImageBuf(base_buf_);
+  base_buf_ = nullptr;
+  base_valid_ = false;
   back_band_ = -1;
   map_.destroy();
   gesture_ = Gesture::None;
@@ -408,7 +419,9 @@ void RadarView::frame() {
   const bool want_trails = st.show_trails && !busy && !(st.sweep_enabled && st.sweep_reveal);
   // (Trails also come off it when echo mode starts: the overlay draws them then.)
   const bool need_static = static_dirty_ || view_changed || (want_trails != static_has_trails_ && !busy) ||
-                           (want_trails && tracks_version_ != static_tracks_version_);
+                           (want_trails && (tracks_version_ != static_tracks_version_ || trails_dirty_));
+  // Only the traffic changed: the cached base is copied, just the trails drawn.
+  const bool reuse_base = want_trails && base_valid_ && !static_dirty_ && !view_changed;
   const uint64_t s0 = plat::micros();
   const bool redraw_now = view_changed || busy || !static_shown_ || back_canvas_ == nullptr;
   // New content (map tiles, trails) while a background build is under way:
@@ -420,18 +433,19 @@ void RadarView::frame() {
     if (redraw_now) {
       // The view moved: draw it now, whole.
       back_band_ = -1;
-      renderStatic(want_trails, canvas_, -1);
+      renderStatic(want_trails, canvas_, -1, reuse_base);
       static_shown_ = true;
     } else {
       // Same view, new content: build it in the background buffer.
       back_trails_ = want_trails;
-      renderStatic(want_trails, back_canvas_, 0);
+      back_reuse_ = reuse_base;
+      renderStatic(want_trails, back_canvas_, 0, reuse_base);
       back_band_ = 1;
     }
     stats_.static_renders++;
     totals_.static_renders++;
   } else if (back_band_ > 0) {
-    renderStatic(back_trails_, back_canvas_, back_band_);
+    renderStatic(back_trails_, back_canvas_, back_band_, back_reuse_);
     if (++back_band_ == kStaticBands) {
       // Done: show it.
       std::swap(static_buf_, back_buf_);
@@ -471,10 +485,13 @@ void RadarView::frame() {
   if (now - s_log_ms >= 30000) {
     if (s_log_ms != 0 && stats_.frames > 0) {
       const Stats& x = stats_;
-      std::printf("perf: %.1f fps, frame %.1f ms, static %.1f ms x%u, overlay %.1f ms, %u aircraft, %u labels, %.0f km\n",
+      std::printf("perf: %.1f fps, frame %.1f ms, static %.1f ms x%u (trails %u segs, %.1f ms), overlay %.1f ms, "
+                  "%u aircraft, %u labels, %.0f km\n",
                   x.frames / ((now - s_log_ms) / 1000.0f), x.frame_us / 1000.0f / x.frames,
                   x.static_renders ? x.static_us / 1000.0f / x.static_renders : 0.0f,
-                  static_cast<unsigned>(x.static_renders), x.overlay_us / 1000.0f / x.frames,
+                  static_cast<unsigned>(x.static_renders),
+                  static_cast<unsigned>(x.static_renders ? x.trail_segs / x.static_renders : 0),
+                  x.static_renders ? x.trail_us / 1000.0f / x.static_renders : 0.0f, x.overlay_us / 1000.0f / x.frames,
                   static_cast<unsigned>(x.blips / x.frames), static_cast<unsigned>(x.labels / x.frames), vp_.radiusKm());
     }
     s_log_ms = now;
@@ -513,11 +530,73 @@ void RadarView::updateQueryArea(bool refresh) {
 // ---------------------------------------------------------------------------
 // Static layer: background, rings, bezel, runways, airports, trails
 
-void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
+/**
+ * One aircraft's trail as screen segments, oldest first, appended to *out.
+ * Nearly straight runs are merged into one segment (points within 1 px of
+ * it, at most 8 points, the same colour): a straight flight's 47 segments
+ * become a handful. Older parts are fainter; `scale` (0-255) dims it all
+ * (echo mode). Only segments near the visible circle are kept.
+ */
+void RadarView::trailSegments(const core::Track& t, float cx, float cy, float R, int scale,
+                              std::vector<TrailSeg>* out) const {
+  if (t.trail_count < 2) return;
+  const auto& st = app::settings();
+  const Palette& p = pal();
+  const bool alt_colors = useAltitudeColors(st);
+  struct Pt {
+    float x, y;
+    lv_color_t c;
+    int idx;
+  };
+  Pt pts[core::kTrailLen];
+  int n = 0;
+  for (int i = 0; i < t.trail_count; ++i) {
+    const core::TrailPoint& tp = t.trailAt(i);
+    const core::PointF q = vp_.project({tp.lat, tp.lon});
+    // Points closer than 3 px to the previous one add nothing (the last one is always kept).
+    if (n > 0 && i != t.trail_count - 1 && distPx(pts[n - 1].x, pts[n - 1].y, q.x, q.y) < 3.0f) continue;
+    pts[n++] = {q.x, q.y, alt_colors ? altitudeColor(tp.alt_ft, t.ac.on_ground) : p.trail, i};
+  }
+  constexpr int kMaxSpan = 8;
+  constexpr float kTolPx = 1.0f;
+  auto emit = [&](const Pt& a, const Pt& b) {
+    if (distPx(a.x, a.y, cx, cy) >= R + 50 && distPx(b.x, b.y, cx, cy) >= R + 50) return;
+    TrailSeg sg;
+    sg.x1 = std::round(a.x);
+    sg.y1 = std::round(a.y);
+    sg.x2 = std::round(b.x);
+    sg.y2 = std::round(b.y);
+    sg.color = b.c;
+    sg.opa = static_cast<lv_opa_t>((40 + 170 * b.idx / t.trail_count) * scale / 255);
+    out->push_back(sg);
+  };
+  int a = 0;
+  while (a < n - 1) {
+    int end = a + 1;
+    // Grow the segment while the points it skips stay within kTolPx of it.
+    for (int e = a + 2; e < n && e - a <= kMaxSpan; ++e) {
+      if (!lv_color_eq(pts[e].c, pts[a + 1].c)) break;
+      const float dx = pts[e].x - pts[a].x, dy = pts[e].y - pts[a].y;
+      const float len = std::sqrt(dx * dx + dy * dy);
+      bool straight = len > 0.0f;
+      for (int k = a + 1; k < e && straight; ++k) {
+        const float dist = std::fabs((pts[k].x - pts[a].x) * dy - (pts[k].y - pts[a].y) * dx) / len;
+        straight = dist <= kTolPx;
+      }
+      if (!straight) break;
+      end = e;
+    }
+    emit(pts[a], pts[end]);
+    a = end;
+  }
+}
+
+void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band, bool reuse_base) {
   const Palette& p = pal();
   const auto& st = app::settings();
   const float W = static_cast<float>(screenW()), H = static_cast<float>(screenH());
   const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
+  (void)W;
 
   if (band <= 0) {  // what this render shows (a band render commits on its first band)
     static_dirty_ = false;
@@ -525,8 +604,130 @@ void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
     static_kmpp_ = vp_.kmPerPx();
     static_has_trails_ = with_trails;
     static_tracks_version_ = tracks_version_;
+    trails_dirty_ = false;
   }
 
+  // The base (map, rings, runways, airports, flight history) is kept in its
+  // own buffer while trails are shown: when only the traffic changed, it is
+  // copied instead of drawn again, and just the trails go on top.
+  const bool use_base = with_trails && base_canvas_ != nullptr;
+  if (use_base) {
+    if (!reuse_base) {
+      if (band <= 0) base_valid_ = false;
+      drawBase(base_canvas_, band, with_trails);
+      if (band < 0 || band == kStaticBands - 1) base_valid_ = true;
+    } else {
+      stats_.base_reuses++;
+      totals_.base_reuses++;
+    }
+    const int32_t y1 = band < 0 ? 0 : static_cast<int32_t>(H) * band / kStaticBands;
+    const int32_t y2 = band < 0 ? static_cast<int32_t>(H) - 1 : static_cast<int32_t>(H) * (band + 1) / kStaticBands - 1;
+    lv_draw_buf_t* dst = lv_canvas_get_draw_buf(target);
+    if (dst != nullptr && dst->header.stride == base_buf_->header.stride) {
+      const uint32_t stride = dst->header.stride;
+      std::memcpy(dst->data + static_cast<size_t>(y1) * stride, base_buf_->data + static_cast<size_t>(y1) * stride,
+                  static_cast<size_t>(y2 - y1 + 1) * stride);
+    }
+  } else {
+    base_valid_ = false;  // drawn straight into the target
+    drawBase(target, band, with_trails);
+  }
+
+  // The top: trails, home marker and bezel (over the trails, as before).
+  lv_layer_t layer;
+  lv_canvas_init_layer(target, &layer);
+  if (band >= 0) {
+    const int32_t y1 = static_cast<int32_t>(H) * band / kStaticBands;
+    const int32_t y2 = static_cast<int32_t>(H) * (band + 1) / kStaticBands - 1;
+    layer._clip_area = {0, y1, static_cast<int32_t>(W) - 1, y2};
+  }
+  const core::PointF home = vp_.project({st.home_lat, st.home_lon});
+
+  // --- Trails ----------------------------------------------------------------
+  // Built once per background render (band 0, or the whole), then each band
+  // draws only the segments crossing it.
+  if (with_trails) {
+    const uint64_t t0 = plat::micros();
+    if (band <= 0) {
+      static_segs_.clear();
+      for (const core::Track& t : tracks_) trailSegments(t, cx, cy, R, 255, &static_segs_);
+      stats_.trail_segs += static_cast<uint32_t>(static_segs_.size());
+      totals_.trail_segs += static_cast<uint32_t>(static_segs_.size());
+    }
+    const int32_t w = sc(2) > 1 ? sc(2) : 1;
+    const float by1 = band < 0 ? -1e9f : layer._clip_area.y1 - w, by2 = band < 0 ? 1e9f : layer._clip_area.y2 + w;
+    for (const TrailSeg& sg : static_segs_) {
+      if (std::max(sg.y1, sg.y2) < by1 || std::min(sg.y1, sg.y2) > by2) continue;  // not in this band
+      drawLine(&layer, sg.x1, sg.y1, sg.x2, sg.y2, sg.color, w, sg.opa, false);  // square ends: cheaper
+    }
+    const uint64_t us = plat::micros() - t0;
+    stats_.trail_us += us;
+    totals_.trail_us += us;
+  }
+
+  // --- Home marker -----------------------------------------------------------
+  drawCircle(&layer, home.x, home.y, sc(9), p.home, 220, sc(2));
+  drawCircle(&layer, home.x, home.y, sc(3), p.home, LV_OPA_COVER);
+
+  // --- Bezel: compass (north up), or a clock dial in clock mode --------------
+  if (st.clock_mode) {
+    const lv_font_t* fc = font(FontSize::L);
+    drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
+    for (int m = 0; m < 60; ++m) {  // minute marks, longer every five
+      const float rad = static_cast<float>(core::degToRad(m * 6));
+      const float sx = std::sin(rad), sy = -std::cos(rad);
+      const bool hour = m % 5 == 0;
+      const float len = hour ? sc(20) : sc(8);
+      const float r0 = R - sc(4);
+      drawLine(&layer, cx + sx * r0, cy + sy * r0, cx + sx * (r0 - len), cy + sy * (r0 - len), p.bezel,
+               hour ? sc(4) : sc(2), hour ? 240 : 150);
+    }
+    for (int h = 1; h <= 12; ++h) {
+      const float rad = static_cast<float>(core::degToRad(h * 30));
+      const float rt = R - sc(46);
+      char txt[4];
+      std::snprintf(txt, sizeof(txt), "%d", h);
+      drawTextCentered(&layer, txt, cx + std::sin(rad) * rt, cy - std::cos(rad) * rt, fc,
+                       h % 3 == 0 ? p.text : p.bezel_text);
+    }
+  } else {
+    const lv_font_t* fc = font(FontSize::L);
+    const lv_font_t* fs = font(FontSize::S);
+    drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
+    for (int deg = 0; deg < 360; deg += 5) {
+      const float rad = static_cast<float>(core::degToRad(deg));
+      const float sx = std::sin(rad), sy = -std::cos(rad);
+      const float len = deg % 30 == 0 ? sc(20) : (deg % 10 == 0 ? sc(12) : sc(7));
+      const float r0 = R - sc(4);
+      drawLine(&layer, cx + sx * r0, cy + sy * r0, cx + sx * (r0 - len), cy + sy * (r0 - len), p.bezel,
+               deg % 30 == 0 ? sc(3) : sc(2), deg % 10 == 0 ? 230 : 150);
+      if (deg % 30 == 0) {
+        const float rt = R - sc(46);
+        char txt[8];
+        const lv_font_t* f = fs;
+        lv_color_t c = p.bezel_text;
+        switch (deg) {
+          case 0: std::snprintf(txt, sizeof(txt), "N"); f = fc; c = p.text; break;
+          case 90: std::snprintf(txt, sizeof(txt), "E"); f = fc; break;
+          case 180: std::snprintf(txt, sizeof(txt), "S"); f = fc; break;
+          case 270: std::snprintf(txt, sizeof(txt), "W"); f = fc; break;
+          default: std::snprintf(txt, sizeof(txt), "%03d", deg); break;
+        }
+        drawTextCentered(&layer, txt, cx + sx * rt, cy + sy * rt, f, c);
+      }
+    }
+  }
+
+  lv_canvas_finish_layer(target, &layer);
+  if (target == canvas_) lv_obj_invalidate(canvas_);
+}
+
+/** The static layer under the trails: background, map, rings, runways, airports, flight history. */
+void RadarView::drawBase(lv_obj_t* target, int band, bool with_trails) {
+  const Palette& p = pal();
+  const auto& st = app::settings();
+  const float W = static_cast<float>(screenW()), H = static_cast<float>(screenH());
+  const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx();
   if (band < 0) lv_canvas_fill_bg(target, p.bg, LV_OPA_COVER);
   lv_layer_t layer;
   lv_canvas_init_layer(target, &layer);
@@ -673,84 +874,7 @@ void RadarView::renderStatic(bool with_trails, lv_obj_t* target, int band) {
   // --- Flight history of the selected aircraft --------------------------------
   drawHistory(&layer, with_trails);
 
-  // --- Trails ----------------------------------------------------------------
-  if (with_trails) {
-    const int32_t w = sc(2) > 1 ? sc(2) : 1;
-    for (const core::Track& t : tracks_) {
-      if (t.trail_count < 2) continue;
-      core::PointF prev = vp_.project({t.trailAt(0).lat, t.trailAt(0).lon});
-      for (int i = 1; i < t.trail_count; ++i) {
-        const core::TrailPoint& tp = t.trailAt(i);
-        const core::PointF cur = vp_.project({tp.lat, tp.lon});
-        if (distPx(prev.x, prev.y, cur.x, cur.y) < 3.0f && i != t.trail_count - 1) continue;
-        const bool vis = distPx(cur.x, cur.y, cx, cy) < R + 50 || distPx(prev.x, prev.y, cx, cy) < R + 50;
-        if (vis) {
-          const lv_color_t c = useAltitudeColors(st)
-                                   ? altitudeColor(tp.alt_ft, t.ac.on_ground)
-                                   : p.trail;
-          const lv_opa_t opa = static_cast<lv_opa_t>(40 + 170 * i / t.trail_count);
-          drawLine(&layer, prev.x, prev.y, cur.x, cur.y, c, w, opa, true);
-        }
-        prev = cur;
-      }
-    }
-  }
-
-  // --- Home marker -----------------------------------------------------------
-  drawCircle(&layer, home.x, home.y, sc(9), p.home, 220, sc(2));
-  drawCircle(&layer, home.x, home.y, sc(3), p.home, LV_OPA_COVER);
-
-  // --- Bezel: compass (north up), or a clock dial in clock mode --------------
-  if (st.clock_mode) {
-    const lv_font_t* fc = font(FontSize::L);
-    drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
-    for (int m = 0; m < 60; ++m) {  // minute marks, longer every five
-      const float rad = static_cast<float>(core::degToRad(m * 6));
-      const float sx = std::sin(rad), sy = -std::cos(rad);
-      const bool hour = m % 5 == 0;
-      const float len = hour ? sc(20) : sc(8);
-      const float r0 = R - sc(4);
-      drawLine(&layer, cx + sx * r0, cy + sy * r0, cx + sx * (r0 - len), cy + sy * (r0 - len), p.bezel,
-               hour ? sc(4) : sc(2), hour ? 240 : 150);
-    }
-    for (int h = 1; h <= 12; ++h) {
-      const float rad = static_cast<float>(core::degToRad(h * 30));
-      const float rt = R - sc(46);
-      char txt[4];
-      std::snprintf(txt, sizeof(txt), "%d", h);
-      drawTextCentered(&layer, txt, cx + std::sin(rad) * rt, cy - std::cos(rad) * rt, fc,
-                       h % 3 == 0 ? p.text : p.bezel_text);
-    }
-  } else {
-    const lv_font_t* fc = font(FontSize::L);
-    const lv_font_t* fs = font(FontSize::S);
-    drawCircle(&layer, cx, cy, R - sc(1), p.bezel, 180, sc(2));
-    for (int deg = 0; deg < 360; deg += 5) {
-      const float rad = static_cast<float>(core::degToRad(deg));
-      const float sx = std::sin(rad), sy = -std::cos(rad);
-      const float len = deg % 30 == 0 ? sc(20) : (deg % 10 == 0 ? sc(12) : sc(7));
-      const float r0 = R - sc(4);
-      drawLine(&layer, cx + sx * r0, cy + sy * r0, cx + sx * (r0 - len), cy + sy * (r0 - len), p.bezel,
-               deg % 30 == 0 ? sc(3) : sc(2), deg % 10 == 0 ? 230 : 150);
-      if (deg % 30 == 0) {
-        const float rt = R - sc(46);
-        char txt[8];
-        const lv_font_t* f = fs;
-        lv_color_t c = p.bezel_text;
-        switch (deg) {
-          case 0: std::snprintf(txt, sizeof(txt), "N"); f = fc; c = p.text; break;
-          case 90: std::snprintf(txt, sizeof(txt), "E"); f = fc; break;
-          case 180: std::snprintf(txt, sizeof(txt), "S"); f = fc; break;
-          case 270: std::snprintf(txt, sizeof(txt), "W"); f = fc; break;
-          default: std::snprintf(txt, sizeof(txt), "%03d", deg); break;
-        }
-        drawTextCentered(&layer, txt, cx + sx * rt, cy + sy * rt, f, c);
-      }
-    }
-  }
-
   lv_canvas_finish_layer(target, &layer);
-  if (target == canvas_) lv_obj_invalidate(canvas_);
 }
 
 /**
@@ -858,25 +982,8 @@ void RadarView::prepareBlips(uint32_t now) {
       b.echo = static_cast<uint8_t>(std::lround((255.0f - 195.0f * (since / 360.0f)) / 255.0f * 15.0f));
     }
     if (fade_trails && t.trail_count >= 2) {
-      core::PointF prev = vp_.project({t.trailAt(0).lat, t.trailAt(0).lon});
-      for (int k = 1; k < t.trail_count; ++k) {
-        const core::TrailPoint& tp = t.trailAt(k);
-        const core::PointF cur = vp_.project({tp.lat, tp.lon});
-        if (distPx(prev.x, prev.y, cur.x, cur.y) < 3.0f && k != t.trail_count - 1) continue;
-        if (distPx(cur.x, cur.y, cx, cy) < R + 50 || distPx(prev.x, prev.y, cx, cy) < R + 50) {
-          TrailSeg sg;
-          sg.x1 = std::round(prev.x);
-          sg.y1 = std::round(prev.y);
-          sg.x2 = std::round(cur.x);
-          sg.y2 = std::round(cur.y);
-          sg.color = useAltitudeColors(st) ? altitudeColor(tp.alt_ft, t.ac.on_ground) : p.trail;
-          // Same as the background layer's trails (older parts fainter), times the echo.
-          const int base = 40 + 170 * k / t.trail_count;
-          sg.opa = static_cast<lv_opa_t>(base * b.echo / 15);
-          trail_segs_.push_back(sg);
-        }
-        prev = cur;
-      }
+      // Same as the background layer's trails, times the echo.
+      trailSegments(t, cx, cy, R, 255 * b.echo / 15, &trail_segs_);
     }
 
     if (d > R - sc(12)) {
@@ -1327,7 +1434,7 @@ void RadarView::drawOverlay(lv_layer_t* layer) {
   const int32_t trail_w = sc(2) > 1 ? sc(2) : 1;
   for (const TrailSeg& sg : trail_segs_) {
     if (sg.opa < 4 || !areasOverlap(segBox(sg.x1, sg.y1, sg.x2, sg.y2, 3), clip)) continue;
-    drawLine(layer, sg.x1, sg.y1, sg.x2, sg.y2, sg.color, trail_w, sg.opa, true);
+    drawLine(layer, sg.x1, sg.y1, sg.x2, sg.y2, sg.color, trail_w, sg.opa, false);  // square ends: cheaper
   }
 
   // Trail heads and speed vectors under the symbols.

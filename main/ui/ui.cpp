@@ -377,21 +377,29 @@ void updateStats() {
   const uint32_t statics = rt.static_renders - s_radar0.static_renders;
   const int rested = radar_frames ? static_cast<int>(100.0 * (rt.rested - s_radar0.rested) / radar_frames + 0.5) : 0;
   const double static_ms = (rt.static_us - s_radar0.static_us) / 1000.0;
+  // Trails: segments per background build, the time they took, and how many
+  // background bands just copied the cached base (only the traffic changed).
+  const uint32_t trail_builds = statics ? statics : 1;
+  const unsigned trail_segs = static_cast<unsigned>((rt.trail_segs - s_radar0.trail_segs) / trail_builds);
+  const double trail_ms = (rt.trail_us - s_radar0.trail_us) / 1000.0;
+  const unsigned base_reused = static_cast<unsigned>(rt.base_reuses - s_radar0.base_reuses);
   const double screen_px = static_cast<double>(screenW()) * screenH();
   const int redrawn = s_frames ? static_cast<int>(100.0 * s_redrawn_px / (screen_px * frames) + 0.5) : 0;
   s_flush0 = fl;
   s_radar0 = rt;
-  char text[384];
+  char text[448];
   std::snprintf(text, sizeof(text),
                 "%.0f fps, frame %.1f ms (max %.0f), %d%% redrawn\n"
                 "draw %.1f + panel %.1f ms (rotate %.1f)\n"
                 "radar %.1f ms, background %.0f ms (%u), rest %d%%\n"
+                "trails %u segs, %.0f ms, base copied %u\n"
                 "CPU %d%% net, %d%% UI\n"
                 "RAM %u K (low %u K), PSRAM %.1f M\n"
                 "%d aircraft (decode %.0f ms), %s\n"
                 "up %u:%02u:%02u, UI pause %u ms",
                 s_frames / secs, frame_ms, s_draw_max_us / 1000.0, redrawn, std::max(0.0, frame_ms - flush_ms), flush_ms,
-                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), rested, h.cpu[0], h.cpu[1],
+                rotate_ms, overlay_ms, static_ms, static_cast<unsigned>(statics), rested, trail_segs, trail_ms,
+                base_reused, h.cpu[0], h.cpu[1],
                 static_cast<unsigned>(h.ram_free / 1024), static_cast<unsigned>(h.ram_min / 1024),
                 h.psram_free / 1048576.0, fs.last_count, fs.parse_us / 1000.0,
                 ws.state == plat::WifiState::Connected ? (std::to_string(ws.rssi) + " dBm").c_str() : "offline",
