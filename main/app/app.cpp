@@ -1,4 +1,5 @@
 #include "app/app.h"
+#include "app/mqtt_bridge.h"
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -809,6 +810,8 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     while (s_notices.size() > 4) s_notices.pop_front();
   }
 
+  mqtt::traffic(*parsed, ev, s_book_firsts, core::adsb::sourceName(source));
+
   // One sound per fetch, most important first.
   if (ev.new_emergencies > 0) {
     sound(core::Sound::Emergency);
@@ -1124,6 +1127,7 @@ void networkLoop() {
   bool first = true;
 
   for (;;) {
+    mqtt::service();  // Home Assistant: connect, reconnect or stop as the settings say
     if (updating()) {
       // The update has the network (and the CPU) to itself: an install from
       // GitHub runs right here, in serviceUpdate(); one from a phone in the

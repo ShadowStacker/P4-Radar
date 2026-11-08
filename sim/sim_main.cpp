@@ -24,6 +24,7 @@
 #endif
 
 #include "app/app.h"
+#include "app/mqtt_bridge.h"
 #include "core/logbook.h"
 #include "app/maps.h"
 #include "app/web.h"
@@ -761,6 +762,7 @@ int main(int argc, char** argv) {
                {ui::Page::Sound, "10_settings_sound"},
                {ui::Page::Location, "11_settings_location"},
                {ui::Page::Traffic, "12_settings_traffic"},
+               {ui::Page::HomeAssistant, "86_settings_home_assistant"},
                {ui::Page::About, "13_settings_about"}};
   for (const auto& pg : pages) {
     ui::closeSettings();
@@ -1815,6 +1817,38 @@ int main(int argc, char** argv) {
     ui::RadarView::get().markStaticDirty();
     run(500);
     if (!ok) return 1;
+  }
+
+  // Home Assistant over MQTT: switched on, it connects, announces its sensors,
+  // and sends the traffic.
+  {
+    core::Settings& st = app::settings();
+    st.mqtt_enabled = true;
+    std::snprintf(st.mqtt_host, sizeof(st.mqtt_host), "%s", "192.168.1.20");
+    sim::g_mqtt_sent.clear();
+    app::mqtt::service();
+    core::LatLon c;
+    double r;
+    app::queryArea(&c, &r);
+    app::ingest(200, g_traffic->json(c, r * 1.25 + 5));
+    int online = 0, discovery = 0, state = 0;
+    std::string state_payload;
+    for (const auto& m : sim::g_mqtt_sent) {
+      if (m.topic == "plane_radar/status" && m.payload == "online") ++online;
+      if (m.topic.rfind("homeassistant/", 0) == 0 && m.retain) ++discovery;
+      if (m.topic == "plane_radar/state" && m.retain) {
+        ++state;
+        state_payload = m.payload;
+      }
+    }
+    const bool mqtt_ok = online == 1 && discovery == 6 && state == 1 &&
+                         state_payload.find("\"count\":") != std::string::npos &&
+                         app::mqtt::status() == "Connected to 192.168.1.20";
+    std::printf("mqtt: online %d, discovery %d, state %d (%s): %s\n", online, discovery, state,
+                state_payload.substr(0, 80).c_str(), mqtt_ok ? "OK" : "FAILED");
+    st.mqtt_enabled = false;
+    app::mqtt::service();
+    if (!mqtt_ok) return 1;
   }
 
   // "What's new" once after an update (here: from v1.10.0), and again from About.

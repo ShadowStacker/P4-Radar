@@ -47,7 +47,11 @@ size_t validPrefix(uint16_t version) {
     case 17: return offsetof(core::Settings, first_time_alert);
     case 18: return offsetof(core::Settings, places);
     case 19: return offsetof(core::Settings, places_more);
-    case 20: return sizeof(core::Settings);
+    // Version 20 blobs from v1.45.0 also hold local_url and local_fallback
+    // (older ones are shorter: their size stops the copy first). Not the
+    // padding after them: that's where version 21's fields begin.
+    case 20: return offsetof(core::Settings, local_fallback) + sizeof(core::Settings::local_fallback);
+    case 21: return sizeof(core::Settings);
     // Saved by newer firmware (after a rollback): fields are only ever
     // appended, so all of this firmware's fields are in it.
     default: return version > core::Settings::kVersion ? sizeof(core::Settings) : 0;

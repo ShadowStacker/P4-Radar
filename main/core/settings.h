@@ -57,8 +57,10 @@ struct Settings {
   //  17: up to replay_record (v1.28.0)
   //  18: up to sound_first_time (v1.29.0)
   //  19: up to places (v1.30.0)
-  //  20: up to places_more (v1.33.0)
-  static constexpr uint16_t kVersion = 20;
+  //  20: up to places_more (v1.33.0); local_url and local_fallback (v1.45.0)
+  //      were added without a bump (see there)
+  //  21: up to mqtt_topic (v1.46.0)
+  static constexpr uint16_t kVersion = 21;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -245,6 +247,15 @@ struct Settings {
   // and an older blob, being shorter, leaves their defaults.
   char local_url[96] = "";                // your receiver (readsb, tar1090, dump1090, SkyAware), e.g. "192.168.1.50"
   bool local_fallback = true;             // when it doesn't answer, use the online feeds
+
+  // v1.46.0 (version 21): Home Assistant / MQTT
+  bool mqtt_enabled = false;
+  bool mqtt_discovery = true;             // announce the sensors to Home Assistant (MQTT discovery)
+  uint16_t mqtt_port = 1883;
+  char mqtt_host[64] = "";                // the broker, e.g. "192.168.1.20" or "homeassistant.local"
+  char mqtt_user[32] = "";
+  char mqtt_pass[64] = "";
+  char mqtt_topic[32] = "plane_radar";    // topics start with this
 };
 static_assert(offsetof(Settings, local_url) ==
                   offsetof(Settings, places_more) + sizeof(Settings::places_more),

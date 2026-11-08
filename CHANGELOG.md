@@ -10,6 +10,22 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.46.0] - 2026-11-08
+
+### Added
+- **Home Assistant (MQTT).** Settings > Home Assistant (MQTT): turn it on and
+  enter your broker (e.g. Home Assistant's Mosquitto add-on). A Plane Radar
+  device appears in Home Assistant by itself, with these entities:
+  - aircraft nearby;
+  - the nearest aircraft, with its distance and height;
+  - an emergency sensor;
+  - an alert event for favorites, watchlist aircraft, emergencies and
+    first-time visitors, to use in automations (flash a light when a
+    favorite flies over).
+
+  Other MQTT clients can read the `plane_radar/state`, `/event` and `/status`
+  topics. See the user guide for an example automation.
+
 ## [v1.45.0] - 2026-11-08
 
 ### Added

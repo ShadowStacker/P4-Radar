@@ -239,6 +239,23 @@ struct Health {
   size_t psram_free = 0;
   std::string top;        // busiest tasks, e.g. "adsb 31%, lvgl 22%"
 };
+/** An MQTT broker to send to (Home Assistant). */
+struct MqttConfig {
+  std::string host;  // address, without mqtt://
+  uint16_t port = 1883;
+  std::string user, pass;
+  std::string will_topic;  // gets "offline" (retained) if the radar drops off
+};
+/** Connects (or reconnects with a new config) in the background; an empty host stops. */
+void mqttStart(const MqttConfig& cfg);
+bool mqttConnected();
+/** Times connected so far: after each (re)connect, retained messages are sent again. */
+uint32_t mqttConnects();
+/** Queues a message (QoS 0; never blocks the caller). Dropped while not connected. */
+void mqttPublish(const std::string& topic, const std::string& payload, bool retain);
+/** A name unique to this board, from its MAC address: "plane_radar_a1b2c3". */
+std::string deviceId();
+
 /** A task's stack: its size and the most it has used since it started (bytes). */
 struct StackUse {
   const char* name;

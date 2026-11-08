@@ -101,7 +101,7 @@ std::vector<StackUse> stackUse() {
     const char* name;
     uint32_t size;
   } kTasks[] = {{"adsb", 16 * 1024}, {"card", 8 * 1024}, {"httpd", 12 * 1024}, {"lvgl", 24 * 1024},
-                {"audio", 4096},     {"wifi", 4096},     {"stats", 6 * 1024}};
+                {"audio", 4096},     {"wifi", 4096},     {"stats", 6 * 1024}, {"mqtt_task", 6 * 1024}};
   std::vector<StackUse> out;
   for (const auto& t : kTasks) {
     TaskHandle_t h = xTaskGetHandle(t.name);

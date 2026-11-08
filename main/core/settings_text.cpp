@@ -199,6 +199,15 @@ const Field kFields[] = {
     STR(local_url, "Your receiver (readsb, tar1090, dump1090, SkyAware): its address, e.g. 192.168.1.50 or http://pi.local:8080"),
     BOOL(local_fallback, "When your receiver doesn't answer, use the online feeds"),
 
+    SECTION("Home Assistant (MQTT)"),
+    BOOL(mqtt_enabled, "Send the radar's traffic to an MQTT broker (Home Assistant's Mosquitto add-on, for one)"),
+    STR(mqtt_host, "The broker: its address, e.g. 192.168.1.20 or homeassistant.local"),
+    U16(mqtt_port, 1, 65535, nullptr),
+    STR(mqtt_user, "User name and password, if the broker asks for them"),
+    STR(mqtt_pass, nullptr),
+    STR(mqtt_topic, "Topics start with this, e.g. plane_radar/state"),
+    BOOL(mqtt_discovery, "Announce the sensors to Home Assistant (they appear by themselves)"),
+
     SECTION("Daily log"),
     F32(log_radius_km, 1, 400, "Count aircraft within this distance of home, in km"),
 
@@ -719,6 +728,7 @@ std::string toJson(const Settings& s) {
       continue;
     }
     if (skip) continue;
+    if (f.offset == offsetof(Settings, mqtt_pass) && f.kind == Kind::Str) continue;  // passwords stay off the page
     if (!first_field) out += ",";
     first_field = false;
     std::string type, extra;

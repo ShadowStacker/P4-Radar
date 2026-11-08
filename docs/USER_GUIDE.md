@@ -657,6 +657,46 @@ aircraft are always shown on the radar, whatever the [filters](#filters).
 Like favorites, aircraft are only seen inside the area the radar is fetching,
 roughly what's on screen. To watch a wide area, zoom out.
 
+### Home Assistant (MQTT)
+
+*Settings → Home Assistant (MQTT)* sends the radar's traffic to an MQTT broker,
+such as Home Assistant's **Mosquitto broker** add-on. Turn it on, enter the
+broker's address (and a user name and password if it asks for them), and leave
+*Add the sensors to Home Assistant* on: a **Plane Radar** device appears in
+Home Assistant by itself (Settings → Devices & services → MQTT), with:
+
+| Entity | What it shows |
+|---|---|
+| Aircraft nearby | How many aircraft the radar shows now |
+| Nearest aircraft | Its callsign, with its type, distance and height as attributes |
+| Nearest aircraft distance / altitude | In the radar's units / in feet |
+| Aircraft emergency | On while an aircraft squawks an emergency |
+| Aircraft alert | An event for each alert: `favorite_seen`, `favorite_near`, `watchlist`, `emergency`, `first_time` |
+
+An automation that flashes a light when a favorite comes near:
+
+```yaml
+automation:
+  - alias: "Favorite aircraft overhead"
+    trigger:
+      - platform: state
+        entity_id: event.plane_radar_aircraft_alert
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.attributes.event_type == 'favorite_near' }}"
+    action:
+      - service: light.turn_on
+        target: { entity_id: light.living_room }
+        data: { flash: short }
+```
+
+Without Home Assistant, any MQTT client can read the topics (they start with
+*mqtt_topic*, `plane_radar` unless changed): `plane_radar/state` (JSON, kept
+by the broker), `plane_radar/event` (one JSON message per alert) and
+`plane_radar/status` (`online` / `offline`). The same settings are in
+settings.txt and on the phone page: `mqtt_enabled`, `mqtt_host`, `mqtt_port`,
+`mqtt_user`, `mqtt_pass`, `mqtt_topic`, `mqtt_discovery`.
+
 ### Phone settings page
 
 Change settings from a phone or computer instead of the touch screen. That's

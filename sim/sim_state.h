@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "platform/platform.h"
 
@@ -39,5 +40,12 @@ extern plat::WebHandler g_web_handler;
 /** Bytes of firmware "written" by the last upload, and whether it was committed. */
 extern size_t g_firmware_written;
 extern bool g_firmware_committed;
+
+/** MQTT messages "sent" (to a broker that's always there). */
+struct MqttSent {
+  std::string topic, payload;
+  bool retain;
+};
+extern std::vector<MqttSent> g_mqtt_sent;
 
 }  // namespace sim

@@ -31,6 +31,7 @@ std::string g_out_dir = "sim_out";
 std::function<std::string(const std::string&)> g_trace_server;
 std::function<std::string(const std::string&)> g_route_server;
 plat::WebHandler g_web_handler;
+std::vector<MqttSent> g_mqtt_sent;
 size_t g_firmware_written = 0;
 bool g_firmware_committed = false;
 }  // namespace sim
@@ -410,6 +411,34 @@ void confirmFirmware() {}
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }
 
 uint32_t largeAllocsRefused() { return 0; }
+
+// MQTT: "connected" as soon as it's started with a host; messages are kept
+// for the sim's checks (sim::g_mqtt_sent).
+namespace {
+MqttConfig s_mqtt_cfg;
+uint32_t s_mqtt_connects = 0;
+}  // namespace
+
+void mqttStart(const MqttConfig& cfg) {
+  const bool changed = cfg.host != s_mqtt_cfg.host || cfg.port != s_mqtt_cfg.port || cfg.user != s_mqtt_cfg.user ||
+                       cfg.pass != s_mqtt_cfg.pass || cfg.will_topic != s_mqtt_cfg.will_topic;
+  s_mqtt_cfg = cfg;
+  if (changed && !cfg.host.empty()) {
+    ++s_mqtt_connects;
+    sim::g_mqtt_sent.push_back({cfg.will_topic, "online", true});
+  }
+}
+
+bool mqttConnected() { return !s_mqtt_cfg.host.empty(); }
+
+uint32_t mqttConnects() { return s_mqtt_cfg.host.empty() ? 0 : s_mqtt_connects; }
+
+void mqttPublish(const std::string& topic, const std::string& payload, bool retain) {
+  if (s_mqtt_cfg.host.empty()) return;
+  sim::g_mqtt_sent.push_back({topic, payload, retain});
+}
+
+std::string deviceId() { return "plane_radar_5150f0"; }
 
 std::vector<StackUse> stackUse() {
   // The desktop has no fixed task stacks; made-up figures for the About page screenshot.

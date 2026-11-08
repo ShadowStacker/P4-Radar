@@ -55,6 +55,7 @@
 #include "core/wav.h"
 #include "core/net_watch.h"
 #include "core/mem_history.h"
+#include "core/mqtt.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "data/jpeg_fixtures.h"
@@ -1992,6 +1993,62 @@ void testNightWindow() {
   CHECK(t.night_from_min == 21 * 60 + 15 && t.night_to_min == 6 * 60 + 5 && problems.size() == 1);
 }
 
+void testMqtt() {
+  namespace mq = core::mqtt;
+  CHECK(mq::cleanPrefix("") == "plane_radar" && mq::cleanPrefix(" /home/radar/ ") == "home/radar" &&
+        mq::cleanPrefix("a+b#c") == "abc" && mq::stateTopic("x") == "x/state" && mq::statusTopic("x") == "x/status");
+  mq::State st;
+  st.count = 12;
+  st.emergencies = 1;
+  st.source = "adsb.fi";
+  st.units = "mi";
+  st.nearest.valid = true;
+  st.nearest.name = "N911ZR";
+  st.nearest.hex = "ac9cb1";
+  st.nearest.type = "EC35";
+  st.nearest.distance = 2.4;
+  st.nearest.alt_ft = 1200;
+  st.nearest.alt_valid = true;
+  const std::string js = mq::stateJson(st);
+  cJSON* root = cJSON_Parse(js.c_str());
+  CHECK(root != nullptr);
+  if (root) {
+    const cJSON* n = cJSON_GetObjectItem(root, "nearest");
+    CHECK(cJSON_GetObjectItem(root, "count")->valueint == 12 && cJSON_IsTrue(cJSON_GetObjectItem(root, "emergency")) &&
+          n && std::string(cJSON_GetObjectItem(n, "name")->valuestring) == "N911ZR" &&
+          cJSON_GetObjectItem(n, "distance")->valuedouble == 2.4 && cJSON_GetObjectItem(n, "altitude_ft")->valueint == 1200);
+    cJSON_Delete(root);
+  }
+  mq::State none;
+  root = cJSON_Parse(mq::stateJson(none).c_str());
+  CHECK(root && cJSON_IsNull(cJSON_GetObjectItem(root, "nearest")) && cJSON_IsFalse(cJSON_GetObjectItem(root, "emergency")));
+  cJSON_Delete(root);
+  root = cJSON_Parse(mq::eventJson("watchlist", "RCH123", "C17", "military, 12 mi").c_str());
+  CHECK(root && std::string(cJSON_GetObjectItem(root, "event_type")->valuestring) == "watchlist");
+  cJSON_Delete(root);
+  // Discovery: six entities on one device, all valid JSON, retained, under homeassistant/.
+  const auto msgs = mq::discovery("plane_radar", "plane_radar_5150f0", "1.46.0", "mi");
+  bool all_ok = msgs.size() == 6;
+  for (const auto& m : msgs) {
+    cJSON* c = cJSON_Parse(m.payload.c_str());
+    all_ok = all_ok && c && m.retain && m.topic.rfind("homeassistant/", 0) == 0 &&
+             m.topic.find("/plane_radar_5150f0/") != std::string::npos &&
+             cJSON_GetObjectItem(c, "unique_id") && cJSON_GetObjectItem(c, "device") &&
+             std::string(cJSON_GetObjectItem(c, "availability_topic")->valuestring) == "plane_radar/status";
+    cJSON_Delete(c);
+  }
+  CHECK(all_ok && msgs[0].topic == "homeassistant/sensor/plane_radar_5150f0/count/config");
+  CHECK(msgs[5].topic == "homeassistant/event/plane_radar_5150f0/alert/config" &&
+        msgs[2].payload.find("\"unit_of_measurement\":\"mi\"") != std::string::npos);
+  // settings.txt has the MQTT keys; the phone page's JSON never shows the password.
+  core::Settings s;
+  std::vector<std::string> problems;
+  core::settings_text::parse("mqtt_enabled = on\nmqtt_host = 192.168.1.20\nmqtt_port = 1884\nmqtt_pass = secret\n", &s,
+                             &problems);
+  CHECK(s.mqtt_enabled && std::strcmp(s.mqtt_host, "192.168.1.20") == 0 && s.mqtt_port == 1884 && problems.empty());
+  CHECK(core::settings_text::toJson(s).find("secret") == std::string::npos);
+}
+
 void testLocalReceiver() {
   using core::DataSource;
   using C = core::SourceFailover::Change;
@@ -2542,6 +2599,7 @@ int main() {
   testRoute();
   testSettingsText();
   testUpdate();
+  testMqtt();
   testLocalReceiver();
   testFailover();
   testNightWindow();

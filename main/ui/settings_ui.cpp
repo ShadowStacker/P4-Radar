@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "app/app.h"
+#include "app/mqtt_bridge.h"
+#include "core/mqtt.h"
 #include "app/maps.h"
 #include "app/web.h"
 #include "core/adsb.h"
@@ -323,6 +325,8 @@ void pageMain() {
   navRow(LV_SYMBOL_EYE_CLOSE, "Hidden aircraft",
          app::hiddenCount() ? fmtStr("%u", static_cast<unsigned>(app::hiddenCount())) : std::string(), Page::Hidden);
   navRow(LV_SYMBOL_BELL, "Watchlist alerts", core::watchActive(st) ? "On" : "Off", Page::Watchlist);
+  navRow(LV_SYMBOL_SHUFFLE, "Home Assistant (MQTT)", st.mqtt_enabled ? app::mqtt::status() : std::string("Off"),
+         Page::HomeAssistant);
   navRow(LV_SYMBOL_CALL, "Phone settings page", st.web_enabled ? app::web::address() : std::string("Off"),
          Page::Phone);
   navRow(LV_SYMBOL_LIST, "Daily log", fmtStr("%d aircraft today", app::dayLogToday().count()), Page::DayLog);
@@ -2110,6 +2114,52 @@ void memBars(const std::vector<lv_obj_t*>& bars, bool psram) {
   }
 }
 
+void pageHomeAssistant() {
+  auto& st = app::settings();
+  switchRow("Send traffic to Home Assistant", &st.mqtt_enabled);
+  lv_obj_t* status = infoRow("Status", app::mqtt::status().c_str());
+  auto edit_row = [](const char* symbol, const std::string& text, const char* title, char* field, size_t size,
+                     InputKind kind) {
+    actionRow(symbol, text.c_str(), [title, field, size, kind] {
+      textInput(title, kind == InputKind::Password ? "" : field, kind, [field, size](const std::string& v) {
+        std::snprintf(field, size, "%s", v.c_str());
+        changed();
+        showPage(Page::HomeAssistant);
+      });
+    }, pal().accent);
+  };
+  edit_row(LV_SYMBOL_EDIT, st.mqtt_host[0] ? fmtStr("Broker: %s", st.mqtt_host) : std::string("Broker: not set"),
+           "Broker address, e.g. 192.168.1.20", st.mqtt_host, sizeof(st.mqtt_host), InputKind::Text);
+  actionRow(LV_SYMBOL_EDIT, fmtStr("Port: %u", static_cast<unsigned>(st.mqtt_port)).c_str(), [] {
+    textInput("Broker port (usually 1883)", std::to_string(app::settings().mqtt_port), InputKind::Number,
+              [](const std::string& v) {
+                const long port = std::strtol(v.c_str(), nullptr, 10);
+                if (port >= 1 && port <= 65535) app::settings().mqtt_port = static_cast<uint16_t>(port);
+                changed();
+                showPage(Page::HomeAssistant);
+              });
+  }, pal().accent);
+  edit_row(LV_SYMBOL_EDIT, st.mqtt_user[0] ? fmtStr("User: %s", st.mqtt_user) : std::string("User: none"),
+           "Broker user name (empty: none)", st.mqtt_user, sizeof(st.mqtt_user), InputKind::Text);
+  edit_row(LV_SYMBOL_EDIT, st.mqtt_pass[0] ? std::string("Password: set") : std::string("Password: none"),
+           "Broker password", st.mqtt_pass, sizeof(st.mqtt_pass), InputKind::Password);
+  switchRow("Add the sensors to Home Assistant", &st.mqtt_discovery);
+  lv_obj_t* note = label(s.list,
+                         fmtStr("Needs an MQTT broker, e.g. Home Assistant's Mosquitto add-on. With the sensors "
+                                "added, Home Assistant shows aircraft nearby, the nearest one with its distance and "
+                                "height, emergencies, and an event for each alert (favorites, watchlist, first-time "
+                                "visitors) to use in automations. Topics: %s/state, %s/event, %s/status.",
+                                core::mqtt::cleanPrefix(st.mqtt_topic).c_str(),
+                                core::mqtt::cleanPrefix(st.mqtt_topic).c_str(),
+                                core::mqtt::cleanPrefix(st.mqtt_topic).c_str())
+                             .c_str(),
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
+  s.tick = [status] { setLabelText(status, app::mqtt::status().c_str()); };
+}
+
 void pageAbout() {
   lv_obj_t* fw = infoRow("Firmware", plat::firmwareVersion());
   (void)fw;
@@ -2420,6 +2470,7 @@ const char* pageTitle(Page p) {
     case Page::SdCard: return "SD card";
     case Page::Phone: return "Phone settings page";
     case Page::Watchlist: return "Watchlist alerts";
+    case Page::HomeAssistant: return "Home Assistant";
     case Page::Silenced: return "Silenced aircraft";
     default: return "Settings";
   }
@@ -2462,6 +2513,7 @@ void showPage(Page page) {
     case Page::SdCard: pageSdCard(); break;
     case Page::Phone: pagePhone(); break;
     case Page::Watchlist: pageWatchlist(); break;
+    case Page::HomeAssistant: pageHomeAssistant(); break;
     case Page::Silenced: pageSilenced(); break;
     default: pageMain(); break;
   }
