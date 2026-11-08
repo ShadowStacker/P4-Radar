@@ -2073,15 +2073,15 @@ const TypeIcon kTypes[] = {
     {"PHIL", Icon::Heli2},  // by class
     {"PHIX", Icon::X_GYRO},  // by class
     {"PHNX", Icon::Light},  // by class
-    {"PIAE", Icon::Light},  // by class
-    {"PIAT", Icon::Ultralight},
+    {"PIAE", Icon::X_PIAT},
+    {"PIAT", Icon::X_PIAT},
     {"PICO", Icon::Light},  // by class
     {"PILL", Icon::Light},  // by class
     {"PINO", Icon::Light},  // by class
     {"PIPA", Icon::X_SR22},
     {"PISI", Icon::X_MOTORGLIDER},
     {"PIT4", Icon::X_MOTORGLIDER},
-    {"PIVE", Icon::Light},  // by class
+    {"PIVE", Icon::X_PIAT},
     {"PIVI", Icon::X_MOTORGLIDER},
     {"PK11", Icon::Light},  // by class
     {"PK15", Icon::Light},  // by class
@@ -3426,6 +3426,7 @@ const IconInfo kInfo[] = {
     {"x_l29", 30},  // X_L29
     {"x_mrf1", 33},  // X_MRF1
     {"x_c408", 37},  // X_C408
+    {"x_piat", 30},  // X_PIAT
     {"x_wilga", 30},  // X_WILGA
     {"x_p750", 31},  // X_P750
 };

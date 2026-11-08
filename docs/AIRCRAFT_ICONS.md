@@ -1,8 +1,8 @@
 # Aircraft icons
 
-The radar draws each aircraft with an icon for its type: **471 icons** for **1145 ICAO type codes**. This page lists them all, generated from the firmware's own table (`scripts/gen_icon_docs.py`).
+The radar draws each aircraft with an icon for its type: **472 icons** for **1147 ICAO type codes**. This page lists them all, generated from the firmware's own table (`scripts/gen_icon_docs.py`).
 
-**How an icon is picked.** The feed gives most aircraft an ICAO type designator (`B738`, `C172`, `H60`). If the code is in the table, that icon is used; close variants share one (737-800, MAX 8 and P-8 are one icon). Every other ICAO type code (another 1784) gets the icon of its class from ICAO Doc 8643: a light single, light twin, turboprop, business jet, helicopter and so on (those codes are not listed below). If the feed has no type, or one not in ICAO's list, the aircraft gets a [size class](#size-classes-when-the-type-is-unknown) icon from its ADS-B emitter category (light, large, heavy, rotorcraft, glider...).
+**How an icon is picked.** The feed gives most aircraft an ICAO type designator (`B738`, `C172`, `H60`). If the code is in the table, that icon is used; close variants share one (737-800, MAX 8 and P-8 are one icon). Every other ICAO type code (another 1782) gets the icon of its class from ICAO Doc 8643: a light single, light twin, turboprop, business jet, helicopter and so on (those codes are not listed below). If the feed has no type, or one not in ICAO's list, the aircraft gets a [size class](#size-classes-when-the-type-is-unknown) icon from its ADS-B emitter category (light, large, heavy, rotorcraft, glider...).
 
 **Size.** Icons are drawn at the sizes below (pixels on the 800 px screen at 100 % aircraft size), from the aircraft's real size: a Robinson R22 is small, an A380 big. *Settings > Display > Aircraft size* scales them all, and zoomed out with many aircraft a smaller set is used.
 
@@ -15,7 +15,7 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 - [Airliners and regional jets](#airliners-and-regional-jets) (72)
 - [Regional turboprops](#regional-turboprops) (17)
 - [Business jets](#business-jets) (46)
-- [Light aircraft: singles](#light-aircraft-singles) (48)
+- [Light aircraft: singles](#light-aircraft-singles) (49)
 - [Light aircraft: twins and utility](#light-aircraft-twins-and-utility) (32)
 - [Classic airliners and transports](#classic-airliners-and-transports) (20)
 - [Warbirds and classic fighters](#warbirds-and-classic-fighters) (37)
@@ -228,6 +228,7 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_dhc1.svg" width="48" height="48" alt="x_dhc1"> | DHC-1 Chipmunk, Ryan PT-22, Fairchild PT-19 | `DHC1` `FA62` `PT22` `YALE` | 30 px |
 | <img src="icons/x_t34.svg" width="48" height="48" alt="x_t34"> | Beech T-34 Mentor | `CT4` `HT34` `T34` `T34P` `T34T` `TB30` | 29 px |
 | <img src="icons/x_rs12.svg" width="48" height="48" alt="x_rs12"> | RANS S-12 / S-14 and open pusher ultralights | `CHAL` `RS12` `RS14` | 29 px |
+| <img src="icons/x_piat.svg" width="48" height="48" alt="x_piat"> | Pipistrel Alpha Trainer / Velis Electro | `PIAE` `PIAT` `PIVE` | 30 px |
 | <img src="icons/x_wilga.svg" width="48" height="48" alt="x_wilga"> | PZL-104 Wilga | `PZ04` | 30 px |
 | <img src="icons/x_p750.svg" width="48" height="48" alt="x_p750"> | PAC 750XL / Cresco / Fletcher | `CRES` `FU24` `P750` | 31 px |
 
@@ -571,5 +572,5 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/a7.svg" width="48" height="48" alt="a7"> | A7 rotorcraft (unknown type) | `UHEL` | 38 px |
 | <img src="icons/b0.svg" width="48" height="48" alt="b0"> | B6 unmanned | *(by emitter category)* | 22 px |
 | <img src="icons/b3.svg" width="48" height="48" alt="b3"> | B3 parachutist | *(by emitter category)* | 20 px |
-| <img src="icons/b4.svg" width="48" height="48" alt="b4"> | B4 ultralight | `PIAT` `ULAC` | 28 px |
+| <img src="icons/b4.svg" width="48" height="48" alt="b4"> | B4 ultralight | `ULAC` | 28 px |
 | <img src="icons/c0.svg" width="48" height="48" alt="c0"> | C1-C7 surface vehicles; ground stations | `EMER` `GND` `SERV` `TWR` | 18 px |

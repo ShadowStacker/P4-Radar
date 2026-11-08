@@ -115,6 +115,7 @@ KEY_GROUP = {
     'mrf1': 'Military jets',
     'c408': 'Light aircraft: twins and utility',
     'wilga': 'Light aircraft: singles',
+    'piat': 'Light aircraft: singles',
     'p750': 'Light aircraft: singles',
     'dh8a': 'Regional turboprops', 'cl415': 'Classic airliners and transports', 'sling': 'Light aircraft: singles',
 }

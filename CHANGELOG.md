@@ -10,6 +10,13 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.43.4] - 2026-11-08
+
+### Fixed
+- **The Pipistrel Alpha Trainer (PIAT) looked like a hang glider.** It had the
+  generic ultralight icon. It and the Velis Electro and Alpha Electro now have
+  their own high-wing, T-tail trainer icon.
+
 ## [v1.43.3] - 2026-11-08
 
 ### Fixed

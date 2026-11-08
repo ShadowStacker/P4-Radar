@@ -572,6 +572,8 @@ void testAircraftIcons() {
   // Codes the table used to miss: the Kodiak's K100, the ICON A5, the SeaRey, light sport aircraft.
   CHECK(icon("K100", "A1") == "x_kodi" && icon("A5", "A1") == "x_icona5" && icon("SREY", "A1") == "x_icona5" &&
         icon("FDCT", "A1") == "x_rv12" && icon("PA11", "A1") == "x_j3" && icon("AC11", "A1") == "x_pa24");
+  // The Pipistrel Alpha Trainer is a high-wing two-seater, not a hang glider ("ultralight" icon).
+  CHECK(icon("PIAT", "A1") == "x_piat" && icon("PIVE", "A1") == "x_piat" && icon("ULAC", "B4") == "b4");
   // Types without an icon of their own get their ICAO class's: a light twin, a turboprop, a helicopter...
   CHECK(icon("AP32", "A1") == "g_single_high" && icon("GA7", "A1") == "g_twin_piston" &&
         icon("RLU1", "") == "g_single_high" && icon("EMER", "C1") == "c0" && icon("UHEL", "") == "a7");

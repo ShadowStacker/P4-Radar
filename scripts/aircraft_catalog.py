@@ -1099,6 +1099,9 @@ add('mrf1', 'Dassault Mirage F1', 'MRF1',
 add('c408', 'Cessna SkyCourier / Tecnam P2012 (high-wing twin)', 'C408 P212',
     lambda: prop(22.0, 16.7, 2.3, wpos=0.30, root=2.2, tip=1.6, nacelles=(2.9,), nac_len=3.5, prop_d=3.0, tail=6.0,
                  thalf=3.6, troot=1.6))
+add('piat', 'Pipistrel Alpha Trainer / Velis Electro', 'PIAT PIAE PIVE',
+    lambda: high_single(10.5, 6.5, fw=1.05, root=1.25, tip=0.75, tail=3.2, tail_w=0.22, tpos=0.98, thalf=1.4,
+                        troot=0.75, prop_d=1.75))
 add('wilga', 'PZL-104 Wilga', 'PZ04',
     lambda: high_single(11.1, 8.1, fw=1.4, root=1.75, tip=1.75, prop_d=2.6, tail=3.6))
 add('p750', 'PAC 750XL / Cresco / Fletcher', 'P750 CRES FU24',

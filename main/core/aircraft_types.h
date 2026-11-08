@@ -482,6 +482,7 @@ enum class Icon : uint16_t {
   X_L29,  // Aero L-29 Delfin
   X_MRF1,  // Dassault Mirage F1
   X_C408,  // Cessna SkyCourier / Tecnam P2012 (high-wing twin)
+  X_PIAT,  // Pipistrel Alpha Trainer / Velis Electro
   X_WILGA,  // PZL-104 Wilga
   X_P750,  // PAC 750XL / Cresco / Fletcher
   kCount

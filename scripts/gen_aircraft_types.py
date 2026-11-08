@@ -31,7 +31,7 @@ ICONS = [
  ('Glider','x_glider',32,'B1 glider (a sailplane)',''),
  ('Airship','x_balloon',30,'B2 lighter than air (a hot air balloon)',''),
  ('Parachute','b3',20,'B3 parachutist',''),
- ('Ultralight','b4',28,'B4 ultralight','ULAC PIAT'),
+ ('Ultralight','b4',28,'B4 ultralight','ULAC'),
  ('Ground','c0',18,'C1-C7 surface vehicles; ground stations','TWR GND SERV EMER'),
  # airliners (ADS-B Radar icons)
  ('A320','a320',42,'A320 family, A220, C919','A318 A319 A320 A321 A19N A20N A21N BCS1 BCS3 C919'),
