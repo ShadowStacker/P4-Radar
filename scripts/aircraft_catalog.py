@@ -37,18 +37,19 @@ def jet(span, L, fw, *, wpos=0.38, root=None, tip=None, sweep=27, pods=(0.34,), 
     root = root or span * 0.17
     tip = tip if tip is not None else root * 0.3
     wy = wpos * L
-    s.wing(wy, root, span / 2, sweep, tip)
+    # Swept wings get the straight inboard trailing edge of real airliner wings.
+    s.wing(wy, root, span / 2, sweep, tip, kink=0.32 if sweep >= 18 and not rear else None)
     pod_len = pod_len or L * 0.11
     pod_w = pod_w or fw * 0.5
     for f in pods:
         x = f * span / 2
         le = wy + (x - fw / 2) * tan(sweep)
         y = le + root * 0.25 if over_wing else le - pod_len * 0.45
-        s.jet_pod(x, y, pod_len, pod_w)
+        s.jet_pod(x, y, pod_len, pod_w, pylon=not over_wing)
     if rear:
         xs = [fw / 2 + pod_w * 0.42] if rear in (2, 3) else [fw / 2 + pod_w * 0.42, fw / 2 + pod_w * 1.4]
         for x in xs:
-            s.jet_pod(x, rear_y * L, pod_len, pod_w)
+            s.jet_pod(x, rear_y * L, pod_len, pod_w, pylon=False)  # on the fuselage
     thalf = thalf or span * 0.19
     troot = troot or L * 0.1
     s.wing(tpos * L - troot, troot, thalf, tsweep if tsweep is not None else sweep + 6, troot * 0.42)
@@ -145,7 +146,8 @@ def twin_boom(span, L, *, boom_x, boom_len, boom_w, pod_w, pod_len, wpos=0.35, r
     s.ellipse(boom_x, L - boom_len / 2, boom_w / 2, boom_len / 2, mirror=True)
     sc = stab_chord or L * 0.1
     sy = stab_y if stab_y is not None else L - sc
-    s.poly([(0, sy), (boom_x + boom_w * 0.4, sy), (boom_x + boom_w * 0.4, sy + sc), (0, sy + sc)], mirror=True)
+    s.poly([(0, sy), (boom_x + boom_w * 0.4, sy), (boom_x + boom_w * 0.4, sy + sc), (0, sy + sc)], mirror=True,
+           round_r=sc * 0.3)
     pd = prop_d or span * 0.2
     if props in ('front', 'both') and not jets:
         s.prop(boom_x, L - boom_len - 0.05, pd)
@@ -167,7 +169,7 @@ def canard_pusher(span, L, fw, *, wing_y, root, tip, sweep, canard_y, canard_hal
         x = span / 2
         y = wing_y + (x - fw / 2) * tan(sweep)
         s.poly([(x - span * 0.015, y - tip * 0.3), (x + span * 0.015, y - tip * 0.3), (x + span * 0.015, y + tip),
-                (x - span * 0.015, y + tip)], mirror=True)
+                (x - span * 0.015, y + tip)], mirror=True, round_r=span * 0.012)
     pd = prop_d or span * 0.2
     if twin_engines:
         x, ny, nl = twin_engines
@@ -195,7 +197,7 @@ def fighter(span, L, fw, *, wpos, root, tip, sweep, stab=True, fins=0, canard=No
     if fins:
         fx = fins
         y0 = L * 0.72
-        s.poly([(fx, y0), (fx + 0.25, y0), (fx + 0.6, L * 0.93), (fx + 0.3, L * 0.95)], mirror=True)
+        s.poly([(fx, y0), (fx + 0.25, y0), (fx + 0.6, L * 0.93), (fx + 0.3, L * 0.95)], mirror=True, round_r=0.15)
     if canard:
         cy, ch = canard
         s.wing(cy, ch * 0.7, ch, 45, ch * 0.25)
@@ -216,10 +218,10 @@ def heli(rotor_d, length, body_w, body_end, blades, *, stab=1.0, offset=40, fene
     s.wing(length - 1.4, 0.6, stab, 0, 0.45)
     if stubs:
         s.poly([(body_w * 0.4, r - 0.3), (body_w * 0.4 + stubs, r - 0.1), (body_w * 0.4 + stubs, r + 0.9),
-                (body_w * 0.4, r + 0.9)], mirror=True)
+                (body_w * 0.4, r + 0.9)], mirror=True, round_r=0.3)
     if tail_rotor and not fenestron:
-        s.poly([(bw * 0.5, length - 1.0), (bw * 0.5 + 0.25, length - 1.0), (bw * 0.5 + 0.25, length + 0.0),
-                (bw * 0.5, length + 0.0)])
+        s.poly([(bw * 0.5, length - 1.0), (bw * 0.5 + 0.3, length - 1.0), (bw * 0.5 + 0.3, length + 0.0),
+                (bw * 0.5, length + 0.0)], round_r=0.12)
     s.rotor(0, r, r, blades, rotor_d * 0.04)  # angles by blade count (see Shape.rotor)
     return s
 

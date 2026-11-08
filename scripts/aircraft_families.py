@@ -218,7 +218,7 @@ def _():
     s = Shape(17.5, 16.3)
     s.fuselage(1.6, nose=1.6, tail=3.5, tail_width=0.6)
     s.wing(5.6, 3.0, 8.75, 0, 1.6)
-    s.jet_pod(1.9, 8.8, 3.6, 1.5)
+    s.jet_pod(1.9, 8.8, 3.6, 1.5, pylon=False)
     s.wing(14.3, 1.6, 2.8, 0, 1.6)
     s.poly([(2.5, 14.0), (3.0, 14.0), (3.0, 16.2), (2.5, 16.2)], mirror=True)
     return s

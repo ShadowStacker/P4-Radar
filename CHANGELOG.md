@@ -10,6 +10,20 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.40.0] - 2026-11-08
+
+### Changed
+- **Smoother, more detailed aircraft icons.** The generated silhouettes
+  (around 380 of them) are less blocky:
+  - wing, tail and fin tips are rounded instead of square;
+  - swept airliner wings have the straight inboard trailing edge of the real
+    aircraft;
+  - jet engines have a round inlet that tapers to the exhaust, hung on a
+    pylon under the wing;
+  - propellers are drawn as a spinning disc with a spinner;
+  - helicopter blades taper toward the tips.
+  Each icon still matches the same aircraft types as before.
+
 ## [v1.39.1] - 2026-11-08
 
 ### Fixed

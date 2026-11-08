@@ -23,10 +23,28 @@ class Shape:
     def P(self, x, y):
         return (self.cx + x * self.s, self.top + y * self.s)
 
-    def poly(self, pts, mirror=False):
+    def poly(self, pts, mirror=False, round_r=0.0):
+        """A filled polygon; `round_r` (metres) rounds its corners (wing and tail tips, fins)."""
         for sign in ((1, -1) if mirror else (1,)):
             q = [self.P(sign * x, y) for x, y in pts]
-            d = 'M ' + ' L '.join(f'{a:.1f} {b:.1f}' for a, b in q) + ' Z'
+            if round_r <= 0 or len(q) < 3:
+                d = 'M ' + ' L '.join(f'{a:.1f} {b:.1f}' for a, b in q) + ' Z'
+            else:
+                r = round_r * self.s
+                segs = []
+                n = len(q)
+                for i in range(n):
+                    p0, p1, p2 = q[i - 1], q[i], q[(i + 1) % n]
+                    l1 = math.hypot(p0[0] - p1[0], p0[1] - p1[1]) or 1.0
+                    l2 = math.hypot(p2[0] - p1[0], p2[1] - p1[1]) or 1.0
+                    t1, t2 = min(r / l1, 0.45), min(r / l2, 0.45)
+                    a = (p1[0] + (p0[0] - p1[0]) * t1, p1[1] + (p0[1] - p1[1]) * t1)
+                    b = (p1[0] + (p2[0] - p1[0]) * t2, p1[1] + (p2[1] - p1[1]) * t2)
+                    segs.append((a, p1, b))
+                d = f'M {segs[0][2][0]:.1f} {segs[0][2][1]:.1f}'
+                for a, c, b in segs[1:] + segs[:1]:
+                    d += f' L {a[0]:.1f} {a[1]:.1f} Q {c[0]:.1f} {c[1]:.1f} {b[0]:.1f} {b[1]:.1f}'
+                d += ' Z'
             self.parts.append(f'<path d="{d}"/>')
 
     def ellipse(self, x, y, rx, ry, mirror=False, angle=0):
@@ -55,23 +73,54 @@ class Shape:
         full = pts + [(-x, y) for x, y in reversed(pts)]
         self.poly(full)
 
-    def wing(self, root_le, root_chord, half_span, sweep_deg, tip_chord, root_x=0.0, dihedral_y=0.0):
-        """Left/right pair; `root_le` metres back from the nose; sweep of the leading edge."""
-        dx = half_span - root_x
-        tip_le = root_le + dx * math.tan(math.radians(sweep_deg)) + dihedral_y
-        pts = [(root_x, root_le), (half_span, tip_le), (half_span, tip_le + tip_chord), (root_x, root_le + root_chord)]
-        self.poly(pts, mirror=True)
+    def wing(self, root_le, root_chord, half_span, sweep_deg, tip_chord, root_x=0.0, dihedral_y=0.0, kink=None,
+             round_tip=None):
+        """Left/right pair; `root_le` metres back from the nose; sweep of the leading edge.
 
-    def jet_pod(self, x, y, length, width, mirror=True):
-        self.ellipse(x, y + length / 2, width / 2, length / 2, mirror=mirror)
+        `kink`: fraction of the half span out to which the trailing edge runs
+        straight across from the body (the inboard "Yehudi" of airliner wings),
+        before sweeping back to the tip. Tips are rounded (`round_tip` metres,
+        default about half the tip chord).
+        """
+        dx = half_span - root_x
+        tsw = math.tan(math.radians(sweep_deg))
+        tip_le = root_le + dx * tsw + dihedral_y
+        r = round_tip if round_tip is not None else tip_chord * 0.5
+        if kink:
+            xk = root_x + dx * kink
+            le_k = root_le + (xk - root_x) * tsw
+            c_k = root_chord + (tip_chord - root_chord) * kink
+            te_k = le_k + c_k
+            te_root = max(te_k, root_le + root_chord)
+            pts = [(root_x, root_le), (half_span, tip_le), (half_span, tip_le + tip_chord), (xk, te_k), (root_x, te_root)]
+        else:
+            pts = [(root_x, root_le), (half_span, tip_le), (half_span, tip_le + tip_chord), (root_x, root_le + root_chord)]
+        self.poly(pts, mirror=True, round_r=r)
+
+    def jet_pod(self, x, y, length, width, mirror=True, pylon=True):
+        """An engine pod: round inlet in front, tapering to the exhaust; on a pylon to the wing behind it."""
+        if pylon:
+            pw = width * 0.28
+            self.poly([(x - pw / 2, y + length * 0.5), (x + pw / 2, y + length * 0.5), (x + pw / 2, y + length * 1.15),
+                       (x - pw / 2, y + length * 1.15)], mirror=mirror, round_r=pw * 0.4)
+        w = width / 2
+        pts = []
+        n = 12
+        for i in range(n + 1):  # front half: elliptical inlet lip
+            t = i / n * math.pi / 2
+            pts.append((w * math.sin(t), length * 0.45 * (1 - math.cos(t))))
+        pts += [(w * 0.92, length * 0.7), (w * 0.62, length)]
+        full = [(x + px, y + py) for px, py in pts] + [(x - px, y + py) for px, py in reversed(pts)]
+        self.poly(full, mirror=mirror, round_r=w * 0.25)
 
     def prop(self, x, y, diameter, mirror=True, thick=None):
-        """A propeller disc seen from above: a thin bar across."""
+        """A spinning propeller seen from above: a thin disc tapering to its tips, with a spinner."""
         big = max(self.span, self.length)
-        t = thick if thick is not None else max(diameter * 0.08, big * 0.045)
-        d = max(diameter * 1.15, big * 0.16)
-        self.poly([(x - d / 2, y - t / 2), (x + d / 2, y - t / 2), (x + d / 2, y + t / 2),
-                   (x - d / 2, y + t / 2)], mirror=mirror and x != 0)
+        t = thick if thick is not None else max(diameter * 0.08, big * 0.04)
+        d = max(diameter * 1.1, big * 0.15)
+        for sign in ((1, -1) if mirror and x != 0 else (1,)):
+            self.ellipse(sign * x, y, d / 2, t / 2)
+            self.ellipse(sign * x, y, t * 0.75, t * 0.95)  # spinner
 
     def nacelle(self, x, y, length, width, mirror=True):
         self.ellipse(x, y + length / 2, width / 2, length / 2, mirror=mirror)
@@ -81,9 +130,11 @@ class Shape:
         ux, uy = math.sin(a), -math.cos(a)  # along the blade
         px, py = -uy, ux                    # across
         hw = width / 2
-        pts = [(cx + px * hw, cy + py * hw), (cx + ux * radius + px * hw * 0.7, cy + uy * radius + py * hw * 0.7),
-               (cx + ux * radius - px * hw * 0.7, cy + uy * radius - py * hw * 0.7), (cx - px * hw, cy - py * hw)]
-        self.poly(pts)
+        pts = [(cx + px * hw * 0.8, cy + py * hw * 0.8), (cx + ux * radius * 0.25 + px * hw, cy + uy * radius * 0.25 + py * hw),
+               (cx + ux * radius + px * hw * 0.75, cy + uy * radius + py * hw * 0.75),
+               (cx + ux * radius - px * hw * 0.75, cy + uy * radius - py * hw * 0.75),
+               (cx + ux * radius * 0.25 - px * hw, cy + uy * radius * 0.25 - py * hw), (cx - px * hw * 0.8, cy - py * hw * 0.8)]
+        self.poly(pts, round_r=hw * 0.7)
 
     # Blade angles that keep every blade off the nose and the tail boom (a
     # blade lying along the body just looks like part of it).
