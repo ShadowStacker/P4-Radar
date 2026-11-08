@@ -768,6 +768,12 @@ int main(int argc, char** argv) {
     ui::openSettings(pg.page);
     run(600);
     shot((p + pg.name).c_str());
+    if (pg.page == ui::Page::About) {
+      // The memory graphs further down.
+      if (lv_obj_t* l = findLabel(lv_screen_active(), "Icon cache")) lv_obj_scroll_to_view_recursive(l, LV_ANIM_OFF);
+      run(300);
+      shot((p + "13_settings_about_memory").c_str());
+    }
   }
   ui::closeSettings();
   run(400);

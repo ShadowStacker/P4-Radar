@@ -26,6 +26,17 @@ lv_draw_buf_t** s_bufs = nullptr;
 lv_draw_buf_t*& slot(int set, int k, int idx) { return s_bufs[(set * kKinds + k) * kRotationSteps + idx]; }
 uint8_t s_size[2][kKinds] = {};
 constexpr int kSmallPct = 62;
+// The cache is capped: icons not drawn lately are dropped (all their headings)
+// when it holds more than this. A day of varied traffic otherwise fills PSRAM.
+constexpr size_t kCacheBudget = 4u * 1024 * 1024;
+constexpr uint32_t kKeepRecentMs = 10000;  // never drop an icon drawn this recently
+struct KindUse {
+  uint32_t last_ms;  // last get()
+  uint32_t bytes;    // its sprites' size
+};
+KindUse* s_use = nullptr;  // [set * kKinds + kind], PSRAM
+size_t s_cache_bytes = 0;
+uint32_t s_now_ms = 0;  // set by trim(), once a frame
 // Each kind's mask (index into data::kIconMasks; kinds may share one), and
 // the masks unpacked so far (alpha, size x size, nose up; PSRAM).
 int16_t s_mask_of[kKinds] = {};
@@ -98,10 +109,16 @@ void init(int scale_pct) {
     if (s_bufs == nullptr) return;
     std::memset(s_bufs, 0, slots * sizeof(lv_draw_buf_t*));
   }
+  if (s_use == nullptr) {
+    s_use = static_cast<KindUse*>(plat::allocLarge(2u * kKinds * sizeof(KindUse)));
+    if (s_use == nullptr) return;
+  }
   for (size_t i = 0; i < slots; ++i) {
     if (s_bufs[i] != nullptr) destroyImageBuf(s_bufs[i]);
     s_bufs[i] = nullptr;
   }
+  std::memset(s_use, 0, 2u * kKinds * sizeof(KindUse));
+  s_cache_bytes = 0;
   // Which mask each kind uses; the masks are unpacked when first needed.
   if (s_mask_px.empty()) {
     s_mask_px.resize(static_cast<size_t>(data::kIconMaskCount));
@@ -368,8 +385,10 @@ const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small) {
   if (h < 0) h += 360.0f;
   const int idx = static_cast<int>(std::lround(h / (360.0f / kRotationSteps))) % kRotationSteps;
   const int set = small ? 1 : 0;
-  if (s_bufs == nullptr) return nullptr;
+  if (s_bufs == nullptr || s_use == nullptr) return nullptr;
   lv_draw_buf_t*& buf = slot(set, k, idx);
+  KindUse& use = s_use[set * kKinds + k];
+  use.last_ms = s_now_ms;
   int msize = 0;
   const uint8_t* mask = buf == nullptr ? maskFor(k, &msize) : nullptr;
   if (mask != nullptr) {
@@ -381,10 +400,43 @@ const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small) {
     if (buf != nullptr) {
       core::sprite::rotateMask(mask, msize, buf->data, sz, static_cast<int>(buf->header.stride),
                                idx * (360.0f / kRotationSteps));
+      use.bytes += buf->data_size;
+      s_cache_bytes += buf->data_size;
     }
   }
   return buf;
 }
+
+void trim(uint32_t now_ms) {
+  s_now_ms = now_ms;
+  if (s_bufs == nullptr || s_use == nullptr || s_cache_bytes <= kCacheBudget) return;
+  // Drop the icons drawn longest ago until a quarter of the budget is free.
+  // (Outside drawing only: LVGL may still hold a sprite until a frame is done.)
+  const size_t target = kCacheBudget * 3 / 4;
+  while (s_cache_bytes > target) {
+    int oldest = -1;
+    for (int i = 0; i < 2 * kKinds; ++i) {
+      const KindUse& u = s_use[i];
+      if (u.bytes == 0 || now_ms - u.last_ms < kKeepRecentMs) continue;
+      if (oldest < 0 || static_cast<int32_t>(u.last_ms - s_use[oldest].last_ms) < 0) oldest = i;
+    }
+    if (oldest < 0) return;  // everything cached is on screen now
+    for (int idx = 0; idx < kRotationSteps; ++idx) {
+      lv_draw_buf_t*& b = s_bufs[oldest * kRotationSteps + idx];
+      if (b != nullptr) destroyImageBuf(b);
+      b = nullptr;
+    }
+    s_cache_bytes -= s_use[oldest].bytes;
+    s_use[oldest].bytes = 0;
+    // Its unpacked mask too (16 KB at 128 px), unless another cached icon uses it.
+    const int m = s_mask_of[oldest % kKinds];
+    bool shared = false;
+    for (int i = 0; m >= 0 && i < 2 * kKinds && !shared; ++i) shared = s_use[i].bytes > 0 && s_mask_of[i % kKinds] == m;
+    if (m >= 0 && !shared) std::string().swap(s_mask_px[static_cast<size_t>(m)]);
+  }
+}
+
+size_t cacheBytes() { return s_cache_bytes; }
 
 Kind kindFor(const char* type, const char* category) { return core::aircraft::iconFor(type, category); }
 

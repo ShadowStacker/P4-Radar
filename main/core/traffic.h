@@ -108,8 +108,13 @@ class TrafficStore {
   static constexpr uint32_t kDropAfterMs = 45000;
   static constexpr size_t kMaxTracks = 400;
 
+  /**
+   * Merges a fetch. Aircraft not reported for kDropAfterMs are dropped first;
+   * past kMaxTracks the ones nearest `focus` (the area asked for) are kept,
+   * replacing aircraft that weren't in this fetch.
+   */
   UpdateEvents update(const std::vector<Aircraft>& fresh, uint32_t now_ms, const AlertZone& zone,
-                      const FavoriteWatch& watch = {});
+                      const FavoriteWatch& watch = {}, const LatLon* focus = nullptr);
   /** Copies all tracks. Returns the version the copy corresponds to. */
   uint32_t snapshot(std::vector<Track>& out) const;
   uint32_t version() const;

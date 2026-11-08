@@ -753,7 +753,12 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
     watch.watch = [](const core::Aircraft& a) { return core::watchReason(a, s_settings); };
     watch.watch_radius_km = s_settings.watch_radius_km;
   }
-  const core::UpdateEvents ev = s_traffic.update(*parsed, plat::millis(), zone, watch);
+  core::LatLon focus;
+  {
+    std::lock_guard<std::mutex> lock(s_mu);
+    focus = s_query_center;  // a full store keeps the aircraft nearest the area shown
+  }
+  const core::UpdateEvents ev = s_traffic.update(*parsed, plat::millis(), zone, watch, &focus);
 
   // On-screen notices for favorites (shown by the UI task), whatever the sound settings.
   {
@@ -1372,6 +1377,10 @@ bool serviceSdFiles() {
   return true;
 }
 
+core::MemHistory s_mem_history;  // UI task
+
+const core::MemHistory& memHistory() { return s_mem_history; }
+
 void tick(uint32_t now_ms) {
   // A fresh update has run a minute without crashing: keep it (otherwise the
   // next reset goes back to the previous version).
@@ -1383,6 +1392,12 @@ void tick(uint32_t now_ms) {
   if (!s_confirmed && now_ms > 60000) {
     s_confirmed = true;
     plat::confirmFirmware();
+  }
+  static uint32_t s_mem_sample_ms = 0;
+  if (now_ms - s_mem_sample_ms >= 10000 || s_mem_sample_ms == 0) {
+    s_mem_sample_ms = now_ms;
+    s_mem_history.sample(now_ms, static_cast<uint32_t>(plat::freeInternalHeap()),
+                         static_cast<uint32_t>(plat::freePsram()));
   }
   runUiJobs();
   applySettingsFile();

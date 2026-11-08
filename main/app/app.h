@@ -10,6 +10,7 @@
 #include "core/geocode.h"
 #include "core/hidden.h"
 #include "core/logbook.h"
+#include "core/mem_history.h"
 #include "core/geo.h"
 #include "core/route.h"
 #include "core/settings.h"
@@ -112,6 +113,9 @@ struct FeedStatus {
   uint32_t parse_us = 0;  // decoding the last response
 };
 FeedStatus feedStatus();
+
+/** Free memory over the last 24 hours (UI task; sampled every 10 s). */
+const core::MemHistory& memHistory();
 
 // --- Favorites (thread-safe) ---------------------------------------------------
 std::vector<core::Favorite> favorites();

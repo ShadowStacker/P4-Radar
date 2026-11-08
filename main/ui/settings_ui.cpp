@@ -2033,6 +2033,60 @@ void pageUpdates() {
   };
 }
 
+/**
+ * 48 thin bars (half hours, oldest left) with "24 h ago" and "now" under
+ * them: the memory history on the About page. Returns the bars.
+ */
+std::vector<lv_obj_t*> memChart(const char* title) {
+  const Palette& p = pal();
+  const int32_t h = sc(60), w = sc(7), gap = sc(2);
+  lv_obj_t* t = label(s.list, title, font(FontSize::S), p.text_dim);
+  lv_obj_set_style_pad_left(t, sc(56), 0);
+  lv_obj_t* box = lv_obj_create(s.list);
+  lv_obj_remove_style_all(box);
+  const int n = core::MemHistory::kSlots;
+  lv_obj_set_size(box, n * (w + gap), h + sc(26));
+  lv_obj_set_style_margin_left(box, sc(64), 0);
+  lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+  std::vector<lv_obj_t*> bars;
+  for (int i = 0; i < n; ++i) {
+    lv_obj_t* b = lv_obj_create(box);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_style_bg_color(b, p.accent, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_size(b, w, 1);
+    lv_obj_set_pos(b, i * (w + gap), h - 1);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
+    bars.push_back(b);
+  }
+  lv_obj_t* l0 = label(box, "24 h ago", font(FontSize::S), p.text_dim);
+  lv_obj_set_pos(l0, 0, h + sc(4));
+  lv_obj_t* l1 = label(box, "now", font(FontSize::S), p.text_dim);
+  lv_obj_align(l1, LV_ALIGN_TOP_RIGHT, 0, h + sc(4));
+  return bars;
+}
+
+/** Fills memChart() bars from the history (ram or PSRAM), right-aligned; scaled to the top value. */
+void memBars(const std::vector<lv_obj_t*>& bars, bool psram) {
+  const core::MemHistory& m = app::memHistory();
+  const int n = m.count(), slots = static_cast<int>(bars.size());
+  uint32_t top = 1;
+  for (int i = 0; i < n; ++i) top = std::max(top, psram ? m.at(i).psram_min : m.at(i).ram_min);
+  const int32_t h = sc(60);
+  for (int b = 0; b < slots; ++b) {
+    const int i = b - (slots - n);  // slot shown in this bar
+    if (i < 0) continue;
+    const uint32_t v = psram ? m.at(i).psram_min : m.at(i).ram_min;
+    const int32_t bh = std::max<int32_t>(1, static_cast<int32_t>(static_cast<int64_t>(h) * v / top));
+    lv_obj_remove_flag(bars[b], LV_OBJ_FLAG_HIDDEN);
+    if (lv_obj_get_height(bars[b]) != bh) {
+      lv_obj_set_height(bars[b], bh);
+      lv_obj_set_y(bars[b], h - bh);
+    }
+  }
+}
+
 void pageAbout() {
   lv_obj_t* fw = infoRow("Firmware", plat::firmwareVersion());
   (void)fw;
@@ -2048,8 +2102,12 @@ void pageAbout() {
   infoRow("Last restart", boot.reset_reason);
   infoRow("Starts", fmtStr("%u (%u unexpected)", static_cast<unsigned>(boot.boots),
                            static_cast<unsigned>(boot.unexpected_resets)));
+  lv_obj_t* icons = infoRow("Icon cache", "");
+  const std::vector<lv_obj_t*> ram_bars = memChart("Lowest free RAM, each half hour (Wi-Fi needs it)");
+  const std::vector<lv_obj_t*> psram_bars = memChart("Lowest free PSRAM, each half hour");
   switchRow("On-screen stats", &app::settings().show_stats);
   lv_obj_t* note = label(s.list,
+                         "A memory leak shows as bars getting shorter hour after hour. "
                          "Unexpected restarts are crashes, watchdog resets and power dips. On-screen stats show "
                          "frame rate, CPU, memory and more in the lower left corner.\n"
                          "Power-cycling three times in a row within 20 seconds of starting goes back to the "
@@ -2084,7 +2142,17 @@ void pageAbout() {
     lv_obj_set_style_pad_left(credits, sc(16), 0);
   }
 
-  s.tick = [wifi, feed, mem, up] {
+  s.tick = [wifi, feed, mem, up, icons, ram_bars, psram_bars, charted = false, chart_ms = uint32_t{0}]() mutable {
+    if (!charted || plat::millis() - chart_ms >= 10000) {
+      charted = true;
+      chart_ms = plat::millis();
+      memBars(ram_bars, false);
+      memBars(psram_bars, true);
+    }
+    const uint32_t refused = plat::largeAllocsRefused();
+    setLabelText(icons, (fmtStr("%u KB", static_cast<unsigned>(sprites::cacheBytes() / 1024)) +
+                         (refused ? fmtStr(", %u images skipped (PSRAM full)", static_cast<unsigned>(refused)) : std::string()))
+                            .c_str());
     const unsigned secs = static_cast<unsigned>(plat::millis() / 1000);
     setLabelText(up, secs >= 86400 ? fmtStr("%ud %uh %um", secs / 86400, secs / 3600 % 24, secs / 60 % 60).c_str()
                                         : fmtStr("%uh %02um %02us", secs / 3600, secs / 60 % 60, secs % 60).c_str());

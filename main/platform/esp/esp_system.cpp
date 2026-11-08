@@ -1,3 +1,4 @@
+#include <atomic>
 #include <algorithm>
 #include <cstdio>
 #include <functional>
@@ -77,10 +78,18 @@ void restartForNetwork() {
 
 const char* firmwareVersion() { return esp_app_get_description()->version; }
 
+std::atomic<uint32_t> s_large_refused{0};
+
 void* allocLarge(size_t bytes) {
+  // PSRAM only. Falling back to internal RAM when PSRAM is short used to let
+  // image caches eat the RAM Wi-Fi needs (and the link then died); callers
+  // cope with nullptr (an icon or tile is skipped instead).
   void* p = heap_caps_aligned_alloc(64, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  return p != nullptr ? p : heap_caps_aligned_alloc(64, bytes, MALLOC_CAP_8BIT);
+  if (p == nullptr) s_large_refused.fetch_add(1, std::memory_order_relaxed);
+  return p;
 }
+
+uint32_t largeAllocsRefused() { return s_large_refused.load(std::memory_order_relaxed); }
 
 void freeLarge(void* p) { heap_caps_free(p); }
 

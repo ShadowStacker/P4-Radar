@@ -408,6 +408,8 @@ bool installFirmware(const char*, const std::function<void(size_t, size_t)>& pro
 }
 void confirmFirmware() {}
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }
+
+uint32_t largeAllocsRefused() { return 0; }
 void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }

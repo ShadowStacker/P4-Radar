@@ -168,6 +168,8 @@ void confirmFirmware();
  */
 void* allocLarge(size_t bytes);
 void freeLarge(void* p);
+/** allocLarge() calls refused so far (PSRAM full: an icon or tile was skipped). */
+uint32_t largeAllocsRefused();
 
 /**
  * Firmware from a file (uploaded from the phone page), written into the idle

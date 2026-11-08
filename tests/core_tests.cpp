@@ -52,6 +52,7 @@
 #include "core/hidden.h"
 #include "core/wav.h"
 #include "core/net_watch.h"
+#include "core/mem_history.h"
 #include "core/traffic.h"
 #include "core/viewport.h"
 #include "data/jpeg_fixtures.h"
@@ -1010,6 +1011,22 @@ core::Aircraft mk(const char* hex, double lat, double lon, int alt = 3000) {
   return a;
 }
 
+void testMemHistory() {
+  core::MemHistory m;
+  CHECK(m.count() == 0);
+  m.sample(1000, 500, 9000);
+  m.sample(2000, 400, 9500);
+  CHECK(m.count() == 1 && m.at(0).ram_min == 400 && m.at(0).psram_min == 9000);
+  // Next half hour: the first slot is closed, a new one runs.
+  m.sample(1000 + core::MemHistory::kSlotMs, 450, 8000);
+  CHECK(m.count() == 2 && m.at(0).ram_min == 400 && m.at(1).ram_min == 450 && m.at(1).psram_min == 8000);
+  // A day and more later: kSlots slots, oldest first, the newest last.
+  for (int i = 2; i < 100; ++i) m.sample(1000 + i * core::MemHistory::kSlotMs, 1000 + i, 5000);
+  CHECK(m.count() == core::MemHistory::kSlots && m.at(core::MemHistory::kSlots - 1).ram_min == 1099 &&
+        m.at(0).ram_min == 1099 - (core::MemHistory::kSlots - 1));
+  CHECK(m.at(-1).ram_min == 0 && m.at(core::MemHistory::kSlots).ram_min == 0);
+}
+
 void testTraffic() {
   core::TrafficStore store;
   core::AlertZone zone{{52.0, 5.0}, 3.0, 5000};
@@ -1040,6 +1057,41 @@ void testTraffic() {
   store.update({mk("ccc", 52.0, 5.011)}, 6000 + core::TrafficStore::kDropAfterMs + 1, zone);
   store.snapshot(snap);
   CHECK(snap.size() == 1);
+
+  // A full store: more aircraft than fit keeps the ones nearest the area asked for,
+  // and newcomers take the place of aircraft no longer reported (not refused).
+  {
+    core::TrafficStore full;
+    const core::LatLon focus{52.0, 5.0};
+    std::vector<core::Aircraft> many;
+    std::vector<std::string> hexes;
+    for (size_t i = 0; i < core::TrafficStore::kMaxTracks + 50; ++i) {
+      char hex[8];
+      std::snprintf(hex, sizeof(hex), "f%05x", static_cast<unsigned>(i));
+      many.push_back(mk(hex, 52.0 + i * 0.01, 5.0));  // farther and farther north
+    }
+    full.update(many, 1000, {}, {}, &focus);
+    full.snapshot(snap);
+    CHECK(snap.size() == core::TrafficStore::kMaxTracks);
+    bool farthest_out = true, nearest_in = false;
+    for (const auto& t : snap) {
+      if (std::strcmp(t.ac.hex, "f001c1") == 0) farthest_out = false;  // the very last one
+      if (std::strcmp(t.ac.hex, "f00000") == 0) nearest_in = true;
+    }
+    CHECK(farthest_out && nearest_in);
+    // Next fetch: 10 of the old ones gone, 10 new close ones arrive.
+    std::vector<core::Aircraft> next(many.begin() + 10, many.begin() + core::TrafficStore::kMaxTracks);
+    for (int i = 0; i < 10; ++i) {
+      char hex[8];
+      std::snprintf(hex, sizeof(hex), "e%05x", static_cast<unsigned>(i));
+      next.push_back(mk(hex, 52.001, 5.0 + i * 0.001));
+    }
+    full.update(next, 6000, {}, {}, &focus);
+    full.snapshot(snap);
+    int newcomers = 0;
+    for (const auto& t : snap) newcomers += t.ac.hex[0] == 'e';
+    CHECK(snap.size() == core::TrafficStore::kMaxTracks && newcomers == 10);
+  }
 
   // Trail ring buffer keeps the newest kTrailLen points in order.
   core::TrafficStore s2;
@@ -2334,6 +2386,7 @@ int main() {
   testPlaces();
   testReplay();
   testAdsbStreaming();
+  testMemHistory();
   testTraffic();
   testFavorites();
   testFilters();

@@ -10,6 +10,28 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.43.0] - 2026-11-08
+
+### Fixed
+- **Memory slowly filling up over days.** Each aircraft icon is drawn once
+  per 5-degree heading and kept, and the cache had no limit: with hundreds of
+  icon types it kept growing as new types flew by. It is now capped at 4 MB,
+  and the icons not drawn lately are dropped (and drawn again when needed).
+  The unpacked icon outlines go with them.
+- **When PSRAM ran short, large buffers took internal RAM instead,** the RAM
+  Wi-Fi needs. That could end in the "data XXs old / no connection" freeze.
+  They now never do: an image that doesn't fit is skipped instead (Settings >
+  About counts them).
+- **Busy areas: new aircraft could be left off the radar.** The radar keeps up
+  to 400 aircraft. When full, new arrivals were refused while aircraft that
+  had already left still held their places. Those now make room first, and
+  past 400 the aircraft nearest the area shown are kept.
+
+### Added
+- **Memory graphs in Settings > About:** the lowest free RAM and PSRAM in
+  each half hour of the last 24 hours, and the size of the icon cache. A leak
+  shows as bars getting shorter hour after hour.
+
 ## [v1.42.0] - 2026-11-08
 
 ### Added

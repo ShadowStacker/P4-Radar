@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "core/aircraft_types.h"
 #include "lvgl.h"
 
@@ -25,6 +27,14 @@ void init(int scale_pct = 100);
 const lv_draw_buf_t* get(Kind kind, float heading_deg, bool small = false);
 /** Sprite edge length in px (sprites are square, centered on the aircraft). */
 int32_t size(Kind kind, bool small = false);
+
+/**
+ * Once a frame, outside drawing: keeps the sprite cache under its budget by
+ * dropping the icons drawn longest ago (they are made again when needed).
+ */
+void trim(uint32_t now_ms);
+/** Bytes of sprites cached now. */
+size_t cacheBytes();
 
 /**
  * White five-pointed star, `size` px square, for favorites (the built-in

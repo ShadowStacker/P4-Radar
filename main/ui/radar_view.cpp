@@ -343,6 +343,7 @@ void RadarView::frame() {
   const uint32_t now = plat::millis();
   const uint32_t dt = now - last_frame_ms_;
   last_frame_ms_ = now;
+  sprites::trim(now);  // before this frame's drawing: no sprite is in use now
   const auto& st = app::settings();
 
   const bool animating = vp_.update(now);

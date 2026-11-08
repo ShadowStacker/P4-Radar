@@ -45,12 +45,39 @@ LatLon positionAt(const Track& t, uint32_t now_ms) {
 }
 
 UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t now_ms,
-                                  const AlertZone& zone, const FavoriteWatch& watch) {
+                                  const AlertZone& zone, const FavoriteWatch& watch, const LatLon* focus) {
   UpdateEvents ev;
   std::lock_guard<std::mutex> lock(mu_);
   const bool first = (version_ == 0);
 
-  for (const Aircraft& a : fresh) {
+  // Forget aircraft that have not been reported for a while - first, so they
+  // don't keep newcomers out when the store is full.
+  size_t w = 0;
+  for (size_t r = 0; r < tracks_.size(); ++r) {
+    if (now_ms - tracks_[r].last_seen_ms <= kDropAfterMs) {
+      if (w != r) tracks_[w] = tracks_[r];
+      ++w;
+    }
+  }
+  tracks_.resize(w);
+  tracks_.reserve(kMaxTracks);  // no reallocation below: pointers into it stay valid
+
+  // More than fit (a wide area over a busy region): the nearest ones.
+  std::vector<Aircraft> nearest;
+  const std::vector<Aircraft>* list = &fresh;
+  if (fresh.size() > kMaxTracks && focus != nullptr) {
+    std::vector<std::pair<double, size_t>> by_dist;
+    by_dist.reserve(fresh.size());
+    for (size_t i = 0; i < fresh.size(); ++i) by_dist.emplace_back(distanceKm(*focus, {fresh[i].lat, fresh[i].lon}), i);
+    std::nth_element(by_dist.begin(), by_dist.begin() + kMaxTracks, by_dist.end());
+    by_dist.resize(kMaxTracks);
+    std::sort(by_dist.begin(), by_dist.end(), [](const auto& x, const auto& y) { return x.second < y.second; });
+    nearest.reserve(kMaxTracks);
+    for (const auto& d : by_dist) nearest.push_back(fresh[d.second]);
+    list = &nearest;
+  }
+
+  for (const Aircraft& a : *list) {
     const bool quiet = watch.silenced != nullptr && containsHex(*watch.silenced, a.hex);
     Track* t = nullptr;
     for (Track& existing : tracks_) {
@@ -60,9 +87,20 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       }
     }
     if (t == nullptr) {
-      if (tracks_.size() >= kMaxTracks) continue;
-      tracks_.emplace_back();
-      t = &tracks_.back();
+      if (tracks_.size() < kMaxTracks) {
+        tracks_.emplace_back();
+        t = &tracks_.back();
+      } else {
+        // Full: take the place of the aircraft reported longest ago that
+        // isn't in this fetch (it is about to drop out anyway).
+        for (Track& old : tracks_) {
+          if (old.last_seen_ms != now_ms && (t == nullptr || static_cast<int32_t>(old.last_seen_ms - t->last_seen_ms) < 0)) {
+            t = &old;
+          }
+        }
+        if (t == nullptr) continue;
+        *t = Track();
+      }
       t->first_seen_ms = now_ms;
       if (!first && !quiet) ++ev.new_aircraft;
       if (a.emergency) ++ev.new_emergencies;
@@ -101,16 +139,6 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
       }
     }
   }
-
-  // Forget aircraft that have not been reported for a while.
-  size_t w = 0;
-  for (size_t r = 0; r < tracks_.size(); ++r) {
-    if (now_ms - tracks_[r].last_seen_ms <= kDropAfterMs) {
-      if (w != r) tracks_[w] = tracks_[r];
-      ++w;
-    }
-  }
-  tracks_.resize(w);
 
   ++version_;
   last_update_ms_ = now_ms;
