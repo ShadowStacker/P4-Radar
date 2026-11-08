@@ -6,6 +6,8 @@
 #include <atomic>
 #include <cmath>
 #include <thread>
+#include <map>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -434,6 +436,60 @@ void testLogbook() {
   CHECK(again.aircraft() == 2 && again.visits() == 2 && again.startDate() == 20261101);
   const lb::Entry* r = again.find(0xa1b2c3);
   CHECK(r && r->visits == 1 && std::strcmp(r->label, "KLM34") == 0);  // the first line came before this csv
+  // A big book, lines out of order: the same result as adding them one by one would give.
+  {
+    struct Ref {
+      uint32_t first_date = 0, visits = 0;
+      int64_t first_s = INT64_MAX, last_s = INT64_MIN;
+      std::string label, type;
+    };
+    std::map<uint32_t, Ref> ref;
+    lb::Book big;
+    uint32_t seed = 12345;
+    auto rnd = [&seed]() { seed = seed * 1103515245u + 12345u; return (seed >> 8) & 0xffff; };
+    int min_date = 99999999;
+    for (int i = 0; i < 20000; ++i) {
+      const uint32_t hex = 0x400000 + rnd() % 700;
+      const int day = 1 + static_cast<int>(rnd() % 28);
+      const int date = 20260100 + day;
+      const int64_t t = 1767225600LL + day * 86400LL + rnd() % 80000;
+      const std::string label = "L" + std::to_string(rnd() % 50);
+      const std::string type = (rnd() % 4) ? "B738" : "";
+      char line[160];
+      std::snprintf(line, sizeof(line), "2026-01-%02d,12:00,%06x,%s,,%s,1,%lld", day, static_cast<unsigned>(hex),
+                    label.c_str(), type.c_str(), static_cast<long long>(t));
+      big.loadLine(line, std::strlen(line));
+      Ref& r = ref[hex];
+      ++r.visits;
+      if (t < r.first_s) { r.first_s = t; }
+      if (r.first_date == 0 || static_cast<uint32_t>(date) < r.first_date) r.first_date = static_cast<uint32_t>(date);
+      if (t >= r.last_s) { r.last_s = t; r.label = label; if (!type.empty()) r.type = type; }
+      else if (r.type.empty() && !type.empty()) {}
+      min_date = std::min(min_date, date);
+    }
+    big.loaded();
+    bool same = big.aircraft() == ref.size() && big.visits() == 20000 && big.startDate() == min_date;
+    for (const auto& kv : ref) {
+      const lb::Entry* e = big.find(kv.first);
+      same = same && e && e->visits == kv.second.visits && e->first_s == kv.second.first_s &&
+             e->last_s == kv.second.last_s && e->first_date == kv.second.first_date && kv.second.label == e->label;
+    }
+    CHECK(same);
+    // Speed: 100,000 lines.
+    lb::Book timed;
+    const auto t0c = std::chrono::steady_clock::now();
+    for (int i = 0; i < 100000; ++i) {
+      char line[160];
+      const int n = std::snprintf(line, sizeof(line), "2026-01-05,12:00,%06x,N%d,,C172,1,%d", 0x200000 + i % 30000, i,
+                                  1767600000 + i);
+      timed.loadLine(line, static_cast<size_t>(n));
+    }
+    timed.loaded();
+    const long ms = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - t0c).count());
+    std::printf("  logbook load, 100000 lines: %ld ms\n", ms);
+    CHECK(timed.aircraft() == 30000 && timed.visits() == 100000);
+  }
   // Seen again soon after a restart: not a new visit.
   csv.clear();
   again.observe({ac("3c6444", "DLH4", "A20N")}, t0 + 3800, 20261101, 1003, &csv);

@@ -129,49 +129,117 @@ std::vector<Entry> Book::observe(const std::vector<Aircraft>& near_home, int64_t
   return firsts;
 }
 
-void Book::loadLine(const std::string& line) {
+void Book::loadLine(const char* line, size_t len) {
   // date,time,hex,callsign,registration,type,visit,unix_time
+  if (len > 0 && line[len - 1] == '\r') --len;
   const char* f[8];
-  std::string s = line;
-  if (!s.empty() && s.back() == '\r') s.pop_back();
+  size_t fl[8];
   int n = 0;
-  char* p = &s[0];
-  f[n++] = p;
-  for (; *p != '\0' && n < 8; ++p) {
-    if (*p == ',') {
-      *p = '\0';
-      f[n++] = p + 1;
+  size_t start = 0;
+  for (size_t i = 0; i <= len && n < 8; ++i) {
+    if (i == len || line[i] == ',') {
+      f[n] = line + start;
+      fl[n] = i - start;
+      ++n;
+      start = i + 1;
     }
   }
   if (n < 8) return;
-  int y, m, d;
-  if (std::sscanf(f[0], "%d-%d-%d", &y, &m, &d) != 3) return;
-  const uint32_t hex = parseHex(f[2]);
+  // yyyy-mm-dd
+  if (fl[0] != 10 || f[0][4] != '-' || f[0][7] != '-') return;
+  int date = 0;
+  for (int i : {0, 1, 2, 3, 5, 6, 8, 9}) {
+    if (f[0][i] < '0' || f[0][i] > '9') return;
+    date = date * 10 + (f[0][i] - '0');
+  }
+  char hexbuf[8];
+  if (fl[2] == 0 || fl[2] >= sizeof(hexbuf)) return;
+  std::memcpy(hexbuf, f[2], fl[2]);
+  hexbuf[fl[2]] = '\0';
+  const uint32_t hex = parseHex(hexbuf);
   if (hex == 0) return;
-  const int date = y * 10000 + m * 100 + d;
-  const int64_t t = std::strtoll(f[7], nullptr, 10);
-  if (start_date_ == 0 || date < start_date_) start_date_ = date;
-  Entry* e = findMutable(hex);
-  if (e == nullptr) {
-    Entry ne;
-    ne.hex = hex;
-    ne.first_date = static_cast<uint32_t>(date);
-    ne.first_s = t;
-    recent_.push_back(ne);
-    e = &recent_.back();
+  int64_t t = 0;
+  bool neg = false;
+  size_t i = 0;
+  if (fl[7] > 0 && f[7][0] == '-') {
+    neg = true;
+    i = 1;
   }
-  if (t >= e->last_s) {
-    e->last_s = t;
-    const char* label = f[3][0] ? f[3] : (f[4][0] ? f[4] : f[2]);
-    copyField(e->label, sizeof(e->label), label);
-    if (f[5][0]) copyField(e->type, sizeof(e->type), f[5]);
-  }
-  ++e->visits;
-  ++visits_;
-  if (recent_.size() >= kMergeAt * 16) merge();
+  for (; i < fl[7] && f[7][i] >= '0' && f[7][i] <= '9'; ++i) t = t * 10 + (f[7][i] - '0');
+  if (neg) t = -t;
+
+  Line l;
+  l.hex = hex;
+  l.date = static_cast<uint32_t>(date);
+  l.t = t;
+  l.order = static_cast<uint32_t>(pending_.size());
+  const int li = fl[3] ? 3 : (fl[4] ? 4 : 2);
+  const size_t ln = std::min(fl[li], sizeof(l.label) - 1);
+  std::memcpy(l.label, f[li], ln);
+  l.label[ln] = '\0';
+  const size_t tn = std::min(fl[5], sizeof(l.type) - 1);
+  std::memcpy(l.type, f[5], tn);
+  l.type[tn] = '\0';
+  pending_.push_back(l);
 }
 
-void Book::loaded() { merge(); }
+void Book::loaded() {
+  if (!pending_.empty()) {
+    // One sort, then each aircraft's lines in a row: first and last sighting,
+    // visits, and the label and type of its latest line.
+    std::sort(pending_.begin(), pending_.end(), [](const Line& a, const Line& b) {
+      if (a.hex != b.hex) return a.hex < b.hex;
+      if (a.t != b.t) return a.t < b.t;
+      return a.order < b.order;
+    });
+    std::vector<Entry> folded;
+    for (size_t i = 0; i < pending_.size();) {
+      size_t j = i;
+      Entry e;
+      e.hex = pending_[i].hex;
+      e.first_date = pending_[i].date;
+      e.first_s = pending_[i].t;
+      e.last_s = pending_[i].t;
+      for (; j < pending_.size() && pending_[j].hex == e.hex; ++j) {
+        const Line& l = pending_[j];
+        if (l.date < e.first_date) e.first_date = l.date;
+        if (static_cast<int>(l.date) < start_date_ || start_date_ == 0) start_date_ = static_cast<int>(l.date);
+        e.last_s = l.t;  // sorted by time: the latest wins
+        copyField(e.label, sizeof(e.label), l.label);
+        if (l.type[0]) copyField(e.type, sizeof(e.type), l.type);
+        ++e.visits;
+      }
+      visits_ += e.visits;
+      folded.push_back(e);
+      i = j;
+    }
+    std::vector<Line>().swap(pending_);
+    if (main_.empty() && recent_.empty()) {
+      main_.swap(folded);
+    } else {
+      for (const Entry& f : folded) {  // loading into a book that already has entries
+        Entry* e = findMutable(f.hex);
+        if (e == nullptr) {
+          recent_.push_back(f);
+          continue;
+        }
+        if (f.first_s < e->first_s) {
+          e->first_s = f.first_s;
+          e->first_date = f.first_date;
+        }
+        if (f.last_s >= e->last_s) {
+          e->last_s = f.last_s;
+          copyField(e->label, sizeof(e->label), f.label);
+          if (f.type[0]) copyField(e->type, sizeof(e->type), f.type);
+        }
+        e->visits += f.visits;
+        if (recent_.size() >= kMergeAt * 16) merge();
+      }
+    }
+  }
+  merge();
+}
+
 
 bool Book::learning(int today) const {
   return start_date_ == 0 || today < addDays(start_date_, kLearningDays);
@@ -207,6 +275,7 @@ std::vector<Entry> Book::newest(size_t n) const {
 }
 
 void Book::clear() {
+  pending_.clear();
   main_.clear();
   recent_.clear();
   visits_ = 0;

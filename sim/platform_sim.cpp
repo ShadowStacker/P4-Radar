@@ -410,6 +410,11 @@ void confirmFirmware() {}
 void* allocLarge(size_t bytes) { return std::aligned_alloc(64, (bytes + 63) / 64 * 64); }
 
 uint32_t largeAllocsRefused() { return 0; }
+
+std::vector<StackUse> stackUse() {
+  // The desktop has no fixed task stacks; made-up figures for the About page screenshot.
+  return {{"adsb", 16 * 1024, 9200}, {"card", 8 * 1024, 3100}, {"httpd", 12 * 1024, 4400}, {"lvgl", 24 * 1024, 11800}};
+}
 void freeLarge(void* p) { std::free(p); }
 
 size_t freeInternalHeap() { return 412 * 1024; }

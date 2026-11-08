@@ -246,30 +246,41 @@ void loadLogbook() {
 
 /** Card task: reads logbook.csv (it can be large: off the network task). */
 void loadLogbookNow() {
+  const uint32_t t0 = plat::millis();
   core::logbook::Book book;
   FILE* f = std::fopen(sdPath(kLogbookFile).c_str(), "rb");
   size_t lines = 0;
   if (f != nullptr) {
-    std::string line;
-    char buf[1024];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) {
-      for (size_t i = 0; i < n; ++i) {
-        if (buf[i] == '\n') {
-          book.loadLine(line);
-          line.clear();
-          ++lines;
-        } else {
-          line.push_back(buf[i]);
-        }
+    // Big reads, whole lines handed over in place (it was a byte at a time).
+    std::vector<char> buf(64 * 1024);  // PSRAM
+    size_t have = 0;
+    for (;;) {
+      const size_t n = std::fread(buf.data() + have, 1, buf.size() - have, f);
+      have += n;
+      size_t start = 0;
+      for (size_t i = 0; i < have; ++i) {
+        if (buf[i] != '\n') continue;
+        book.loadLine(buf.data() + start, i - start);
+        ++lines;
+        start = i + 1;
       }
+      if (n == 0) {
+        if (start < have) book.loadLine(buf.data() + start, have - start);  // last line, no newline
+        break;
+      }
+      if (start == 0 && have == buf.size()) {
+        have = 0;  // a "line" longer than the buffer: not a logbook line, skip it
+        continue;
+      }
+      std::memmove(buf.data(), buf.data() + start, have - start);
+      have -= start;
     }
-    if (!line.empty()) book.loadLine(line);
     std::fclose(f);
   }
   book.loaded();
-  std::printf("logbook: %u aircraft, %u visits since %d (%u lines)\n", static_cast<unsigned>(book.aircraft()),
-              static_cast<unsigned>(book.visits()), book.startDate(), static_cast<unsigned>(lines));
+  std::printf("logbook: %u aircraft, %u visits since %d (%u lines, %u ms)\n", static_cast<unsigned>(book.aircraft()),
+              static_cast<unsigned>(book.visits()), book.startDate(), static_cast<unsigned>(lines),
+              static_cast<unsigned>(plat::millis() - t0));
   std::lock_guard<std::mutex> lock(s_book_mu);
   std::swap(s_book, book);
   s_book_loaded = true;
@@ -1404,6 +1415,20 @@ void tick(uint32_t now_ms) {
     s_mem_sample_ms = now_ms;
     s_mem_history.sample(now_ms, static_cast<uint32_t>(plat::freeInternalHeap()),
                          static_cast<uint32_t>(plat::freePsram()));
+  }
+  // Task stacks: how much each has needed so far (two minutes in, then hourly),
+  // so the oversized ones can be made smaller on real numbers.
+  static uint32_t s_stacks_logged_ms = 0;
+  if ((s_stacks_logged_ms == 0 && now_ms > 120000) || (s_stacks_logged_ms != 0 && now_ms - s_stacks_logged_ms >= 3600000)) {
+    s_stacks_logged_ms = now_ms;
+    std::string line;
+    for (const plat::StackUse& u : plat::stackUse()) {
+      char part[48];
+      std::snprintf(part, sizeof(part), "%s%s %.1f/%u KB", line.empty() ? "" : ", ", u.name, u.peak / 1024.0,
+                    static_cast<unsigned>(u.size / 1024));
+      line += part;
+    }
+    std::printf("stacks (peak/size): %s\n", line.c_str());
   }
   runUiJobs();
   applySettingsFile();

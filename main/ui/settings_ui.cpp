@@ -2103,6 +2103,12 @@ void pageAbout() {
   infoRow("Starts", fmtStr("%u (%u unexpected)", static_cast<unsigned>(boot.boots),
                            static_cast<unsigned>(boot.unexpected_resets)));
   lv_obj_t* icons = infoRow("Icon cache", "");
+  lv_obj_t* stacks_title = label(s.list, "Task stacks, most used / size", font(FontSize::S), pal().text_dim);
+  lv_obj_set_style_pad_left(stacks_title, sc(56), 0);
+  lv_obj_t* stacks = label(s.list, "", font(FontSize::S), pal().text);
+  lv_obj_set_width(stacks, lv_pct(80));
+  lv_label_set_long_mode(stacks, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(stacks, sc(56), 0);
   const std::vector<lv_obj_t*> ram_bars = memChart("Lowest free RAM, each half hour (Wi-Fi needs it)");
   const std::vector<lv_obj_t*> psram_bars = memChart("Lowest free PSRAM, each half hour");
   switchRow("On-screen stats", &app::settings().show_stats);
@@ -2142,10 +2148,18 @@ void pageAbout() {
     lv_obj_set_style_pad_left(credits, sc(16), 0);
   }
 
-  s.tick = [wifi, feed, mem, up, icons, ram_bars, psram_bars, charted = false, chart_ms = uint32_t{0}]() mutable {
+  s.tick = [wifi, feed, mem, up, icons, stacks, ram_bars, psram_bars, charted = false, chart_ms = uint32_t{0}]() mutable {
     if (!charted || plat::millis() - chart_ms >= 10000) {
       charted = true;
       chart_ms = plat::millis();
+      std::string text;
+      int i = 0;
+      for (const plat::StackUse& u : plat::stackUse()) {  // two to a line
+        text += fmtStr("%s%s %.1f / %u KB", i == 0 ? "" : (i % 2 ? "      " : "\n"), u.name, u.peak / 1024.0,
+                       static_cast<unsigned>(u.size / 1024));
+        ++i;
+      }
+      setLabelText(stacks, text.empty() ? "-" : text.c_str());
       memBars(ram_bars, false);
       memBars(psram_bars, true);
     }

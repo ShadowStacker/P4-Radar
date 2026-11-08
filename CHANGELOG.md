@@ -10,6 +10,21 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.44.0] - 2026-11-08
+
+### Changed
+- **The logbook loads faster.** logbook.csv was read a byte at a time, and
+  each line was looked up in a list of recent aircraft one by one. Now it is
+  read in 64 KB pieces and all lines are sorted once (about 4x faster on a
+  computer for 100,000 lines; on the board the serial log shows the time).
+
+### Added
+- **Task stack use in Settings > About**, and in the serial log two minutes
+  after start and then hourly: for each of the radar's tasks, the most stack
+  it has used against its size. These are the numbers needed to make the
+  oversized stacks smaller safely (each KB saved goes back to Wi-Fi). The
+  sizes themselves are unchanged in this version.
+
 ## [v1.43.4] - 2026-11-08
 
 ### Fixed

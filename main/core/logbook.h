@@ -47,8 +47,13 @@ class Book {
   std::vector<Entry> observe(const std::vector<Aircraft>& near_home, int64_t unix_s, int date, int time_hhmm,
                              std::string* csv);
 
-  /** Rebuilds the index from logbook.csv, a line at a time (lines that don't parse are skipped). */
-  void loadLine(const std::string& line);
+  /**
+   * Rebuilds the index from logbook.csv, a line at a time (lines that don't
+   * parse are skipped). The lines are only collected here; loaded() sorts
+   * them once and folds them into the index (fast for a book of years).
+   */
+  void loadLine(const std::string& line) { loadLine(line.data(), line.size()); }
+  void loadLine(const char* line, size_t len);
   /** Call after the last loadLine(). */
   void loaded();
 
@@ -73,6 +78,15 @@ class Book {
 
   std::vector<Entry> main_;    // sorted by hex (one big block: PSRAM on the device)
   std::vector<Entry> recent_;  // added since the last merge, unsorted (small)
+  struct Line {                // a parsed logbook.csv line, until loaded()
+    uint32_t hex;
+    uint32_t date;
+    int64_t t;
+    uint32_t order;            // position in the file (ties keep the later line)
+    char label[12];
+    char type[5];
+  };
+  std::vector<Line> pending_;
   uint64_t visits_ = 0;
   int start_date_ = 0;
 };

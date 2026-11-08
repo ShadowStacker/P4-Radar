@@ -239,6 +239,15 @@ struct Health {
   size_t psram_free = 0;
   std::string top;        // busiest tasks, e.g. "adsb 31%, lvgl 22%"
 };
+/** A task's stack: its size and the most it has used since it started (bytes). */
+struct StackUse {
+  const char* name;
+  uint32_t size;
+  uint32_t peak;
+};
+/** The radar's own tasks that are running now (cheap: reads each one's stack high-water mark). */
+std::vector<StackUse> stackUse();
+
 /** Takes a sample. `slot` (0 or 1) keeps separate CPU baselines for separate users. */
 Health sampleHealth(int slot);
 

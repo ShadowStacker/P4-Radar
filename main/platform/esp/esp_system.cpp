@@ -93,6 +93,25 @@ uint32_t largeAllocsRefused() { return s_large_refused.load(std::memory_order_re
 
 void freeLarge(void* p) { heap_caps_free(p); }
 
+std::vector<StackUse> stackUse() {
+  // Sizes as created (esp_system.cpp, app.cpp, esp_audio.cpp, esp_wifi.cpp,
+  // esp_web.cpp, esp_display.cpp). Only reads each task's high-water mark: no
+  // walk over every task (see sampleHealth()).
+  static const struct {
+    const char* name;
+    uint32_t size;
+  } kTasks[] = {{"adsb", 16 * 1024}, {"card", 8 * 1024}, {"httpd", 12 * 1024}, {"lvgl", 24 * 1024},
+                {"audio", 4096},     {"wifi", 4096},     {"stats", 6 * 1024}};
+  std::vector<StackUse> out;
+  for (const auto& t : kTasks) {
+    TaskHandle_t h = xTaskGetHandle(t.name);
+    if (h == nullptr) continue;
+    const uint32_t free_bytes = static_cast<uint32_t>(uxTaskGetStackHighWaterMark(h));  // bytes on ESP-IDF
+    out.push_back({t.name, t.size, free_bytes < t.size ? t.size - free_bytes : 0});
+  }
+  return out;
+}
+
 size_t freeInternalHeap() { return heap_caps_get_free_size(MALLOC_CAP_INTERNAL); }
 
 size_t freePsram() { return heap_caps_get_free_size(MALLOC_CAP_SPIRAM); }
