@@ -174,7 +174,9 @@ void updateUpdateBox() {
       plat::restart();
     }
   } else if (u.total > 0) {
-    lv_bar_set_value(s_update_bar, static_cast<int32_t>(u.done * 1000 / u.total), LV_ANIM_OFF);
+    // 64-bit: size_t is 32 bits on the board, and done * 1000 wrapped at 4.3 MB
+    // (the bar jumped back to the start partway through every update).
+    lv_bar_set_value(s_update_bar, static_cast<int32_t>(static_cast<uint64_t>(u.done) * 1000 / u.total), LV_ANIM_OFF);
     std::snprintf(text, sizeof(text), "%.1f of %.1f MB", u.done / 1e6, u.total / 1e6);
   } else {
     std::snprintf(text, sizeof(text), "Connecting...");

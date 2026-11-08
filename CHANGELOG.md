@@ -10,6 +10,17 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.43.3] - 2026-11-08
+
+### Fixed
+- **v1.43.2 didn't start:** the screen stayed dark until the board went back
+  to v1.43.1 by itself. The cause was the change that put more small memory
+  blocks in PSRAM: some hardware driver needs its small buffers in internal
+  RAM. That change is undone; the other two v1.43.2 improvements stay.
+- **The update progress bar jumped back to the start at about 4.3 MB.** The
+  percentage was worked out with numbers too small for a 7 MB update, so it
+  wrapped around partway. The download itself was fine; now the bar is too.
+
 ## [v1.43.2] - 2026-11-08
 
 ### Changed
@@ -20,7 +31,7 @@ favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
     index instead of comparing every pair (up to 160,000 comparisons with 400
     aircraft).
   - Ordinary memory blocks of 1 KB and up now come from PSRAM (before: 4 KB
-    and up). Fewer short-lived buffers come and go in the internal RAM that
+    and up). **Undone in v1.43.3: with it the board didn't start.** Fewer short-lived buffers come and go in the internal RAM that
     Wi-Fi needs, which keeps it less fragmented.
 
 ## [v1.43.1] - 2026-11-08

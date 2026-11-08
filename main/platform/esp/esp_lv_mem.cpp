@@ -55,7 +55,7 @@ void lv_mem_monitor_core(lv_mem_monitor_t* mon) {
   mon->free_cnt = info.free_blocks;
   mon->used_cnt = info.allocated_blocks;
   mon->max_used = info.total_free_bytes + info.total_allocated_bytes - info.minimum_free_bytes;
-  mon->used_pct = mon->total_size ? static_cast<uint8_t>(100 - info.total_free_bytes * 100 / mon->total_size) : 0;
+  mon->used_pct = mon->total_size ? static_cast<uint8_t>(100 - static_cast<uint64_t>(info.total_free_bytes) * 100 / mon->total_size) : 0;
   mon->frag_pct = 0;
 }
 
