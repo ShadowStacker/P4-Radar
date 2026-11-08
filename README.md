@@ -82,6 +82,7 @@ Details are in [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware)
   for that aircraft (a local flight school's trainers, say); emergencies still sound.
 - **Screenshots**: a camera button saves the radar as a PNG on the SD card.
 - **Flight replay**: a week of traffic around home is recorded on the SD card and plays back on the radar.
+- **Aircraft icons by type**: about 390 icons for over 700 aircraft types, from Cessnas to the A380, warbirds, helicopters and military types. See the [full list](docs/AIRCRAFT_ICONS.md).
 - **Hidden aircraft**: hide any aircraft for good (never shown, counted or heard), as many as you like; the list is on the SD card.
 - **Your own sounds**: WAV files in a `sounds` folder on the SD card replace any of the built-in sounds.
 - **Place search**: type a city, state or country on the Location page to see it, make it home or bookmark it.
