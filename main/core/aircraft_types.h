@@ -26,57 +26,26 @@ enum class Icon : uint16_t {
   Airship,  // B2 lighter than air
   Parachute,  // B3 parachutist
   Ultralight,  // B4 ultralight
-  Ground,  // C1-C7 surface vehicles
-  A320,  // A320 family, A220, C919
-  A330,  // A300/310/330, A350
-  A340,  // A340
-  A380,  // A380
-  B737,  // 737 family, P-8
-  B747,  // 747
-  B767,  // 757, 767, KC-46
-  B777,  // 777
-  B787,  // 787
-  MD11,  // MD-11, DC-10, KC-10, L-1011
-  RearJet,  // rear-engine jets: MD-80/90, F100, 717, 727, DC-9, BAe 146
-  CRJ,  // CRJ
-  ERJ,  // ERJ, Legacy 600, Do 328JET
-  E195,  // E-Jets, Superjet, ARJ21
+  Ground,  // C1-C7 surface vehicles; ground stations
   Turboprop,  // regional turboprops: Dash 8, ATR, Saab, Do 328
-  TwinProp,  // King Air
-  BizJet,  // Citation, Learjet, Phenom, Hawker
-  BigBizJet,  // Gulfstream, Global, Challenger
-  Falcon,  // Dassault Falcon
-  C130,  // four-turboprop transports: C-130, A400M, P-3
   Freighter,  // heavy jet freighters: C-17, C-5, An-124, Il-76
   Tiltrotor,  // V-22, AW609
-  Amphibian,  // water bombers and floatplanes
   SingleHigh,  // Cessna 150-210 and other high-wing singles
   SingleLow,  // Piper PA-28/32, Cirrus, Diamond, Bonanza, Mooney, RV
   TurbopropSingle,  // PC-12, TBM, PA-46, T-6, Super Tucano, Air Tractor
-  TurbopropSingleHigh,  // Caravan, Kodiak, Beaver, Otter, Porter
   TwinPiston,  // Baron, Seneca, Seminole, Cessna 310-421, DA42
   TwinTurboprop,  // Beech 99, Metro, Jetstream, Conquest, MU-2, Cheyenne
   TwinHigh,  // Twin Otter, Islander, Do 228, Let 410, CASA 212, Skyvan, P68
-  B707,  // 707, KC-135, E-6
   Awacs,  // AWACS: E-3, A-50, E-767
   Hawkeye,  // E-2 Hawkeye, C-2
   B52,  // B-52
   B1,  // B-1
   B2,  // B-2
-  Reaper,  // MQ-9, MQ-1, Global Hawk, Heron
   FighterSingle,  // single-fin fighters: F-16, F-4, F-5, Tornado, A-4
   FighterTwin,  // twin-fin fighters: F-15, F/A-18, F-22, F-35, F-14, Su-27 family, MiG-29
   FighterDelta,  // delta fighters: Eurofighter, Rafale, Gripen, Mirage 2000, J-10
-  Attack,  // A-10
   JetTrainer,  // jet trainers: T-38, Hawk, L-39, M-346, Alpha Jet, T-45, T-7
-  Heli2,  // two-blade helicopters: Robinson, Bell 206/505/212/222, UH-1
-  Heli3,  // three-blade helicopters: AS350/H125, AS355, EC130, Gazelle
   Heli4,  // four-blade helicopters: H135, H145, Bell 407/429/412, A109, S-76, Dauphin
-  Heli5,  // five-blade helicopters: AW139, H160, H175, H225, Mi-8/17, S-61, AW101
-  HeliLarge,  // big four-blade helicopters: UH-60, S-92, NH90, Super Puma, CH-53
-  HeliTandem,  // tandem rotors: CH-47, CH-46
-  HeliAttack,  // attack helicopters: AH-64, AH-1, Mi-24/28, Tiger
-  HeliCoax,  // coaxial rotors: Kamov
   X_A318,  // Airbus A318
   X_A319,  // Airbus A319
   X_A321,  // Airbus A321
@@ -88,7 +57,7 @@ enum class Icon : uint16_t {
   X_B734,  // Boeing 737-400
   X_B735,  // Boeing 737-500
   X_B736,  // Boeing 737-600
-  X_B737,  // Boeing 737-700
+  X_B737,  // Boeing 737-700 / MAX 7
   X_B739,  // Boeing 737-900 / MAX 9 / MAX 10
   X_B752,  // Boeing 757-200
   X_B753,  // Boeing 757-300
@@ -118,6 +87,7 @@ enum class Icon : uint16_t {
   X_MD80,  // McDonnell Douglas MD-80
   X_MD90,  // McDonnell Douglas MD-90
   X_DC9,  // Douglas DC-9
+  X_F100,  // Fokker 100
   X_F70,  // Fokker 70
   X_B722,  // Boeing 727-200
   X_B721,  // Boeing 727-100
@@ -162,8 +132,8 @@ enum class Icon : uint16_t {
   X_C68A,  // Citation Latitude
   X_C700,  // Citation Longitude
   X_C750,  // Citation X
-  X_LJ35,  // Learjet 35/36
-  X_LJ45,  // Learjet 40/45/75
+  X_LJ35,  // Learjet 31/35/36
+  X_LJ45,  // Learjet 40/45/70/75
   X_LJ60,  // Learjet 55/60
   X_E50P,  // Phenom 100
   X_E55P,  // Phenom 300
@@ -204,7 +174,7 @@ enum class Icon : uint16_t {
   X_PA32,  // Piper Saratoga/Cherokee Six
   X_PA38,  // Piper Tomahawk
   X_PA24,  // Piper Comanche
-  X_PA46,  // Piper Malibu/M350
+  X_PA46,  // Piper Malibu/Meridian/M500-M700
   X_SR22,  // Cirrus SR20/SR22
   X_DA40,  // Diamond DA40
   X_DA20,  // Diamond DA20
@@ -213,14 +183,14 @@ enum class Icon : uint16_t {
   X_M20,  // Mooney M20
   X_RV7,  // Van's RV-6/7/8/9/14
   X_RV10,  // Van's RV-10
-  X_RV12,  // Van's RV-12
+  X_RV12,  // Van's RV-12, Tecnam Sierra, JMB VL3
   X_LNC4,  // Lancair IV / Evolution
   X_PA28,  // Piper PA-28 Cherokee/Warrior/Archer/Arrow
   X_TB20,  // Socata Trinidad/Tobago
   X_DR40,  // Robin DR400
   X_G115,  // Grob 115/120
-  X_AA5,  // Grumman Tiger/Traveler
-  X_TBM9,  // Daher TBM 700/850/900
+  X_AA5,  // Grumman Tiger/Traveler, Globe Swift
+  X_TBM9,  // Daher TBM 700/850/900, Epic
   X_KODI,  // Quest Kodiak
   X_PC6,  // Pilatus Porter
   X_DHC2,  // DHC-2 Beaver
@@ -404,6 +374,33 @@ enum class Icon : uint16_t {
   X_EN28,  // Enstrom 280/480
   X_H269,  // Schweizer 300 / Hughes 269
   X_G2CA,  // Guimbal Cabri G2
+  X_A320,  // Airbus A320 / A320neo
+  X_B738,  // Boeing 737-800 / MAX 8 / P-8
+  X_B789,  // Boeing 787-9
+  X_CRJ9,  // Bombardier CRJ900/1000
+  X_B763,  // Boeing 767-300
+  X_A333,  // Airbus A330-300
+  X_E195,  // Embraer 195
+  X_E295,  // Embraer E195-E2
+  X_E145,  // Embraer ERJ 145
+  X_B744,  // Boeing 747-400 / classic
+  X_A388,  // Airbus A380
+  X_A343,  // Airbus A340-200/300
+  X_MD11,  // McDonnell Douglas MD-11
+  X_C17,  // Boeing C-17 Globemaster III
+  X_C130,  // Lockheed C-130 Hercules, An-12, Il-18
+  X_C27J,  // Alenia C-27J Spartan
+  X_BE20,  // King Air 200/250/260
+  X_B190,  // Beech 1900
+  X_FA7X,  // Falcon 7X
+  X_GLF5,  // Gulfstream II/III/V/G550
+  X_G150,  // Gulfstream G100/G150/G200
+  X_C650,  // Citation III/VI/VII
+  X_EA50,  // Eclipse 500/550
+  X_DH8A,  // Dash 8-100/200
+  X_CL415,  // Canadair CL-215/415
+  X_P06T,  // Tecnam P2006T
+  X_SLING,  // Sling 2/4/TSi
   kCount
 };
 

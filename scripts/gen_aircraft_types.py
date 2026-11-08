@@ -28,11 +28,11 @@ ICONS = [
  ('HighPerf','a6',36,'A6 high performance',''),
  ('Rotor','a7',38,'A7 rotorcraft (unknown type)',''),
  ('Drone','b0',22,'B6 unmanned',''),
- ('Glider','b1',32,'B1 glider','GLID ASK21 AS21 DG1T LS8 DISC ASK3 ASW2 DUOD JANU NIMB VENT'),
+ ('Glider','b1',32,'B1 glider','GLID ASK21 AS21 DG1T LS8 DISC ASK3 ASW2 DUOD JANU NIMB VENT GLIM DIMO'),
  ('Airship','b2',30,'B2 lighter than air','BALL SHIP'),
  ('Parachute','b3',20,'B3 parachutist',''),
- ('Ultralight','b4',28,'B4 ultralight','ULAC'),
- ('Ground','c0',18,'C1-C7 surface vehicles',''),
+ ('Ultralight','b4',28,'B4 ultralight','ULAC PIAT'),
+ ('Ground','c0',18,'C1-C7 surface vehicles; ground stations','TWR GND SERV'),
  # airliners (ADS-B Radar icons)
  ('A320','a320',42,'A320 family, A220, C919','A318 A319 A320 A321 A19N A20N A21N BCS1 BCS3 C919'),
  ('A330','a330',48,'A300/310/330, A350','A306 A30B A310 A332 A333 A337 A338 A339 A359 A35K A3ST'),
@@ -102,6 +102,11 @@ seen = {}
 for e, m, sz, c, types in ICONS:
     for t in types.split():
         seen[t] = e  # later (more specific) entries win
+# Drop icons left with no types (all of theirs went to more specific ones),
+# except the size-class icons (Generic ... Ground), used without a type.
+CLASS_ICONS = 14
+used = set(seen.values())
+ICONS = [ic for i, ic in enumerate(ICONS) if i < CLASS_ICONS or ic[0] in used]
 print(len(seen), 'types,', len(ICONS), 'icons')
 hdr = '''#pragma once
 

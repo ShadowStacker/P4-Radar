@@ -19,11 +19,15 @@ const FILL = 0.92;     // the shape's share of the mask: room for wingtips when 
 
 (async () => {
   // The ADS-B Radar icons, plus the ones scripts/aircraft_families.py draws in their style.
+  const table = fs.readFileSync(path.join(ROOT, 'main', 'core', 'aircraft_types.cpp'), 'utf8');
+  const USED = new Set([...table.matchAll(/\{"([a-z0-9_]+)", \d+\},/g)].map((m) => m[1]));
   const GEN = path.join(SRC, 'generated');
   const files = [
     ...fs.readdirSync(SRC).filter((f) => f.endsWith('.svg')).map((f) => path.join(SRC, f)),
     ...(fs.existsSync(GEN) ? fs.readdirSync(GEN).filter((f) => f.endsWith('.svg')).map((f) => path.join(GEN, f)) : []),
-  ].sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+  ].sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
+    // Only the masks the type table uses (run gen_aircraft_types.py first).
+    .filter((f) => USED.has(path.basename(f, '.svg')));
   const browser = await chromium.launch();
   const page = await browser.newPage();
   const masks = [];

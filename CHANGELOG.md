@@ -10,6 +10,27 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.39.1] - 2026-11-08
+
+### Fixed
+- **The 737-800 (and other busy types) looked like a generic aircraft.**
+  The most common airliners still had the original ADS-B Radar icons, which
+  beside the new ones looked generic. They now have icons in the same style
+  as the rest of their family: 737-800/MAX 8 (also the P-8), A320/A320neo,
+  787-9, CRJ900/1000, 767-300, A330-300, E195, E195-E2, ERJ 145,
+  747-400 and classics, A380, A340-300, MD-11, C-17, C-130, C-27J,
+  King Air 200, Beech 1900, Falcon 7X, Gulfstream V/G550, G150, Citation
+  III, Eclipse, Dash 8-100, CL-415, Fokker 100, Tecnam P2006T, Sling.
+
+### Changed
+- **Checked against live traffic.** In a sample of about 4,500 aircraft
+  from 32 busy areas worldwide, every type code now has an icon, and 98 %
+  of them a type-specific one. The rest are ground vehicles, gliders,
+  balloons and ultralights, which keep their class icons. Newly matched:
+  ground stations (TWR, GND, SERV), Epic, Swift, Tecnam Sierra/Echo, VL3,
+  M700, turbo Baron and Bonanza, Learjet 31/70, CJ1, motorgliders.
+- `scripts/check_icon_coverage.py` repeats the check against live data.
+
 ## [v1.39.0] - 2026-11-07
 
 ### Added

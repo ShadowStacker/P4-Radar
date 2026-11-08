@@ -32,7 +32,7 @@ const TypeIcon kTypes[] = {
     {"A169", Icon::X_A169},
     {"A189", Icon::X_A189},
     {"A19N", Icon::X_A319},
-    {"A20N", Icon::A320},
+    {"A20N", Icon::X_A320},
     {"A21N", Icon::X_A321},
     {"A225", Icon::X_AN225},
     {"A306", Icon::X_A300},
@@ -40,20 +40,20 @@ const TypeIcon kTypes[] = {
     {"A310", Icon::X_A310},
     {"A318", Icon::X_A318},
     {"A319", Icon::X_A319},
-    {"A320", Icon::A320},
+    {"A320", Icon::X_A320},
     {"A321", Icon::X_A321},
     {"A332", Icon::X_A332},
-    {"A333", Icon::A330},
+    {"A333", Icon::X_A333},
     {"A337", Icon::X_BELUGAXL},
     {"A338", Icon::X_A339},
     {"A339", Icon::X_A339},
-    {"A342", Icon::A340},
-    {"A343", Icon::A340},
+    {"A342", Icon::X_A343},
+    {"A343", Icon::X_A343},
     {"A345", Icon::X_A346},
     {"A346", Icon::X_A346},
     {"A359", Icon::X_A359},
     {"A35K", Icon::X_A35K},
-    {"A388", Icon::A380},
+    {"A388", Icon::X_A388},
     {"A3ST", Icon::X_BELUGA},
     {"A4", Icon::X_A4},
     {"A400", Icon::X_A400},
@@ -72,7 +72,7 @@ const TypeIcon kTypes[] = {
     {"ALO2", Icon::X_ALO3},
     {"ALO3", Icon::X_ALO3},
     {"AMX", Icon::FighterSingle},
-    {"AN12", Icon::C130},
+    {"AN12", Icon::X_C130},
     {"AN2", Icon::X_AN2},
     {"AN22", Icon::Freighter},
     {"AN24", Icon::X_AN26},
@@ -87,7 +87,7 @@ const TypeIcon kTypes[] = {
     {"AS65", Icon::X_AS65},
     {"ASK21", Icon::Glider},
     {"ASK3", Icon::Glider},
-    {"ASTR", Icon::BigBizJet},
+    {"ASTR", Icon::X_G150},
     {"ASW2", Icon::Glider},
     {"AT01", Icon::X_AT8T},
     {"AT3T", Icon::X_AT8T},
@@ -108,7 +108,7 @@ const TypeIcon kTypes[] = {
     {"B06T", Icon::X_B06},
     {"B1", Icon::B1},
     {"B17", Icon::X_B17},
-    {"B190", Icon::TwinProp},
+    {"B190", Icon::X_B190},
     {"B2", Icon::B2},
     {"B204", Icon::X_UH1},
     {"B205", Icon::X_UH1},
@@ -119,8 +119,8 @@ const TypeIcon kTypes[] = {
     {"B25", Icon::X_B25},
     {"B29", Icon::X_B29},
     {"B350", Icon::X_B350},
-    {"B37M", Icon::B737},
-    {"B38M", Icon::B737},
+    {"B37M", Icon::X_B737},
+    {"B38M", Icon::X_B738},
     {"B39M", Icon::X_B739},
     {"B3XM", Icon::X_B739},
     {"B407", Icon::X_B407},
@@ -135,6 +135,7 @@ const TypeIcon kTypes[] = {
     {"B505", Icon::X_B505},
     {"B52", Icon::B52},
     {"B525", Icon::X_B525},
+    {"B58T", Icon::X_BE58},
     {"B609", Icon::Tiltrotor},
     {"B701", Icon::X_KC135},
     {"B703", Icon::X_KC135},
@@ -149,20 +150,20 @@ const TypeIcon kTypes[] = {
     {"B735", Icon::X_B735},
     {"B736", Icon::X_B736},
     {"B737", Icon::X_B737},
-    {"B738", Icon::B737},
+    {"B738", Icon::X_B738},
     {"B739", Icon::X_B739},
-    {"B741", Icon::B747},
-    {"B742", Icon::B747},
-    {"B743", Icon::B747},
-    {"B744", Icon::B747},
+    {"B741", Icon::X_B744},
+    {"B742", Icon::X_B744},
+    {"B743", Icon::X_B744},
+    {"B744", Icon::X_B744},
     {"B748", Icon::X_B748},
-    {"B74D", Icon::B747},
-    {"B74R", Icon::B747},
+    {"B74D", Icon::X_B744},
+    {"B74R", Icon::X_B744},
     {"B74S", Icon::X_B74S},
     {"B752", Icon::X_B752},
     {"B753", Icon::X_B753},
     {"B762", Icon::X_B762},
-    {"B763", Icon::B767},
+    {"B763", Icon::X_B763},
     {"B764", Icon::X_B764},
     {"B772", Icon::X_B772},
     {"B773", Icon::X_B773},
@@ -171,7 +172,7 @@ const TypeIcon kTypes[] = {
     {"B77L", Icon::X_B772},
     {"B77W", Icon::X_B77W},
     {"B788", Icon::X_B788},
-    {"B789", Icon::B787},
+    {"B789", Icon::X_B789},
     {"B78X", Icon::X_B78X},
     {"BALL", Icon::Airship},
     {"BCS1", Icon::X_A220_100},
@@ -180,7 +181,7 @@ const TypeIcon kTypes[] = {
     {"BE17", Icon::X_BE17},
     {"BE18", Icon::X_BE18},
     {"BE19", Icon::SingleLow},
-    {"BE20", Icon::TwinProp},
+    {"BE20", Icon::X_BE20},
     {"BE23", Icon::SingleLow},
     {"BE24", Icon::SingleLow},
     {"BE30", Icon::X_B350},
@@ -201,13 +202,14 @@ const TypeIcon kTypes[] = {
     {"BLCF", Icon::X_BLCF},
     {"BN2P", Icon::X_BN2},
     {"BN2T", Icon::X_BN2},
-    {"C130", Icon::C130},
+    {"BT36", Icon::X_BE36},
+    {"C130", Icon::X_C130},
     {"C135", Icon::X_KC135},
     {"C150", Icon::X_C152},
     {"C152", Icon::X_C152},
     {"C160", Icon::X_C160},
     {"C162", Icon::SingleHigh},
-    {"C17", Icon::Freighter},
+    {"C17", Icon::X_C17},
     {"C170", Icon::X_C180},
     {"C172", Icon::X_C172},
     {"C175", Icon::SingleHigh},
@@ -227,10 +229,10 @@ const TypeIcon kTypes[] = {
     {"C25B", Icon::X_C25B},
     {"C25C", Icon::X_C25C},
     {"C25M", Icon::X_C525},
-    {"C27J", Icon::C130},
+    {"C27J", Icon::X_C27J},
     {"C295", Icon::X_C295},
     {"C303", Icon::X_C310},
-    {"C30J", Icon::C130},
+    {"C30J", Icon::X_C130},
     {"C310", Icon::X_C310},
     {"C320", Icon::X_C310},
     {"C335", Icon::X_C340},
@@ -252,23 +254,23 @@ const TypeIcon kTypes[] = {
     {"C501", Icon::X_C500},
     {"C510", Icon::X_C510},
     {"C525", Icon::X_C525},
-    {"C526", Icon::BizJet},
+    {"C526", Icon::X_C525},
     {"C550", Icon::X_C500},
     {"C551", Icon::X_C500},
     {"C55B", Icon::X_C500},
     {"C560", Icon::X_C560},
     {"C56X", Icon::X_C56X},
     {"C5M", Icon::X_C5},
-    {"C650", Icon::BizJet},
+    {"C650", Icon::X_C650},
     {"C680", Icon::X_C680},
     {"C68A", Icon::X_C68A},
     {"C700", Icon::X_C700},
-    {"C72R", Icon::SingleHigh},
+    {"C72R", Icon::X_C172},
     {"C750", Icon::X_C750},
     {"C77R", Icon::X_C177},
-    {"C82R", Icon::SingleHigh},
-    {"C82S", Icon::SingleHigh},
-    {"C82T", Icon::SingleHigh},
+    {"C82R", Icon::X_C182},
+    {"C82S", Icon::X_C182},
+    {"C82T", Icon::X_C182},
     {"C919", Icon::X_C919},
     {"CAT", Icon::X_PBY},
     {"CC11", Icon::X_XCUB},
@@ -280,11 +282,11 @@ const TypeIcon kTypes[] = {
     {"CH70", Icon::X_KITFOX},
     {"CH7A", Icon::X_BL8},
     {"CH7B", Icon::X_BL8},
-    {"CL2P", Icon::Amphibian},
-    {"CL2T", Icon::Amphibian},
+    {"CL2P", Icon::X_CL415},
+    {"CL2T", Icon::X_CL415},
     {"CL30", Icon::X_CL30},
     {"CL35", Icon::X_CL30},
-    {"CL4T", Icon::Amphibian},
+    {"CL4T", Icon::X_CL415},
     {"CL60", Icon::X_CL60},
     {"CN35", Icon::X_CN235},
     {"COL3", Icon::SingleLow},
@@ -297,8 +299,8 @@ const TypeIcon kTypes[] = {
     {"CRJ1", Icon::X_CRJ2},
     {"CRJ2", Icon::X_CRJ2},
     {"CRJ7", Icon::X_CRJ7},
-    {"CRJ9", Icon::CRJ},
-    {"CRJX", Icon::CRJ},
+    {"CRJ9", Icon::X_CRJ9},
+    {"CRJX", Icon::X_CRJ9},
     {"CRUZ", Icon::SingleLow},
     {"D228", Icon::X_D228},
     {"D328", Icon::X_D328},
@@ -320,14 +322,15 @@ const TypeIcon kTypes[] = {
     {"DG1T", Icon::Glider},
     {"DH3T", Icon::X_DHC3},
     {"DH82", Icon::X_DH82},
-    {"DH8A", Icon::Turboprop},
-    {"DH8B", Icon::Turboprop},
+    {"DH8A", Icon::X_DH8A},
+    {"DH8B", Icon::X_DH8A},
     {"DH8C", Icon::X_DH8C},
     {"DH8D", Icon::X_DH8D},
     {"DHC2", Icon::X_DHC2},
     {"DHC3", Icon::X_DHC3},
     {"DHC6", Icon::X_DHC6},
     {"DHC7", Icon::X_DHC7},
+    {"DIMO", Icon::Glider},
     {"DISC", Icon::Glider},
     {"DO28", Icon::TwinHigh},
     {"DR40", Icon::X_DR40},
@@ -337,32 +340,33 @@ const TypeIcon kTypes[] = {
     {"E120", Icon::X_E120},
     {"E121", Icon::TwinTurboprop},
     {"E135", Icon::X_E135},
-    {"E145", Icon::ERJ},
+    {"E145", Icon::X_E145},
     {"E170", Icon::X_E170},
     {"E175", Icon::X_E175},
     {"E190", Icon::X_E190},
-    {"E195", Icon::E195},
+    {"E195", Icon::X_E195},
     {"E2", Icon::Hawkeye},
     {"E200", Icon::X_E300},
     {"E290", Icon::X_E290},
-    {"E295", Icon::E195},
+    {"E295", Icon::X_E295},
     {"E300", Icon::X_E300},
     {"E314", Icon::TurbopropSingle},
     {"E330", Icon::X_E300},
     {"E35L", Icon::X_E135},
     {"E3CF", Icon::Awacs},
     {"E3TF", Icon::Awacs},
-    {"E45X", Icon::ERJ},
+    {"E45X", Icon::X_E145},
     {"E50P", Icon::X_E50P},
     {"E545", Icon::X_E545},
     {"E550", Icon::X_E550},
     {"E55P", Icon::X_E55P},
     {"E6", Icon::X_KC135},
-    {"E737", Icon::B737},
+    {"E737", Icon::X_B737},
     {"E75L", Icon::X_E175},
     {"E75S", Icon::X_E175},
     {"E767", Icon::Awacs},
     {"EA18", Icon::X_F18},
+    {"EA50", Icon::X_EA50},
     {"EC20", Icon::X_EC20},
     {"EC25", Icon::X_EC25},
     {"EC30", Icon::X_EC30},
@@ -370,13 +374,15 @@ const TypeIcon kTypes[] = {
     {"EC45", Icon::X_EC45},
     {"EC55", Icon::X_AS65},
     {"EC75", Icon::X_EC75},
+    {"ECHO", Icon::X_KITFOX},
     {"EH10", Icon::X_EH10},
     {"EN28", Icon::X_EN28},
     {"EN48", Icon::X_EN28},
+    {"EPIC", Icon::X_TBM9},
     {"EUFI", Icon::X_EUFI},
     {"EVOT", Icon::X_LNC4},
     {"EXPL", Icon::X_MD900},
-    {"F100", Icon::RearJet},
+    {"F100", Icon::X_F100},
     {"F104", Icon::X_F104},
     {"F117", Icon::X_F117},
     {"F14", Icon::X_F14},
@@ -402,11 +408,12 @@ const TypeIcon kTypes[] = {
     {"FA20", Icon::X_FA20},
     {"FA50", Icon::X_FA50},
     {"FA6X", Icon::X_FA6X},
-    {"FA7X", Icon::Falcon},
+    {"FA7X", Icon::X_FA7X},
     {"FA8X", Icon::X_FA8X},
     {"FW90", Icon::X_FW90},
     {"G115", Icon::X_G115},
     {"G120", Icon::X_G115},
+    {"G150", Icon::X_G150},
     {"G21", Icon::X_G21},
     {"G280", Icon::X_G280},
     {"G2CA", Icon::X_G2CA},
@@ -416,20 +423,23 @@ const TypeIcon kTypes[] = {
     {"GA7C", Icon::X_GA7C},
     {"GA8", Icon::X_GA8},
     {"GA8C", Icon::X_GA7C},
-    {"GALX", Icon::BigBizJet},
+    {"GALX", Icon::X_G150},
     {"GAZL", Icon::X_GAZL},
+    {"GC1", Icon::X_AA5},
     {"GL5T", Icon::X_GL5T},
     {"GL7T", Icon::X_GL7T},
     {"GL8T", Icon::X_GL7T},
     {"GLAS", Icon::X_GLASAIR},
     {"GLEX", Icon::X_GLEX},
-    {"GLF2", Icon::BigBizJet},
-    {"GLF3", Icon::BigBizJet},
+    {"GLF2", Icon::X_GLF5},
+    {"GLF3", Icon::X_GLF5},
     {"GLF4", Icon::X_GLF4},
-    {"GLF5", Icon::BigBizJet},
+    {"GLF5", Icon::X_GLF5},
     {"GLF6", Icon::X_GLF6},
     {"GLID", Icon::Glider},
+    {"GLIM", Icon::Glider},
     {"GLST", Icon::X_GLASAIR},
+    {"GND", Icon::Ground},
     {"GRIF", Icon::X_GRIPEN},
     {"H1", Icon::X_AH1},
     {"H125", Icon::X_AS50},
@@ -466,7 +476,7 @@ const TypeIcon kTypes[] = {
     {"HUSK", Icon::X_HUSK},
     {"ICON", Icon::X_ICONA5},
     {"IL14", Icon::Turboprop},
-    {"IL18", Icon::C130},
+    {"IL18", Icon::X_C130},
     {"IL62", Icon::X_IL62},
     {"IL76", Icon::X_IL76},
     {"J10", Icon::X_J10},
@@ -510,14 +520,14 @@ const TypeIcon kTypes[] = {
     {"LAMA", Icon::X_ALO3},
     {"LANC", Icon::X_LANC},
     {"LGEZ", Icon::X_LGEZ},
-    {"LJ31", Icon::BizJet},
+    {"LJ31", Icon::X_LJ35},
     {"LJ35", Icon::X_LJ35},
     {"LJ36", Icon::X_LJ35},
     {"LJ40", Icon::X_LJ45},
     {"LJ45", Icon::X_LJ45},
     {"LJ55", Icon::X_LJ60},
     {"LJ60", Icon::X_LJ60},
-    {"LJ70", Icon::BizJet},
+    {"LJ70", Icon::X_LJ45},
     {"LJ75", Icon::X_LJ45},
     {"LNC2", Icon::X_LNC4},
     {"LNC4", Icon::X_LNC4},
@@ -534,8 +544,9 @@ const TypeIcon kTypes[] = {
     {"M5", Icon::X_M7},
     {"M6", Icon::X_M7},
     {"M7", Icon::X_M7},
+    {"M700", Icon::X_PA46},
     {"MA60", Icon::X_AN26},
-    {"MD11", Icon::MD11},
+    {"MD11", Icon::X_MD11},
     {"MD60", Icon::X_MD900},
     {"MD81", Icon::X_MD80},
     {"MD82", Icon::X_MD80},
@@ -568,6 +579,7 @@ const TypeIcon kTypes[] = {
     {"MU2", Icon::X_MU2},
     {"NH90", Icon::X_NH90},
     {"NIMB", Icon::Glider},
+    {"P06T", Icon::X_P06T},
     {"P180", Icon::X_P180},
     {"P210", Icon::X_C210},
     {"P28A", Icon::X_PA28},
@@ -580,11 +592,12 @@ const TypeIcon kTypes[] = {
     {"P32T", Icon::X_PA32},
     {"P38", Icon::X_P38},
     {"P40", Icon::X_P40},
-    {"P46T", Icon::TurbopropSingle},
+    {"P46T", Icon::X_PA46},
     {"P47", Icon::X_P47},
     {"P51", Icon::X_P51},
     {"P68", Icon::X_P68},
-    {"P8", Icon::B737},
+    {"P8", Icon::X_B738},
+    {"P92", Icon::X_KITFOX},
     {"PA12", Icon::X_PA18},
     {"PA14", Icon::X_PA18},
     {"PA18", Icon::X_PA18},
@@ -617,6 +630,7 @@ const TypeIcon kTypes[] = {
     {"PC6T", Icon::X_PC6},
     {"PC7", Icon::TurbopropSingle},
     {"PC9", Icon::TurbopropSingle},
+    {"PIAT", Icon::Ultralight},
     {"PRM1", Icon::X_PRM1},
     {"PTS1", Icon::X_PITTS},
     {"PTS2", Icon::X_PITTS},
@@ -649,11 +663,16 @@ const TypeIcon kTypes[] = {
     {"SAVG", Icon::X_KITFOX},
     {"SB20", Icon::X_SB20},
     {"SC7", Icon::X_SC7},
+    {"SERV", Icon::Ground},
     {"SF34", Icon::X_SF34},
     {"SF50", Icon::X_SF50},
     {"SH33", Icon::X_SC7},
     {"SH36", Icon::X_SC7},
     {"SHIP", Icon::Airship},
+    {"SIRA", Icon::X_RV12},
+    {"SLG2", Icon::X_SLING},
+    {"SLG4", Icon::X_SLING},
+    {"SLGT", Icon::X_SLING},
     {"SPIT", Icon::X_SPIT},
     {"SR20", Icon::X_SR22},
     {"SR22", Icon::X_SR22},
@@ -695,6 +714,7 @@ const TypeIcon kTypes[] = {
     {"TIGR", Icon::X_TIGR},
     {"TOBA", Icon::X_TB20},
     {"TOR", Icon::X_TORNADO},
+    {"TWR", Icon::Ground},
     {"U2", Icon::X_U2},
     {"UH1", Icon::X_UH1},
     {"UH60", Icon::X_H60},
@@ -706,6 +726,7 @@ const TypeIcon kTypes[] = {
     {"VEZE", Icon::X_LGEZ},
     {"VIGN", Icon::X_VIGGEN},
     {"VISC", Icon::X_VISC},
+    {"VL3", Icon::X_RV12},
     {"XCUB", Icon::X_XCUB},
     {"YK13", Icon::X_M346},
     {"YK18", Icon::X_YK52},
@@ -734,56 +755,25 @@ const IconInfo kInfo[] = {
     {"b3", 20},  // Parachute
     {"b4", 28},  // Ultralight
     {"c0", 18},  // Ground
-    {"a320", 42},  // A320
-    {"a330", 48},  // A330
-    {"a340", 50},  // A340
-    {"a380", 56},  // A380
-    {"b737", 42},  // B737
-    {"b747", 54},  // B747
-    {"b767", 46},  // B767
-    {"b777", 50},  // B777
-    {"b787", 48},  // B787
-    {"md11", 48},  // MD11
-    {"f100", 40},  // RearJet
-    {"crjx", 38},  // CRJ
-    {"erj", 38},  // ERJ
-    {"e195", 40},  // E195
     {"dh8a", 40},  // Turboprop
-    {"beechcraft", 36},  // TwinProp
-    {"learjet", 34},  // BizJet
-    {"glf5", 38},  // BigBizJet
-    {"fa7x", 38},  // Falcon
-    {"c130", 44},  // C130
     {"heavyfreighter", 54},  // Freighter
     {"tiltrotorcraft", 40},  // Tiltrotor
-    {"amphibian", 36},  // Amphibian
     {"g_single_high", 30},  // SingleHigh
     {"g_single_low", 30},  // SingleLow
     {"g_turboprop_single", 34},  // TurbopropSingle
-    {"g_turboprop_single_high", 34},  // TurbopropSingleHigh
     {"g_twin_piston", 32},  // TwinPiston
     {"g_twin_turboprop", 36},  // TwinTurboprop
     {"g_twin_high", 38},  // TwinHigh
-    {"g_b707", 48},  // B707
     {"g_awacs", 50},  // Awacs
     {"g_hawkeye", 40},  // Hawkeye
     {"g_b52", 56},  // B52
     {"g_b1", 50},  // B1
     {"g_b2", 54},  // B2
-    {"g_mq9", 32},  // Reaper
     {"g_fighter_single", 34},  // FighterSingle
     {"g_fighter_twin", 38},  // FighterTwin
     {"g_fighter_delta", 36},  // FighterDelta
-    {"g_attack", 38},  // Attack
     {"g_jet_trainer", 32},  // JetTrainer
-    {"g_heli_2", 32},  // Heli2
-    {"g_heli_3", 34},  // Heli3
     {"g_heli_4", 36},  // Heli4
-    {"g_heli_5", 40},  // Heli5
-    {"g_heli_large", 42},  // HeliLarge
-    {"g_heli_tandem", 44},  // HeliTandem
-    {"g_heli_attack", 38},  // HeliAttack
-    {"g_heli_coax", 38},  // HeliCoax
     {"x_a318", 42},  // X_A318
     {"x_a319", 43},  // X_A319
     {"x_a321", 46},  // X_A321
@@ -825,6 +815,7 @@ const IconInfo kInfo[] = {
     {"x_md80", 46},  // X_MD80
     {"x_md90", 46},  // X_MD90
     {"x_dc9", 43},  // X_DC9
+    {"x_f100", 43},  // X_F100
     {"x_f70", 41},  // X_F70
     {"x_b722", 46},  // X_B722
     {"x_b721", 44},  // X_B721
@@ -1111,6 +1102,33 @@ const IconInfo kInfo[] = {
     {"x_en28", 29},  // X_EN28
     {"x_h269", 29},  // X_H269
     {"x_g2ca", 27},  // X_G2CA
+    {"x_a320", 43},  // X_A320
+    {"x_b738", 44},  // X_B738
+    {"x_b789", 51},  // X_B789
+    {"x_crj9", 43},  // X_CRJ9
+    {"x_b763", 49},  // X_B763
+    {"x_a333", 51},  // X_A333
+    {"x_e195", 44},  // X_E195
+    {"x_e295", 45},  // X_E295
+    {"x_e145", 40},  // X_E145
+    {"x_b744", 52},  // X_B744
+    {"x_a388", 54},  // X_A388
+    {"x_a343", 51},  // X_A343
+    {"x_md11", 50},  // X_MD11
+    {"x_c17", 48},  // X_C17
+    {"x_c130", 44},  // X_C130
+    {"x_c27j", 40},  // X_C27J
+    {"x_be20", 34},  // X_BE20
+    {"x_b190", 35},  // X_B190
+    {"x_fa7x", 39},  // X_FA7X
+    {"x_glf5", 40},  // X_GLF5
+    {"x_g150", 34},  // X_G150
+    {"x_c650", 34},  // X_C650
+    {"x_ea50", 30},  // X_EA50
+    {"x_dh8a", 39},  // X_DH8A
+    {"x_cl415", 40},  // X_CL415
+    {"x_p06t", 30},  // X_P06T
+    {"x_sling", 28},  // X_SLING
 };
 static_assert(sizeof(kInfo) / sizeof(kInfo[0]) == static_cast<size_t>(Icon::kCount), "one entry per icon");
 

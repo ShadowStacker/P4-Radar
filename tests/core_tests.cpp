@@ -540,14 +540,20 @@ void testAircraftIcons() {
   auto icon = [](const char* type, const char* cat) {
     return std::string(core::aircraft::iconName(core::aircraft::iconFor(type, cat)));
   };
-  CHECK(icon("A320", "A3") == "a320" && icon("a21n", "") == "x_a321" && icon("A319", "A3") == "x_a319");
-  CHECK(icon("B738", "A3") == "b737" && icon("B38M", "A3") == "b737" && icon("B739", "A3") == "x_b739");
-  CHECK(icon("B789", "A5") == "b787" && icon("B78X", nullptr) == "x_b78x" && icon("A359", "A5") == "x_a359");
-  CHECK(icon("B744", "A5") == "b747" && icon("A388", "A5") == "a380" && icon("B748", "A5") == "x_b748");
-  CHECK(icon("C17", "A5") == "heavyfreighter" && icon("C130", "A3") == "c130" && icon("A400", "A5") == "x_a400");
+  // The busiest types have their own icons in the same style as their family.
+  CHECK(icon("A320", "A3") == "x_a320" && icon("A20N", "A3") == "x_a320" && icon("a21n", "") == "x_a321");
+  CHECK(icon("B738", "A3") == "x_b738" && icon("B38M", "A3") == "x_b738" && icon("B37M", "A3") == "x_b737" &&
+        icon("B739", "A3") == "x_b739");
+  CHECK(icon("B789", "A5") == "x_b789" && icon("B78X", nullptr) == "x_b78x" && icon("A359", "A5") == "x_a359");
+  CHECK(icon("B744", "A5") == "x_b744" && icon("A388", "A5") == "x_a388" && icon("B748", "A5") == "x_b748");
+  CHECK(icon("C17", "A5") == "x_c17" && icon("C130", "A3") == "x_c130" && icon("A400", "A5") == "x_a400");
+  CHECK(icon("CRJ9", "A3") == "x_crj9" && icon("E145", "A2") == "x_e145" && icon("F100", "A3") == "x_f100");
+  // Ground stations and vehicles in the feed use the ground icon.
+  CHECK(iconFor("TWR", "") == Icon::Ground && iconFor("GND", "C2") == Icon::Ground);
   // Propeller aircraft get propeller icons: BE99 a twin turboprop, PC-12 a single.
   CHECK(icon("BE99", "A2") == "g_twin_turboprop" && icon("PC12", "A1") == "x_pc12" && icon("C172", "A1") == "x_c172");
-  CHECK(icon("BE20", "A1") == "beechcraft" && icon("B350", "A2") == "x_b350" && icon("DHC6", "A2") == "x_dhc6");
+  CHECK(icon("BE20", "A1") == "x_be20" && icon("B350", "A2") == "x_b350" && icon("DHC6", "A2") == "x_dhc6");
+  CHECK(icon("SLG2", "A1") == "x_sling" && icon("EPIC", "A2") == "x_tbm9" && icon("M700", "A1") == "x_pa46");
   // Warbirds, experimentals, military, helicopters.
   CHECK(icon("P51", "A1") == "x_p51" && icon("SPIT", "A1") == "x_spit" && icon("B17", "A3") == "x_b17");
   CHECK(icon("LGEZ", "A1") == "x_lgez" && icon("ST75", "A1") == "x_stearman" && icon("PTS2", "A1") == "x_pitts");
