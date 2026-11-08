@@ -118,6 +118,8 @@ FeedStatus feedStatus();
 const core::MemHistory& memHistory();
 
 // --- Favorites (thread-safe) ---------------------------------------------------
+/** Changes whenever the favorites do (cheap: check it before copying favorites()). */
+uint32_t favoritesVersion();
 std::vector<core::Favorite> favorites();
 bool isFavorite(const char* hex);
 /** Adds or removes the aircraft. Returns true if it is now a favorite. */

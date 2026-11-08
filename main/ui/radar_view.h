@@ -162,7 +162,8 @@ class RadarView {
   std::vector<core::Track> tracks_;
   uint32_t tracks_version_ = 0;
   std::vector<Blip> blips_;
-  std::vector<core::Favorite> favorites_;  // refreshed each frame
+  std::vector<core::Favorite> favorites_;  // copied when app::favoritesVersion() changes
+  uint32_t favorites_version_ = 0;
 
   // Static layer invalidation
   bool static_dirty_ = true;

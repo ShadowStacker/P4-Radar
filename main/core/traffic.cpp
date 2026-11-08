@@ -21,6 +21,26 @@ void pushTrail(Track& t, const Aircraft& a) {
   if (t.trail_count < kTrailLen) ++t.trail_count;
 }
 
+/** An address as a number for fast lookups ("~" non-ICAO ones get the top bit); 0 if it isn't one. */
+uint32_t addressKey(const char* hex) {
+  const bool non_icao = hex[0] == '~';
+  const char* p = non_icao ? hex + 1 : hex;
+  uint32_t v = 0;
+  int n = 0;
+  for (; p[n] != '\0'; ++n) {
+    const char c = p[n];
+    int d;
+    if (c >= '0' && c <= '9') d = c - '0';
+    else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+    else return 0;
+    if (n >= 7) return 0;
+    v = v * 16 + static_cast<uint32_t>(d);
+  }
+  if (n == 0) return 0;
+  return (v | (non_icao ? 0x80000000u : 0)) + 1;  // never 0
+}
+
 bool inZone(const Aircraft& a, const AlertZone& z) {
   if (z.radius_km <= 0 || a.on_ground) return false;
   if (a.alt_valid && a.alt_ft > z.max_alt_ft) return false;
@@ -71,15 +91,40 @@ UpdateEvents TrafficStore::update(const std::vector<Aircraft>& fresh, uint32_t n
     list = &nearest;
   }
 
-  for (const Aircraft& a : *list) {
-    const bool quiet = watch.silenced != nullptr && containsHex(*watch.silenced, a.hex);
-    Track* t = nullptr;
-    for (Track& existing : tracks_) {
-      if (std::strcmp(existing.ac.hex, a.hex) == 0) {
-        t = &existing;
-        break;
+  // The aircraft already known, by address: a binary search each instead of
+  // comparing every fresh aircraft with every track (160,000 compares at 400).
+  std::vector<std::pair<uint32_t, uint32_t>> index;  // (address key, track index), sorted
+  index.reserve(tracks_.size());
+  for (size_t i = 0; i < tracks_.size(); ++i) {
+    const uint32_t k = addressKey(tracks_[i].ac.hex);
+    if (k != 0) index.emplace_back(k, static_cast<uint32_t>(i));
+  }
+  std::sort(index.begin(), index.end());
+  const size_t known = tracks_.size();  // tracks added below are not in the index
+  auto find = [&](const char* hex) -> Track* {
+    const uint32_t k = addressKey(hex);
+    if (k != 0) {
+      auto it = std::lower_bound(index.begin(), index.end(), std::make_pair(k, 0u));
+      if (it != index.end() && it->first == k) {
+        Track* t = &tracks_[it->second];
+        if (std::strcmp(t->ac.hex, hex) == 0) return t;  // (a replaced track has a new address)
       }
     }
+    // Odd addresses, and aircraft added or swapped in during this update: the slow way.
+    for (size_t i = (k != 0 ? known : 0); i < tracks_.size(); ++i) {
+      if (std::strcmp(tracks_[i].ac.hex, hex) == 0) return &tracks_[i];
+    }
+    if (k != 0) {
+      for (size_t i = 0; i < known; ++i) {
+        if (tracks_[i].last_seen_ms == now_ms && std::strcmp(tracks_[i].ac.hex, hex) == 0) return &tracks_[i];
+      }
+    }
+    return nullptr;
+  };
+
+  for (const Aircraft& a : *list) {
+    const bool quiet = watch.silenced != nullptr && containsHex(*watch.silenced, a.hex);
+    Track* t = find(a.hex);
     if (t == nullptr) {
       if (tracks_.size() < kMaxTracks) {
         tracks_.emplace_back();

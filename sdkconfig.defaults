@@ -11,7 +11,7 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # resets before it confirms itself) goes back to the previous one.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_APP_PROJECT_VER_FROM_CONFIG=y
-CONFIG_APP_PROJECT_VER="1.43.1"
+CONFIG_APP_PROJECT_VER="1.43.2"
 
 # ---- CPU / memory -------------------------------------------------------------
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
@@ -28,7 +28,10 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_SPIRAM_USE_MALLOC=y
-CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+# Plain malloc() of 1 KB and up goes to PSRAM (was 4 KB): fewer short-lived
+# buffers churning the internal RAM Wi-Fi needs. Memory that must be internal
+# (task stacks, DMA, the Wi-Fi driver) asks for it explicitly.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
 # Keep internal RAM free for FreeRTOS objects, Wi-Fi/SDIO and display DMA even
 # if many small allocations land there.
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=98304

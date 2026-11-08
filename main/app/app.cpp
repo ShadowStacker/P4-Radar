@@ -92,6 +92,8 @@ core::SourceFailover s_failover;    // network task only
 
 std::mutex s_favorites_mu;  // also guards s_silenced
 std::vector<core::Favorite> s_favorites;
+// Bumped on every change to s_favorites, so readers copy it only when it changed.
+std::atomic<uint32_t> s_fav_version{1};
 std::vector<core::Favorite> s_silenced;  // no sounds for these (but emergencies)
 
 // Hidden aircraft: hidden.txt on the card, read when it's mounted. Dropped
@@ -1340,6 +1342,7 @@ void sdFilesMounted() {
       {
         std::lock_guard<std::mutex> lock(s_favorites_mu);
         s_favorites = favs;
+    ++s_fav_version;
       }
       plat::favoritesSave(favs);
       {
@@ -1715,6 +1718,8 @@ std::vector<core::Favorite> favorites() {
   return s_favorites;
 }
 
+uint32_t favoritesVersion() { return s_fav_version.load(); }
+
 bool isFavorite(const char* hex) {
   std::lock_guard<std::mutex> lock(s_favorites_mu);
   return core::containsHex(s_favorites, hex);
@@ -1755,6 +1760,7 @@ bool toggleSilenced(const core::Aircraft& a) {
                                        [&](const core::Favorite& x) { return std::strcmp(x.hex, a.hex) == 0; }),
                         s_favorites.end());
       was_favorite = s_favorites.size() != n;
+      if (was_favorite) ++s_fav_version;
       favs = s_favorites;
     }
     copy = s_silenced;
@@ -1804,6 +1810,7 @@ bool toggleFavorite(const core::Aircraft& a) {
                        s_silenced.end());
       if (s_silenced.size() != n) quiet = s_silenced;
     }
+    ++s_fav_version;
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
@@ -1862,6 +1869,7 @@ void removeFavorite(const char* hex) {
     s_favorites.erase(std::remove_if(s_favorites.begin(), s_favorites.end(),
                                      [&](const core::Favorite& f) { return std::strcmp(f.hex, hex) == 0; }),
                       s_favorites.end());
+    ++s_fav_version;
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
@@ -1874,6 +1882,7 @@ bool addFavorite(const core::Favorite& f) {
     std::lock_guard<std::mutex> lock(s_favorites_mu);
     if (core::containsHex(s_favorites, f.hex) || s_favorites.size() >= core::kMaxFavorites) return false;
     s_favorites.push_back(f);
+    ++s_fav_version;
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
@@ -1985,6 +1994,7 @@ void renameFavorite(const char* hex, const char* label) {
     for (core::Favorite& f : s_favorites) {
       if (std::strcmp(f.hex, hex) == 0) std::snprintf(f.label, sizeof(f.label), "%s", label);
     }
+    ++s_fav_version;
     copy = s_favorites;
   }
   plat::favoritesSave(copy);
@@ -2000,6 +2010,7 @@ void setFavorites(const std::vector<core::Favorite>& favs) {
   {
     std::lock_guard<std::mutex> lock(s_favorites_mu);
     s_favorites = favs;
+    ++s_fav_version;
   }
   plat::favoritesSave(favs);
   queueFavoritesFile();

@@ -10,6 +10,19 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.43.2] - 2026-11-08
+
+### Changed
+- **Less work and less memory churn per frame and per update:**
+  - The radar no longer copies the favourites list 30-60 times a second. It
+    copies it only when a favourite is added, removed or renamed.
+  - Matching a fresh update to the aircraft already on screen uses a sorted
+    index instead of comparing every pair (up to 160,000 comparisons with 400
+    aircraft).
+  - Ordinary memory blocks of 1 KB and up now come from PSRAM (before: 4 KB
+    and up). Fewer short-lived buffers come and go in the internal RAM that
+    Wi-Fi needs, which keeps it less fragmented.
+
 ## [v1.43.1] - 2026-11-08
 
 ### Fixed

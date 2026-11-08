@@ -345,7 +345,11 @@ void RadarView::frame() {
   const bool gesturing = gesture_ == Gesture::Drag || gesture_ == Gesture::Pinch;
   const bool busy = animating || gesturing;
 
-  favorites_ = app::favorites();
+  // Copied only when they changed (a copy every frame was a heap allocation 60 times a second).
+  if (app::favoritesVersion() != favorites_version_) {
+    favorites_version_ = app::favoritesVersion();
+    favorites_ = app::favorites();
+  }
   if (app::traffic().version() != tracks_version_) {
     tracks_version_ = app::traffic().snapshot(tracks_);
     if (!selected_hex_.empty() && findSelected() < 0) {
