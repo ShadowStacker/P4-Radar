@@ -53,8 +53,8 @@ class Shape:
             rot = f' transform="rotate({sign * angle:.1f} {X:.1f} {Y:.1f})"' if angle else ''
             self.parts.append(f'<ellipse cx="{X:.1f}" cy="{Y:.1f}" rx="{rx * self.s:.1f}" ry="{ry * self.s:.1f}"{rot}/>')
 
-    def fuselage(self, width, nose=None, tail=None, tail_width=None, start=0.0, end=None):
-        """A smooth body from `start` to `end` (default: the full length)."""
+    def fuselage(self, width, nose=None, tail=None, tail_width=None, start=0.0, end=None, x=0.0):
+        """A smooth body from `start` to `end` (default: the full length), centred `x` metres right."""
         end = self.length if end is None else end
         L = end - start
         nose = nose if nose is not None else min(L * 0.12, width * 1.6)
@@ -70,7 +70,7 @@ class Shape:
         for i in range(1, n + 1):  # tail cone, gently tapering
             t = i / n
             pts.append((w + (tw / 2 - w) * (1 - math.cos(t * math.pi / 2)), end - tail + tail * t))
-        full = pts + [(-x, y) for x, y in reversed(pts)]
+        full = [(x + px, py) for px, py in pts] + [(x - px, py) for px, py in reversed(pts)]
         self.poly(full)
 
     def wing(self, root_le, root_chord, half_span, sweep_deg, tip_chord, root_x=0.0, dihedral_y=0.0, kink=None,
@@ -121,6 +121,17 @@ class Shape:
         for sign in ((1, -1) if mirror and x != 0 else (1,)):
             self.ellipse(sign * x, y, d / 2, t / 2)
             self.ellipse(sign * x, y, t * 0.75, t * 0.95)  # spinner
+
+    def ring(self, x, y, r_out, r_in, mirror=False):
+        """A filled ring (a propeller disc seen from above, an open circle)."""
+        for sign in ((1, -1) if mirror and x != 0 else (1,)):
+            X, Y = self.P(sign * x, y)
+            ro, ri = r_out * self.s, r_in * self.s
+            d = (f'M {X - ro:.1f} {Y:.1f} A {ro:.1f} {ro:.1f} 0 1 0 {X + ro:.1f} {Y:.1f} '
+                 f'A {ro:.1f} {ro:.1f} 0 1 0 {X - ro:.1f} {Y:.1f} Z '
+                 f'M {X - ri:.1f} {Y:.1f} A {ri:.1f} {ri:.1f} 0 1 1 {X + ri:.1f} {Y:.1f} '
+                 f'A {ri:.1f} {ri:.1f} 0 1 1 {X - ri:.1f} {Y:.1f} Z')
+            self.parts.append(f'<path fill-rule="evenodd" d="{d}"/>')
 
     def nacelle(self, x, y, length, width, mirror=True):
         self.ellipse(x, y + length / 2, width / 2, length / 2, mirror=mirror)

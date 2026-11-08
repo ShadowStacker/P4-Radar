@@ -10,6 +10,41 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.41.0] - 2026-11-08
+
+### Added
+- **Hot air balloons, airships, gliders, gyroplanes, drones and powered
+  parachutes have their own icons.** A balloon is drawn as its envelope seen
+  from above, and an airship as a blimp with tail fins. There are sailplanes
+  (standard class, two-seat trainer, open class, Blanik) and a motorglider.
+  Gyroplanes come open or enclosed, drones are drawn as a quadcopter, and
+  powered parachutes as a canopy with a cart. Balloons and gliders with no
+  type code also use the new balloon and sailplane icons.
+- **65 more aircraft icons**, mostly warbirds, airshow favourites, military and
+  one-of-a-kind aircraft:
+  - **Classics and fan favourites:** Ford Tri-Motor, X-59 QueSST,
+    SpaceShipTwo, White Knight Two, Stratolaunch, Beechcraft Starship,
+    Joby S4, Super Guppy, Stratocruiser, Ercoupe, Quickie/Dragonfly.
+  - **Biplanes and triplanes:** Fokker Dr.I, Camel and other WWI biplanes,
+    Waco, Ag-Cat, sport biplanes.
+  - **Warbirds:** P-82 Twin Mustang, Hellcat, Bearcat, Avenger, Dauntless,
+    A-26, B-26, P-39, Yak-3, Me 262, Storch, Lysander, Chipmunk, T-34.
+  - **Jets:** T-33, T-37/A-37, Jet Provost, Fouga Magister, Su-25,
+    F-111/Su-24, A-6, F-8.
+  - **Military transports and patrol:** OV-10, Mohawk, S-2 Tracker,
+    Tu-95, C-141, C-390, Caribou/Buffalo, C-119, An-72, Be-200,
+    Bayraktar TB2.
+  - **Airliners and business jets:** DC-8, Tu-134, Westwind,
+    Sabreliner, Aero Commander.
+
+### Fixed
+- **Many common aircraft showed a generic icon because their type code was
+  missing from the table**, including the Daher Kodiak (K100), ICON A5, SeaRey,
+  Commander 112/114, Luscombe, Taylorcraft, Aeronca, Stinson, and most light
+  sport aircraft (CT, Bristell, Tecnam, Sonex, RANS, Kitfox and others). About
+  400 type codes were added, for 1111 in all. Of every aircraft registered with
+  a type code, 96 % now have an icon for their type, up from 85 %.
+
 ## [v1.40.0] - 2026-11-08
 
 ### Changed

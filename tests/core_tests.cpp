@@ -560,6 +560,17 @@ void testAircraftIcons() {
   CHECK(icon("F35", "A6") == "x_f35" && icon("EUFI", "A6") == "x_eufi" && icon("K35R", "A5") == "x_kc135");
   CHECK(icon("E3TF", "A5") == "g_awacs" && icon("B52", "A5") == "g_b52" && icon("MQ9", "B6") == "x_mq9");
   CHECK(icon("R44", "A7") == "x_r44" && icon("H47", "A7") == "x_h47" && icon("KA52", "A7") == "x_ka52" && icon("H60", "A7") == "x_h60");
+  // Balloons, airships, gliders, gyroplanes, drones, powered parachutes, fan favourites.
+  CHECK(icon("BALL", "B2") == "x_balloon" && icon("SHIP", "B2") == "x_blimp" && icon("", "B2") == "x_balloon");
+  CHECK(icon("GLID", "B1") == "x_glider" && icon("", "B1") == "x_glider" && icon("GLIM", "B1") == "x_motorglider" &&
+        icon("AS21", "B1") == "x_glider2" && icon("L13M", "B1") == "x_blanik");
+  CHECK(icon("GYRO", "A1") == "x_gyro" && icon("CLON", "A1") == "x_gyro_cabin" && icon("DRON", "B6") == "x_quad" &&
+        icon("PARA", "B4") == "x_ppc");
+  CHECK(icon("TRIM", "A2") == "x_trimotor" && icon("X59", "A6") == "x_x59" && icon("DR1", "A1") == "x_dr1" &&
+        icon("ERCO", "A1") == "x_erco" && icon("V10", "A2") == "x_ov10" && icon("TU95", "A5") == "x_tu95");
+  // Codes the table used to miss: the Kodiak's K100, the ICON A5, the SeaRey, light sport aircraft.
+  CHECK(icon("K100", "A1") == "x_kodi" && icon("A5", "A1") == "x_icona5" && icon("SREY", "A1") == "x_icona5" &&
+        icon("FDCT", "A1") == "x_rv12" && icon("PA11", "A1") == "x_j3" && icon("AC11", "A1") == "x_pa24");
   // Unknown types: the emitter category, then the generic icon.
   CHECK(iconFor("ZZZZ", "A1") == Icon::Light && iconFor("", "A5") == Icon::Heavy && iconFor(nullptr, "A7") == Icon::Rotor);
   CHECK(iconFor("", "B1") == Icon::Glider && iconFor("", "B6") == Icon::Drone && iconFor("", "C1") == Icon::Ground);

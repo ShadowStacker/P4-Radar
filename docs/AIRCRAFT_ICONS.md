@@ -1,6 +1,6 @@
 # Aircraft icons
 
-The radar draws each aircraft with an icon for its type: **388 icons** for **713 ICAO type codes**. This page lists them all, generated from the firmware's own table (`scripts/gen_icon_docs.py`).
+The radar draws each aircraft with an icon for its type: **453 icons** for **1111 ICAO type codes**. This page lists them all, generated from the firmware's own table (`scripts/gen_icon_docs.py`).
 
 **How an icon is picked.** The feed gives most aircraft an ICAO type designator (`B738`, `C172`, `H60`). If the code is in the table, that icon is used; close variants share one (737-800, MAX 8 and P-8 are one icon). If the feed has no type, or one not in the table, the aircraft gets a [size class](#size-classes-when-the-type-is-unknown) icon from its ADS-B emitter category (light, large, heavy, rotorcraft, glider...).
 
@@ -14,18 +14,19 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 
 - [Airliners and regional jets](#airliners-and-regional-jets) (72)
 - [Regional turboprops](#regional-turboprops) (17)
-- [Business jets](#business-jets) (44)
-- [Light aircraft: singles](#light-aircraft-singles) (43)
-- [Light aircraft: twins and utility](#light-aircraft-twins-and-utility) (30)
-- [Classic airliners and transports](#classic-airliners-and-transports) (15)
-- [Warbirds and classic fighters](#warbirds-and-classic-fighters) (23)
-- [Experimental and aerobatic](#experimental-and-aerobatic) (8)
-- [Military jets](#military-jets) (36)
-- [Military transports, bombers, tankers and patrol](#military-transports-bombers-tankers-and-patrol) (14)
+- [Business jets](#business-jets) (46)
+- [Light aircraft: singles](#light-aircraft-singles) (45)
+- [Light aircraft: twins and utility](#light-aircraft-twins-and-utility) (31)
+- [Classic airliners and transports](#classic-airliners-and-transports) (20)
+- [Warbirds and classic fighters](#warbirds-and-classic-fighters) (37)
+- [Experimental and aerobatic](#experimental-and-aerobatic) (19)
+- [Military jets](#military-jets) (44)
+- [Military transports, bombers, tankers and patrol](#military-transports-bombers-tankers-and-patrol) (25)
 - [Helicopters](#helicopters) (53)
+- [Balloons, airships, gliders, gyroplanes, drones](#balloons-airships-gliders-gyroplanes-drones) (13)
 - [Families (shared shapes)](#families-shared-shapes) (17)
 - [Other ADS-B Radar icons](#other-ads-b-radar-icons) (3)
-- [Size classes (when the type is unknown)](#size-classes-when-the-type-is-unknown) (13)
+- [Size classes (when the type is unknown)](#size-classes-when-the-type-is-unknown) (11)
 
 ## Airliners and regional jets
 
@@ -44,7 +45,7 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_b736.svg" width="48" height="48" alt="x_b736"> | Boeing 737-600 | `B736` | 42 px |
 | <img src="icons/x_b737.svg" width="48" height="48" alt="x_b737"> | Boeing 737-700 / MAX 7 | `B37M` `B737` `E737` | 42 px |
 | <img src="icons/x_b739.svg" width="48" height="48" alt="x_b739"> | Boeing 737-900 / MAX 9 / MAX 10 | `B39M` `B3XM` `B739` | 45 px |
-| <img src="icons/x_b752.svg" width="48" height="48" alt="x_b752"> | Boeing 757-200 | `B752` | 46 px |
+| <img src="icons/x_b752.svg" width="48" height="48" alt="x_b752"> | Boeing 757-200 | `B752` `T204` | 46 px |
 | <img src="icons/x_b753.svg" width="48" height="48" alt="x_b753"> | Boeing 757-300 | `B753` | 48 px |
 | <img src="icons/x_b762.svg" width="48" height="48" alt="x_b762"> | Boeing 767-200 | `B762` | 47 px |
 | <img src="icons/x_b764.svg" width="48" height="48" alt="x_b764"> | Boeing 767-400 | `B764` | 50 px |
@@ -71,7 +72,7 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_b712.svg" width="48" height="48" alt="x_b712"> | Boeing 717 | `B712` | 43 px |
 | <img src="icons/x_md80.svg" width="48" height="48" alt="x_md80"> | McDonnell Douglas MD-80 | `MD81` `MD82` `MD83` `MD87` `MD88` | 46 px |
 | <img src="icons/x_md90.svg" width="48" height="48" alt="x_md90"> | McDonnell Douglas MD-90 | `MD90` | 46 px |
-| <img src="icons/x_dc9.svg" width="48" height="48" alt="x_dc9"> | Douglas DC-9 | `DC91` `DC92` `DC93` `DC94` `DC95` | 43 px |
+| <img src="icons/x_dc9.svg" width="48" height="48" alt="x_dc9"> | Douglas DC-9 | `BA11` `DC91` `DC92` `DC93` `DC94` `DC95` | 43 px |
 | <img src="icons/x_f100.svg" width="48" height="48" alt="x_f100"> | Fokker 100 | `F100` | 43 px |
 | <img src="icons/x_f70.svg" width="48" height="48" alt="x_f70"> | Fokker 70 | `F70` | 41 px |
 | <img src="icons/x_b722.svg" width="48" height="48" alt="x_b722"> | Boeing 727-200 | `B722` | 46 px |
@@ -174,54 +175,58 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_g150.svg" width="48" height="48" alt="x_g150"> | Gulfstream G100/G150/G200 | `ASTR` `G150` `GALX` | 34 px |
 | <img src="icons/x_c650.svg" width="48" height="48" alt="x_c650"> | Citation III/VI/VII | `C650` | 34 px |
 | <img src="icons/x_ea50.svg" width="48" height="48" alt="x_ea50"> | Eclipse 500/550 | `EA50` | 30 px |
+| <img src="icons/x_ww24.svg" width="48" height="48" alt="x_ww24"> | IAI Westwind | `WW23` `WW24` | 34 px |
+| <img src="icons/x_sbr1.svg" width="48" height="48" alt="x_sbr1"> | Sabreliner | `SBR1` `SBR2` | 32 px |
 
 ## Light aircraft: singles
 
 | Icon | Aircraft | Type codes | Size |
 |:---:|---|---|---:|
-| <img src="icons/x_c152.svg" width="48" height="48" alt="x_c152"> | Cessna 150/152 | `C150` `C152` | 29 px |
-| <img src="icons/x_c172.svg" width="48" height="48" alt="x_c172"> | Cessna 172 | `C172` `C72R` | 30 px |
+| <img src="icons/x_c152.svg" width="48" height="48" alt="x_c152"> | Cessna 150/152 | `C120` `C140` `C150` `C152` | 29 px |
+| <img src="icons/x_c172.svg" width="48" height="48" alt="x_c172"> | Cessna 172 | `C172` `C72R` `VO10` | 30 px |
 | <img src="icons/x_c182.svg" width="48" height="48" alt="x_c182"> | Cessna 182/206 | `C182` `C205` `C206` `C207` `C82R` `C82S` `C82T` `T206` | 30 px |
 | <img src="icons/x_c210.svg" width="48" height="48" alt="x_c210"> | Cessna 210 | `C210` `P210` `T210` | 30 px |
 | <img src="icons/x_c177.svg" width="48" height="48" alt="x_c177"> | Cessna Cardinal | `C177` `C77R` | 30 px |
-| <img src="icons/x_c180.svg" width="48" height="48" alt="x_c180"> | Cessna 180/185/170 (taildragger) | `C170` `C180` `C185` `C195` | 30 px |
-| <img src="icons/x_pa18.svg" width="48" height="48" alt="x_pa18"> | Piper Super Cub | `PA12` `PA14` `PA18` `PA20` `PA22` | 30 px |
-| <img src="icons/x_j3.svg" width="48" height="48" alt="x_j3"> | Piper J-3 Cub | `J3` | 30 px |
+| <img src="icons/x_c180.svg" width="48" height="48" alt="x_c180"> | Cessna 180/185/170 (taildragger) | `AR15` `C170` `C180` `C185` `C195` `FA24` `L5` `O1` `RELI` `S10` `S108` | 30 px |
+| <img src="icons/x_pa18.svg" width="48" height="48" alt="x_pa18"> | Piper Super Cub | `P18T` `PA12` `PA14` `PA15` `PA16` `PA17` `PA18` `PA20` `PA22` | 30 px |
+| <img src="icons/x_j3.svg" width="48" height="48" alt="x_j3"> | Piper J-3 Cub | `AR11` `AR65` `AR6T` `CAMP` `CUB2` `E2CB` `J2` `J3` `J4` `J5` `L8` `PA11` `PARL` `S1` `TA15` `TAYB` `TAYD` `TF19` `TF21` | 30 px |
 | <img src="icons/x_bl8.svg" width="48" height="48" alt="x_bl8"> | Citabria / Decathlon | `BL8` `CH7A` `CH7B` | 30 px |
 | <img src="icons/x_husk.svg" width="48" height="48" alt="x_husk"> | Aviat Husky | `HUSK` | 30 px |
-| <img src="icons/x_m7.svg" width="48" height="48" alt="x_m7"> | Maule | `M5` `M6` `M7` `MT7` | 29 px |
+| <img src="icons/x_m7.svg" width="48" height="48" alt="x_m7"> | Maule | `COUR` `M4` `M5` `M6` `M7` `M7T` `M8` `M9` `MT7` | 29 px |
 | <img src="icons/x_ga8.svg" width="48" height="48" alt="x_ga8"> | GippsAero Airvan | `GA8` | 31 px |
 | <img src="icons/x_pa32.svg" width="48" height="48" alt="x_pa32"> | Piper Saratoga/Cherokee Six | `P32R` `P32T` `PA32` | 30 px |
-| <img src="icons/x_pa38.svg" width="48" height="48" alt="x_pa38"> | Piper Tomahawk | `PA38` | 29 px |
-| <img src="icons/x_pa24.svg" width="48" height="48" alt="x_pa24"> | Piper Comanche | `PA24` | 30 px |
-| <img src="icons/x_pa46.svg" width="48" height="48" alt="x_pa46"> | Piper Malibu/Meridian/M500-M700 | `M700` `P46T` `PA46` | 32 px |
-| <img src="icons/x_sr22.svg" width="48" height="48" alt="x_sr22"> | Cirrus SR20/SR22 | `S22T` `SR20` `SR22` | 31 px |
+| <img src="icons/x_pa38.svg" width="48" height="48" alt="x_pa38"> | Piper Tomahawk | `BE77` `PA38` | 29 px |
+| <img src="icons/x_pa24.svg" width="48" height="48" alt="x_pa24"> | Piper Comanche | `AC11` `B14A` `B14B` `B14C` `BL17` `BL19` `DW1` `M200` `MC45` `NAVI` `PA24` `PACE` `SP7` `T250` | 30 px |
+| <img src="icons/x_pa46.svg" width="48" height="48" alt="x_pa46"> | Piper Malibu/Meridian/M500-M700 | `M600` `M700` `P46T` `PA46` | 32 px |
+| <img src="icons/x_sr22.svg" width="48" height="48" alt="x_sr22"> | Cirrus SR20/SR22 | `C240` `PIPA` `S22T` `SR20` `SR22` | 31 px |
 | <img src="icons/x_da40.svg" width="48" height="48" alt="x_da40"> | Diamond DA40 | `DA40` | 31 px |
 | <img src="icons/x_da20.svg" width="48" height="48" alt="x_da20"> | Diamond DA20 | `DA20` `DV20` | 30 px |
 | <img src="icons/x_be35.svg" width="48" height="48" alt="x_be35"> | Beech Bonanza V-tail | `BE35` | 29 px |
-| <img src="icons/x_be36.svg" width="48" height="48" alt="x_be36"> | Beech Bonanza A36 | `BE33` `BE36` `BT36` | 29 px |
+| <img src="icons/x_be36.svg" width="48" height="48" alt="x_be36"> | Beech Bonanza A36 | `B36T` `BE33` `BE36` `BT36` | 29 px |
 | <img src="icons/x_m20.svg" width="48" height="48" alt="x_m20"> | Mooney M20 | `M20J` `M20K` `M20P` `M20R` `M20T` | 30 px |
-| <img src="icons/x_rv7.svg" width="48" height="48" alt="x_rv7"> | Van's RV-6/7/8/9/14 | `RV14` `RV4` `RV6` `RV7` `RV8` `RV9` | 27 px |
+| <img src="icons/x_rv7.svg" width="48" height="48" alt="x_rv7"> | Van's RV-6/7/8/9/14 | `HROC` `MUS2` `RV14` `RV3` `RV4` `RV6` `RV7` `RV8` `RV9` `T18` | 27 px |
 | <img src="icons/x_rv10.svg" width="48" height="48" alt="x_rv10"> | Van's RV-10 | `RV10` | 29 px |
-| <img src="icons/x_rv12.svg" width="48" height="48" alt="x_rv12"> | Van's RV-12, Tecnam Sierra, JMB VL3 | `RV12` `SIRA` `VL3` | 27 px |
-| <img src="icons/x_lnc4.svg" width="48" height="48" alt="x_lnc4"> | Lancair IV / Evolution | `EVOT` `LNC2` `LNC4` | 28 px |
-| <img src="icons/x_pa28.svg" width="48" height="48" alt="x_pa28"> | Piper PA-28 Cherokee/Warrior/Archer/Arrow | `P28A` `P28B` `P28R` `P28T` `P28U` `PA28` | 30 px |
-| <img src="icons/x_tb20.svg" width="48" height="48" alt="x_tb20"> | Socata Trinidad/Tobago | `TB10` `TB20` `TB21` `TB9` `TOBA` | 29 px |
-| <img src="icons/x_dr40.svg" width="48" height="48" alt="x_dr40"> | Robin DR400 | `DR40` | 28 px |
-| <img src="icons/x_g115.svg" width="48" height="48" alt="x_g115"> | Grob 115/120 | `G115` `G120` | 29 px |
+| <img src="icons/x_rv12.svg" width="48" height="48" alt="x_rv12"> | Van's RV-12, Tecnam Sierra, JMB VL3 | `A210` `ASTO` `AURA` `BR23` `BREZ` `EUPA` `EV97` `EVSS` `FDCT` `GOLF` `KR2` `MCR1` `NG5` `PNR3` `PULS` `RV12` `SD4` `SIRA` `SNAP` `SONX` `SRAI` `TL20` `TL30` `TWEN` `VL3` `VR7` `WAIX` `WT9` | 27 px |
+| <img src="icons/x_lnc4.svg" width="48" height="48" alt="x_lnc4"> | Lancair IV / Evolution | `EVOP` `EVOT` `LEG2` `LESP` `LNC2` `LNC4` `LNCE` `LNP4` `SNGY` `TGRS` | 28 px |
+| <img src="icons/x_pa28.svg" width="48" height="48" alt="x_pa28"> | Piper PA-28 Cherokee/Warrior/Archer/Arrow | `P28A` `P28B` `P28R` `P28S` `P28T` `P28U` `PA28` | 30 px |
+| <img src="icons/x_tb20.svg" width="48" height="48" alt="x_tb20"> | Socata Trinidad/Tobago | `RALL` `TAMP` `TB10` `TB20` `TB21` `TB9` `TOBA` | 29 px |
+| <img src="icons/x_dr40.svg" width="48" height="48" alt="x_dr40"> | Robin DR400 | `D11` `DR10` `DR22` `DR40` `HR20` | 28 px |
+| <img src="icons/x_g115.svg" width="48" height="48" alt="x_g115"> | Grob 115/120 | `AS02` `BDOG` `G115` `G120` `Z42` | 29 px |
 | <img src="icons/x_aa5.svg" width="48" height="48" alt="x_aa5"> | Grumman Tiger/Traveler, Globe Swift | `AA1` `AA5` `GC1` | 29 px |
 | <img src="icons/x_tbm9.svg" width="48" height="48" alt="x_tbm9"> | Daher TBM 700/850/900, Epic | `EPIC` `TBM7` `TBM8` `TBM9` | 31 px |
-| <img src="icons/x_kodi.svg" width="48" height="48" alt="x_kodi"> | Quest Kodiak | `KODI` | 32 px |
+| <img src="icons/x_kodi.svg" width="48" height="48" alt="x_kodi"> | Quest Kodiak | `K100` `K200` `K900` `KODI` | 32 px |
 | <img src="icons/x_pc6.svg" width="48" height="48" alt="x_pc6"> | Pilatus Porter | `PC6P` `PC6T` | 34 px |
 | <img src="icons/x_dhc2.svg" width="48" height="48" alt="x_dhc2"> | DHC-2 Beaver | `DHC2` | 33 px |
 | <img src="icons/x_dhc3.svg" width="48" height="48" alt="x_dhc3"> | DHC-3 Otter | `DH3T` `DHC3` | 35 px |
 | <img src="icons/x_c208.svg" width="48" height="48" alt="x_c208"> | Cessna Caravan | `C208` | 34 px |
 | <img src="icons/x_pc12.svg" width="48" height="48" alt="x_pc12"> | Pilatus PC-12 | `PC12` | 34 px |
-| <img src="icons/x_at8t.svg" width="48" height="48" alt="x_at8t"> | Air Tractor (crop duster) | `AT01` `AT3T` `AT4T` `AT5T` `AT6T` `AT8T` | 33 px |
-| <img src="icons/x_pa25.svg" width="48" height="48" alt="x_pa25"> | Piper Pawnee | `PA25` `PA36` | 30 px |
-| <img src="icons/x_la4.svg" width="48" height="48" alt="x_la4"> | Lake Buccaneer (pusher amphibian) | `LA25` `LA4` | 30 px |
-| <img src="icons/x_icona5.svg" width="48" height="48" alt="x_icona5"> | ICON A5 / SeaRey | `ICON` `SRAY` | 30 px |
+| <img src="icons/x_at8t.svg" width="48" height="48" alt="x_at8t"> | Air Tractor (crop duster) | `A660` `AT01` `AT3P` `AT3T` `AT4T` `AT5T` `AT6T` `AT8T` `M18` `SS2P` `SS2T` | 33 px |
+| <img src="icons/x_pa25.svg" width="48" height="48" alt="x_pa25"> | Piper Pawnee | `A9` `C188` `PA25` `PA36` | 30 px |
+| <img src="icons/x_la4.svg" width="48" height="48" alt="x_la4"> | Lake Buccaneer (pusher amphibian) | `GP3` `GP4` `LA25` `LA4` `RC3` `TA16` | 30 px |
+| <img src="icons/x_icona5.svg" width="48" height="48" alt="x_icona5"> | ICON A5 / SeaRey | `A5` `SREY` | 30 px |
 | <img src="icons/x_sling.svg" width="48" height="48" alt="x_sling"> | Sling 2/4/TSi | `SLG2` `SLG4` `SLGT` | 28 px |
+| <img src="icons/x_dhc1.svg" width="48" height="48" alt="x_dhc1"> | DHC-1 Chipmunk, Ryan PT-22, Fairchild PT-19 | `DHC1` `FA62` `PT22` `YALE` | 30 px |
+| <img src="icons/x_t34.svg" width="48" height="48" alt="x_t34"> | Beech T-34 Mentor | `HT34` `T34` `T34P` `T34T` | 29 px |
 
 ## Light aircraft: twins and utility
 
@@ -230,11 +235,11 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_pa23.svg" width="48" height="48" alt="x_pa23"> | Piper Aztec/Apache | `PA23` | 30 px |
 | <img src="icons/x_pa34.svg" width="48" height="48" alt="x_pa34"> | Piper Seneca | `PA34` | 31 px |
 | <img src="icons/x_pa44.svg" width="48" height="48" alt="x_pa44"> | Piper Seminole | `PA44` | 31 px |
-| <img src="icons/x_be58.svg" width="48" height="48" alt="x_be58"> | Beech Baron | `B58T` `BE55` `BE58` `BE95` | 30 px |
+| <img src="icons/x_be58.svg" width="48" height="48" alt="x_be58"> | Beech Baron | `B58T` `BE50` `BE55` `BE58` `BE95` | 30 px |
 | <img src="icons/x_be76.svg" width="48" height="48" alt="x_be76"> | Beech Duchess | `BE76` | 30 px |
 | <img src="icons/x_c310.svg" width="48" height="48" alt="x_c310"> | Cessna 310/320 | `C303` `C310` `C320` | 30 px |
 | <img src="icons/x_c340.svg" width="48" height="48" alt="x_c340"> | Cessna 340/335 | `C335` `C340` | 30 px |
-| <img src="icons/x_c414.svg" width="48" height="48" alt="x_c414"> | Cessna 401/402/414 | `C401` `C402` `C411` `C414` | 32 px |
+| <img src="icons/x_c414.svg" width="48" height="48" alt="x_c414"> | Cessna 401/402/414 | `BE65` `C401` `C402` `C411` `C414` | 32 px |
 | <img src="icons/x_c421.svg" width="48" height="48" alt="x_c421"> | Cessna 421/404 | `C404` `C421` | 31 px |
 | <img src="icons/x_da42.svg" width="48" height="48" alt="x_da42"> | Diamond DA42 | `DA42` | 32 px |
 | <img src="icons/x_da62.svg" width="48" height="48" alt="x_da62"> | Diamond DA62 | `DA62` | 33 px |
@@ -244,12 +249,12 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_b350.svg" width="48" height="48" alt="x_b350"> | King Air 350 | `B350` `BE30` | 35 px |
 | <img src="icons/x_be9l.svg" width="48" height="48" alt="x_be9l"> | King Air 90/100 | `BE10` `BE9L` `BE9T` | 33 px |
 | <img src="icons/x_sw4.svg" width="48" height="48" alt="x_sw4"> | Fairchild Metro/Merlin | `SW2` `SW3` `SW4` | 35 px |
-| <img src="icons/x_js31.svg" width="48" height="48" alt="x_js31"> | Jetstream 31/32 | `JS31` `JS32` | 34 px |
+| <img src="icons/x_js31.svg" width="48" height="48" alt="x_js31"> | Jetstream 31/32 | `E110` `JS31` `JS32` | 34 px |
 | <img src="icons/x_mu2.svg" width="48" height="48" alt="x_mu2"> | Mitsubishi MU-2 | `MU2` | 31 px |
 | <img src="icons/x_c441.svg" width="48" height="48" alt="x_c441"> | Cessna Conquest | `C425` `C441` | 33 px |
 | <img src="icons/x_pay3.svg" width="48" height="48" alt="x_pay3"> | Piper Cheyenne | `PAY1` `PAY2` `PAY3` `PAY4` | 33 px |
 | <img src="icons/x_p180.svg" width="48" height="48" alt="x_p180"> | Piaggio Avanti | `P180` | 33 px |
-| <img src="icons/x_c337.svg" width="48" height="48" alt="x_c337"> | Cessna Skymaster (push-pull) | `C337` | 30 px |
+| <img src="icons/x_c337.svg" width="48" height="48" alt="x_c337"> | Cessna Skymaster (push-pull) | `C337` `O2` `P337` | 30 px |
 | <img src="icons/x_l410.svg" width="48" height="48" alt="x_l410"> | Let 410 | `L410` | 36 px |
 | <img src="icons/x_bn2.svg" width="48" height="48" alt="x_bn2"> | Britten-Norman Islander | `BN2P` `BN2T` | 33 px |
 | <img src="icons/x_d228.svg" width="48" height="48" alt="x_d228"> | Dornier 228 | `D228` | 34 px |
@@ -257,12 +262,13 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_sc7.svg" width="48" height="48" alt="x_sc7"> | Shorts Skyvan / 330 / 360 | `SC7` `SH33` `SH36` | 36 px |
 | <img src="icons/x_be20.svg" width="48" height="48" alt="x_be20"> | King Air 200/250/260 | `BE20` | 34 px |
 | <img src="icons/x_p06t.svg" width="48" height="48" alt="x_p06t"> | Tecnam P2006T | `P06T` | 30 px |
+| <img src="icons/x_ac50.svg" width="48" height="48" alt="x_ac50"> | Aero Commander / Turbo Commander (high-wing twin) | `AC50` `AC56` `AC68` `AC6L` `AC80` `AC90` `AC95` | 33 px |
 
 ## Classic airliners and transports
 
 | Icon | Aircraft | Type codes | Size |
 |:---:|---|---|---:|
-| <img src="icons/x_dc3.svg" width="48" height="48" alt="x_dc3"> | Douglas DC-3 / C-47 | `C47` `DC3` `DC3T` | 40 px |
+| <img src="icons/x_dc3.svg" width="48" height="48" alt="x_dc3"> | Douglas DC-3 / C-47 | `C47` `CVLP` `DC2` `DC3` `DC3S` `DC3T` `M404` | 40 px |
 | <img src="icons/x_dc4.svg" width="48" height="48" alt="x_dc4"> | Douglas DC-4 / C-54 | `DC4` | 43 px |
 | <img src="icons/x_dc6.svg" width="48" height="48" alt="x_dc6"> | Douglas DC-6/DC-7 | `DC6` `DC7` | 43 px |
 | <img src="icons/x_c46.svg" width="48" height="48" alt="x_c46"> | Curtiss C-46 Commando | `C46` | 42 px |
@@ -271,12 +277,17 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_visc.svg" width="48" height="48" alt="x_visc"> | Vickers Viscount | `VISC` | 40 px |
 | <img src="icons/x_ju52.svg" width="48" height="48" alt="x_ju52"> | Junkers Ju 52 (trimotor) | `JU52` | 40 px |
 | <img src="icons/x_an2.svg" width="48" height="48" alt="x_an2"> | Antonov An-2 (biplane) | `AN2` | 35 px |
-| <img src="icons/x_be18.svg" width="48" height="48" alt="x_be18"> | Beech 18 (twin tail) | `BE18` | 33 px |
+| <img src="icons/x_be18.svg" width="48" height="48" alt="x_be18"> | Beech 18 (twin tail) | `B18T` `BE18` `L10` `L12` `L14` `L18` | 33 px |
 | <img src="icons/x_be17.svg" width="48" height="48" alt="x_be17"> | Beech Staggerwing (biplane) | `BE17` | 29 px |
-| <img src="icons/x_g21.svg" width="48" height="48" alt="x_g21"> | Grumman Goose | `G21` `G44` | 33 px |
+| <img src="icons/x_g21.svg" width="48" height="48" alt="x_g21"> | Grumman Goose | `G21` `G44` `G73` `U16` | 33 px |
 | <img src="icons/x_pby.svg" width="48" height="48" alt="x_pby"> | Consolidated Catalina | `CAT` `PBY` | 41 px |
 | <img src="icons/x_dhc6.svg" width="48" height="48" alt="x_dhc6"> | DHC-6 Twin Otter | `DHC6` | 36 px |
 | <img src="icons/x_cl415.svg" width="48" height="48" alt="x_cl415"> | Canadair CL-215/415 | `CL2P` `CL2T` `CL4T` | 40 px |
+| <img src="icons/x_trimotor.svg" width="48" height="48" alt="x_trimotor"> | Ford Tri-Motor / Stinson Tri-Motor | `SM60` `TRIM` `TRMA` | 38 px |
+| <img src="icons/x_sgup.svg" width="48" height="48" alt="x_sgup"> | Super Guppy | `CL4G` `SGUP` | 47 px |
+| <img src="icons/x_c97.svg" width="48" height="48" alt="x_c97"> | Boeing C-97 / Stratocruiser | `B377` `C97` | 45 px |
+| <img src="icons/x_t134.svg" width="48" height="48" alt="x_t134"> | Tupolev Tu-134 | `T134` | 43 px |
+| <img src="icons/x_dc8.svg" width="48" height="48" alt="x_dc8"> | Douglas DC-8 | `DC81` `DC82` `DC83` `DC85` `DC86` `DC87` | 49 px |
 
 ## Warbirds and classic fighters
 
@@ -298,26 +309,51 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_b29.svg" width="48" height="48" alt="x_b29"> | B-29 Superfortress | `B29` | 45 px |
 | <img src="icons/x_lanc.svg" width="48" height="48" alt="x_lanc"> | Avro Lancaster | `LANC` | 41 px |
 | <img src="icons/x_mosq.svg" width="48" height="48" alt="x_mosq"> | de Havilland Mosquito | `MOSQ` | 34 px |
-| <img src="icons/x_t6.svg" width="48" height="48" alt="x_t6"> | North American T-6 Texan/Harvard | `T6` | 31 px |
+| <img src="icons/x_t6.svg" width="48" height="48" alt="x_t6"> | North American T-6 Texan/Harvard | `EZHV` `T6` `TUCR` | 31 px |
 | <img src="icons/x_t28.svg" width="48" height="48" alt="x_t28"> | North American T-28 Trojan | `T28` | 31 px |
-| <img src="icons/x_stearman.svg" width="48" height="48" alt="x_stearman"> | Boeing Stearman (biplane) | `ST75` | 29 px |
+| <img src="icons/x_stearman.svg" width="48" height="48" alt="x_stearman"> | Boeing Stearman (biplane) | `N3N` `ST6` `ST75` | 29 px |
 | <img src="icons/x_dh82.svg" width="48" height="48" alt="x_dh82"> | de Havilland Tiger Moth (biplane) | `DH82` | 28 px |
 | <img src="icons/x_pitts.svg" width="48" height="48" alt="x_pitts"> | Pitts Special (biplane) | `PTS1` `PTS2` | 25 px |
-| <img src="icons/x_yk52.svg" width="48" height="48" alt="x_yk52"> | Yak-52 / Yak-18 | `YK18` `YK52` | 29 px |
+| <img src="icons/x_yk52.svg" width="48" height="48" alt="x_yk52"> | Yak-52 / Yak-18 | `CJ6` `Y18T` `YK18` `YK52` | 29 px |
 | <img src="icons/x_a1sky.svg" width="48" height="48" alt="x_a1sky"> | Douglas A-1 Skyraider | `A1` | 33 px |
+| <img src="icons/x_p82.svg" width="48" height="48" alt="x_p82"> | P-82 Twin Mustang | `P82` | 33 px |
+| <img src="icons/x_dr1.svg" width="48" height="48" alt="x_dr1"> | Fokker Dr.I triplane | `DR1` | 26 px |
+| <img src="icons/x_camel.svg" width="48" height="48" alt="x_camel"> | WWI biplanes (Sopwith Camel/Pup, Nieuport, Fokker D.VII) | `CAML` `D7` `NPOR` `SPUP` | 28 px |
+| <img src="icons/x_storch.svg" width="48" height="48" alt="x_storch"> | Fieseler Storch | `F156` `STCH` `STOR` | 32 px |
+| <img src="icons/x_lysa.svg" width="48" height="48" alt="x_lysa"> | Westland Lysander | `LYSA` | 33 px |
+| <img src="icons/x_tbmav.svg" width="48" height="48" alt="x_tbmav"> | Grumman TBM Avenger | `TBM` | 34 px |
+| <img src="icons/x_hcat.svg" width="48" height="48" alt="x_hcat"> | Grumman Hellcat / Wildcat | `HCAT` `WCAT` | 32 px |
+| <img src="icons/x_bcat.svg" width="48" height="48" alt="x_bcat"> | Grumman Bearcat | `BCAT` | 30 px |
+| <img src="icons/x_sbd.svg" width="48" height="48" alt="x_sbd"> | Douglas SBD Dauntless | `SBD` | 31 px |
+| <img src="icons/x_a26.svg" width="48" height="48" alt="x_a26"> | Douglas A-26 Invader | `A26` `B26` | 37 px |
+| <img src="icons/x_b26m.svg" width="48" height="48" alt="x_b26m"> | Martin B-26 Marauder | `B26M` | 37 px |
+| <img src="icons/x_p39.svg" width="48" height="48" alt="x_p39"> | Bell P-39 Airacobra / P-63 Kingcobra | `P39` `P63` | 29 px |
+| <img src="icons/x_yak3.svg" width="48" height="48" alt="x_yak3"> | Yakovlev Yak-3/9/11 | `YAK3` `YAK9` `YK11` `YK3` | 28 px |
+| <img src="icons/x_me262.svg" width="48" height="48" alt="x_me262"> | Messerschmitt Me 262 | `ME62` | 31 px |
 
 ## Experimental and aerobatic
 
 | Icon | Aircraft | Type codes | Size |
 |:---:|---|---|---:|
-| <img src="icons/x_lgez.svg" width="48" height="48" alt="x_lgez"> | Rutan Long-EZ / VariEze / Cozy | `COZY` `LGEZ` `VEZE` | 27 px |
+| <img src="icons/x_lgez.svg" width="48" height="48" alt="x_lgez"> | Rutan Long-EZ / VariEze / Cozy | `COZY` `DEFI` `LGEZ` `VEZE` `VVIG` | 27 px |
 | <img src="icons/x_velo.svg" width="48" height="48" alt="x_velo"> | Velocity | `VELO` | 28 px |
-| <img src="icons/x_e300.svg" width="48" height="48" alt="x_e300"> | Extra 300/330 | `E200` `E300` `E330` | 27 px |
-| <img src="icons/x_su26.svg" width="48" height="48" alt="x_su26"> | Sukhoi Su-26/29/31 | `SU26` `SU29` `SU31` | 27 px |
-| <img src="icons/x_cp23.svg" width="48" height="48" alt="x_cp23"> | CAP 10/232 | `CP10` `CP23` | 27 px |
-| <img src="icons/x_kitfox.svg" width="48" height="48" alt="x_kitfox"> | Kitfox / Zenith / light sport high wing | `C42` `CH60` `CH70` `ECHO` `KFOX` `P92` `SAVG` | 29 px |
+| <img src="icons/x_e300.svg" width="48" height="48" alt="x_e300"> | Extra 300/330 | `E200` `E230` `E300` `E330` `E400` `E500` `EDGE` `EDGT` `EXNG` `GB1` `LAKR` `MXS` `RODS` `ST30` | 27 px |
+| <img src="icons/x_su26.svg" width="48" height="48" alt="x_su26"> | Sukhoi Su-26/29/31 | `SU26` `SU29` `SU31` `YK50` `YK55` | 27 px |
+| <img src="icons/x_cp23.svg" width="48" height="48" alt="x_cp23"> | CAP 10/232 | `CP10` `CP21` `CP23` | 27 px |
+| <img src="icons/x_kitfox.svg" width="48" height="48" alt="x_kitfox"> | Kitfox / Zenith / light sport high wing | `ALBU` `AP22` `AVID` `BEAR` `BRAV` `C42` `CH60` `CH70` `CH75` `CHIN` `COY2` `CRER` `DAKH` `ECHO` `EFOX` `FK9` `FOX` `G3` `HIGH` `JAB4` `KFOX` `P208` `P92` `RBEL` `RS20` `RS21` `SAVG` `SKRA` `SLH4` `SSTL` `SVNH` `TAIL` `VIX` | 29 px |
 | <img src="icons/x_xcub.svg" width="48" height="48" alt="x_xcub"> | CubCrafters Carbon/XCub | `CC11` `CC18` `CC19` `XCUB` | 29 px |
 | <img src="icons/x_glasair.svg" width="48" height="48" alt="x_glasair"> | Glasair | `GLAS` `GLST` | 27 px |
+| <img src="icons/x_x59.svg" width="48" height="48" alt="x_x59"> | Lockheed Martin X-59 QueSST | `X59` | 40 px |
+| <img src="icons/x_ss2.svg" width="48" height="48" alt="x_ss2"> | SpaceShipTwo | `SS2` | 35 px |
+| <img src="icons/x_whk2.svg" width="48" height="48" alt="x_whk2"> | White Knight Two (twin fuselage) | `WHK2` `WHKN` | 45 px |
+| <img src="icons/x_slch.svg" width="48" height="48" alt="x_slch"> | Stratolaunch Roc (twin fuselage) | `SLCH` | 58 px |
+| <img src="icons/x_starship.svg" width="48" height="48" alt="x_starship"> | Beechcraft Starship (canard pusher) | `STAR` | 34 px |
+| <img src="icons/x_joby.svg" width="48" height="48" alt="x_joby"> | Joby S4 (electric tilt-prop) | `JAS4` | 30 px |
+| <img src="icons/x_waco.svg" width="48" height="48" alt="x_waco"> | Waco cabin biplane | `UPF7` `WACC` `WACF` `WACO` | 30 px |
+| <img src="icons/x_g164.svg" width="48" height="48" alt="x_g164"> | Grumman Ag-Cat (crop duster biplane) | `G164` | 30 px |
+| <img src="icons/x_sportbip.svg" width="48" height="48" alt="x_sportbip"> | Sport biplanes (Skybolt, Starduster, Christen Eagle, Great Lakes, Jungmann, Stampe) | `BLKS` `BOLT` `BU31` `BU33` `CB1` `COUG` `DSA1` `EAGL` `G2T1` `PSTM` `SA10` `SA30` `SA75` `ST3` `SV4` | 27 px |
+| <img src="icons/x_erco.svg" width="48" height="48" alt="x_erco"> | Ercoupe (twin tail) | `ERCO` `M10` `M10R` | 28 px |
+| <img src="icons/x_dfly.svg" width="48" height="48" alt="x_dfly"> | Quickie Q2 / Dragonfly (tandem wing) | `DFLY` `QIC2` `QUIC` `SQ2T` | 25 px |
 
 ## Military jets
 
@@ -334,18 +370,18 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_f4.svg" width="48" height="48" alt="x_f4"> | F-4 Phantom II | `F4` | 35 px |
 | <img src="icons/x_f14.svg" width="48" height="48" alt="x_f14"> | F-14 Tomcat | `F14` | 36 px |
 | <img src="icons/x_f15.svg" width="48" height="48" alt="x_f15"> | F-15 Eagle | `F15` | 36 px |
-| <img src="icons/x_f18.svg" width="48" height="48" alt="x_f18"> | F/A-18 Hornet / Super Hornet | `EA18` `F18` `F18S` | 35 px |
+| <img src="icons/x_f18.svg" width="48" height="48" alt="x_f18"> | F/A-18 Hornet / Super Hornet | `EA18` `F18` `F18H` `F18S` | 35 px |
 | <img src="icons/x_f22.svg" width="48" height="48" alt="x_f22"> | F-22 Raptor | `F22` | 35 px |
-| <img src="icons/x_f35.svg" width="48" height="48" alt="x_f35"> | F-35 Lightning II | `F35` | 33 px |
+| <img src="icons/x_f35.svg" width="48" height="48" alt="x_f35"> | F-35 Lightning II | `F35` `VF35` | 33 px |
 | <img src="icons/x_su27.svg" width="48" height="48" alt="x_su27"> | Sukhoi Su-27/30/35 | `J11` `J15` `SU27` `SU30` `SU33` `SU35` | 37 px |
 | <img src="icons/x_mg29.svg" width="48" height="48" alt="x_mg29"> | MiG-29 | `MG29` `MG35` | 34 px |
 | <img src="icons/x_tornado.svg" width="48" height="48" alt="x_tornado"> | Panavia Tornado | `TOR` | 34 px |
 | <img src="icons/x_jaguar.svg" width="48" height="48" alt="x_jaguar"> | SEPECAT Jaguar | `JAGR` | 34 px |
-| <img src="icons/x_mir2.svg" width="48" height="48" alt="x_mir2"> | Mirage 2000 / Mirage III | `M2000` `MIR2` `MIR3` | 33 px |
-| <img src="icons/x_draken.svg" width="48" height="48" alt="x_draken"> | Saab Draken | `DRAK` | 33 px |
-| <img src="icons/x_viggen.svg" width="48" height="48" alt="x_viggen"> | Saab Viggen | `VIGN` | 34 px |
+| <img src="icons/x_mir2.svg" width="48" height="48" alt="x_mir2"> | Mirage 2000 / Mirage III | `M2000` `MIR2` `MIR3` `MIRA` | 33 px |
+| <img src="icons/x_draken.svg" width="48" height="48" alt="x_draken"> | Saab Draken | `DRAK` `SB35` | 33 px |
+| <img src="icons/x_viggen.svg" width="48" height="48" alt="x_viggen"> | Saab Viggen | `SB37` `VIGN` | 34 px |
 | <img src="icons/x_rafale.svg" width="48" height="48" alt="x_rafale"> | Dassault Rafale | `RFAL` | 33 px |
-| <img src="icons/x_gripen.svg" width="48" height="48" alt="x_gripen"> | Saab Gripen | `GRIF` `JAS3` | 32 px |
+| <img src="icons/x_gripen.svg" width="48" height="48" alt="x_gripen"> | Saab Gripen | `GRIF` `JAS3` `SB39` `SGCD` `SGEF` | 32 px |
 | <img src="icons/x_eufi.svg" width="48" height="48" alt="x_eufi"> | Eurofighter Typhoon | `EUFI` | 34 px |
 | <img src="icons/x_j10.svg" width="48" height="48" alt="x_j10"> | Chengdu J-10 | `J10` | 34 px |
 | <img src="icons/x_f16.svg" width="48" height="48" alt="x_f16"> | F-16 Fighting Falcon | `F16` `F2` | 33 px |
@@ -359,6 +395,14 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_f117.svg" width="48" height="48" alt="x_f117"> | F-117 Nighthawk | `F117` | 36 px |
 | <img src="icons/x_sr71.svg" width="48" height="48" alt="x_sr71"> | SR-71 Blackbird | `SR71` | 42 px |
 | <img src="icons/x_u2.svg" width="48" height="48" alt="x_u2"> | Lockheed U-2 | `U2` | 41 px |
+| <img src="icons/x_t33.svg" width="48" height="48" alt="x_t33"> | Lockheed T-33 / P-80, Grumman Panther | `F9F` `P80` `T33` | 31 px |
+| <img src="icons/x_a37.svg" width="48" height="48" alt="x_a37"> | Cessna T-37 / A-37 Dragonfly | `A37` `T37` | 30 px |
+| <img src="icons/x_jpro.svg" width="48" height="48" alt="x_jpro"> | Jet Provost / Strikemaster | `JPRO` `STRK` | 30 px |
+| <img src="icons/x_fouga.svg" width="48" height="48" alt="x_fouga"> | Fouga Magister (V-tail) | `FOUG` | 31 px |
+| <img src="icons/x_su25.svg" width="48" height="48" alt="x_su25"> | Sukhoi Su-25 Frogfoot | `SU25` | 33 px |
+| <img src="icons/x_f111.svg" width="48" height="48" alt="x_f111"> | F-111 / Su-24 (swing wing) | `EF11` `F111` `SU24` | 37 px |
+| <img src="icons/x_a6.svg" width="48" height="48" alt="x_a6"> | Grumman A-6 Intruder / EA-6B Prowler | `A6` `EA6` | 34 px |
+| <img src="icons/x_f8.svg" width="48" height="48" alt="x_f8"> | Vought F-8 Crusader | `F8` | 34 px |
 
 ## Military transports, bombers, tankers and patrol
 
@@ -378,36 +422,47 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_c17.svg" width="48" height="48" alt="x_c17"> | Boeing C-17 Globemaster III | `C17` | 48 px |
 | <img src="icons/x_c130.svg" width="48" height="48" alt="x_c130"> | Lockheed C-130 Hercules, An-12, Il-18 | `AN12` `C130` `C30J` `IL18` | 44 px |
 | <img src="icons/x_c27j.svg" width="48" height="48" alt="x_c27j"> | Alenia C-27J Spartan | `C27J` | 40 px |
+| <img src="icons/x_tb2.svg" width="48" height="48" alt="x_tb2"> | Bayraktar TB2 | `AKIN` `BTB2` | 31 px |
+| <img src="icons/x_ov10.svg" width="48" height="48" alt="x_ov10"> | OV-10 Bronco (twin boom) | `V10` | 32 px |
+| <img src="icons/x_mohawk.svg" width="48" height="48" alt="x_mohawk"> | Grumman OV-1 Mohawk | `V1` | 33 px |
+| <img src="icons/x_s2.svg" width="48" height="48" alt="x_s2"> | Grumman S-2 Tracker / C-1 Trader | `G96` `S2P` `S2T` | 37 px |
+| <img src="icons/x_tu95.svg" width="48" height="48" alt="x_tu95"> | Tupolev Tu-95 / Tu-142 Bear | `T142` `TU95` | 47 px |
+| <img src="icons/x_c141.svg" width="48" height="48" alt="x_c141"> | Lockheed C-141 Starlifter | `C141` | 48 px |
+| <img src="icons/x_c390.svg" width="48" height="48" alt="x_c390"> | Embraer C-390 Millennium | `C390` `E390` | 43 px |
+| <img src="icons/x_dhc4.svg" width="48" height="48" alt="x_dhc4"> | DHC-4 Caribou / DHC-5 Buffalo, C-123 | `C123` `DHC4` `DHC5` | 40 px |
+| <img src="icons/x_c119.svg" width="48" height="48" alt="x_c119"> | Fairchild C-119 Flying Boxcar (twin boom) | `C119` | 42 px |
+| <img src="icons/x_an72.svg" width="48" height="48" alt="x_an72"> | Antonov An-72/74 (engines over the wing) | `A743` `AN72` | 41 px |
+| <img src="icons/x_be200.svg" width="48" height="48" alt="x_be200"> | Beriev Be-200 (jet amphibian) | `BER2` | 42 px |
 
 ## Helicopters
 
 | Icon | Aircraft | Type codes | Size |
 |:---:|---|---|---:|
-| <img src="icons/x_r22.svg" width="48" height="48" alt="x_r22"> | Robinson R22 | `R22` | 28 px |
+| <img src="icons/x_r22.svg" width="48" height="48" alt="x_r22"> | Robinson R22 | `A600` `EXEC` `R22` | 28 px |
 | <img src="icons/x_r44.svg" width="48" height="48" alt="x_r44"> | Robinson R44 | `R44` | 31 px |
 | <img src="icons/x_r66.svg" width="48" height="48" alt="x_r66"> | Robinson R66 | `R66` | 31 px |
 | <img src="icons/x_b06.svg" width="48" height="48" alt="x_b06"> | Bell 206 JetRanger / LongRanger | `B06` `B06T` | 31 px |
 | <img src="icons/x_b505.svg" width="48" height="48" alt="x_b505"> | Bell 505 | `B505` | 31 px |
-| <img src="icons/x_b47g.svg" width="48" height="48" alt="x_b47g"> | Bell 47 (bubble) | `B47G` | 32 px |
+| <img src="icons/x_b47g.svg" width="48" height="48" alt="x_b47g"> | Bell 47 (bubble) | `B47G` `UH12` | 32 px |
 | <img src="icons/x_uh1.svg" width="48" height="48" alt="x_uh1"> | Bell UH-1 Huey / 204/205/212 | `B204` `B205` `B212` `UH1` | 34 px |
-| <img src="icons/x_ah1.svg" width="48" height="48" alt="x_ah1"> | Bell AH-1 Cobra | `AH1` `H1` | 35 px |
+| <img src="icons/x_ah1.svg" width="48" height="48" alt="x_ah1"> | Bell AH-1 Cobra | `AH1` `H1` `HUCO` `SUCO` | 35 px |
 | <img src="icons/x_b222.svg" width="48" height="48" alt="x_b222"> | Bell 222/230 | `B222` `B230` | 33 px |
 | <img src="icons/x_b407.svg" width="48" height="48" alt="x_b407"> | Bell 407 | `B407` | 31 px |
 | <img src="icons/x_b412.svg" width="48" height="48" alt="x_b412"> | Bell 412 | `B412` | 34 px |
 | <img src="icons/x_b429.svg" width="48" height="48" alt="x_b429"> | Bell 427/429 | `B427` `B429` | 32 px |
 | <img src="icons/x_b525.svg" width="48" height="48" alt="x_b525"> | Bell 525 | `B525` | 36 px |
-| <img src="icons/x_h500.svg" width="48" height="48" alt="x_h500"> | MD 500 | `H500` `H520` `H530` | 29 px |
+| <img src="icons/x_h500.svg" width="48" height="48" alt="x_h500"> | MD 500 | `H500` `H520` `H530` `MD52` | 29 px |
 | <img src="icons/x_md900.svg" width="48" height="48" alt="x_md900"> | MD 900 Explorer (NOTAR) | `EXPL` `MD60` `MD90X` | 31 px |
 | <img src="icons/x_as50.svg" width="48" height="48" alt="x_as50"> | Airbus AS350 / H125 | `AS50` `H125` | 31 px |
 | <img src="icons/x_as55.svg" width="48" height="48" alt="x_as55"> | Airbus AS355 TwinStar | `AS55` | 31 px |
 | <img src="icons/x_ec30.svg" width="48" height="48" alt="x_ec30"> | Airbus EC130 / H130 | `EC30` `H130` | 31 px |
 | <img src="icons/x_ec20.svg" width="48" height="48" alt="x_ec20"> | Airbus EC120 Colibri | `EC20` | 30 px |
-| <img src="icons/x_ec35.svg" width="48" height="48" alt="x_ec35"> | Airbus EC135 / H135 | `EC35` `H135` | 31 px |
+| <img src="icons/x_ec35.svg" width="48" height="48" alt="x_ec35"> | Airbus EC135 / H135 | `B105` `EC35` `H135` | 31 px |
 | <img src="icons/x_ec45.svg" width="48" height="48" alt="x_ec45"> | Airbus H145 / BK117 | `BK17` `EC45` `H145` | 32 px |
 | <img src="icons/x_as65.svg" width="48" height="48" alt="x_as65"> | Airbus Dauphin / H155 | `AS65` `EC55` `H155` | 32 px |
 | <img src="icons/x_h160.svg" width="48" height="48" alt="x_h160"> | Airbus H160 | `H160` | 33 px |
 | <img src="icons/x_ec75.svg" width="48" height="48" alt="x_ec75"> | Airbus H175 | `EC75` `H175` | 35 px |
-| <img src="icons/x_ec25.svg" width="48" height="48" alt="x_ec25"> | Airbus H225 / Super Puma | `AS32` `AS3B` `EC25` `H215` `H225` | 36 px |
+| <img src="icons/x_ec25.svg" width="48" height="48" alt="x_ec25"> | Airbus H225 / Super Puma | `AS32` `AS3B` `EC25` `H215` `H225` `PUMA` | 36 px |
 | <img src="icons/x_gazl.svg" width="48" height="48" alt="x_gazl"> | Aerospatiale Gazelle | `GAZL` | 31 px |
 | <img src="icons/x_alo3.svg" width="48" height="48" alt="x_alo3"> | Alouette II/III, Lama | `ALO2` `ALO3` `LAMA` | 31 px |
 | <img src="icons/x_a109.svg" width="48" height="48" alt="x_a109"> | Leonardo A109 / A119 | `A109` `A119` | 32 px |
@@ -434,8 +489,26 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/x_nh90.svg" width="48" height="48" alt="x_nh90"> | NHIndustries NH90 | `NH90` | 36 px |
 | <img src="icons/x_lynx.svg" width="48" height="48" alt="x_lynx"> | Westland Lynx / AW159 | `A159` `LYNX` | 33 px |
 | <img src="icons/x_en28.svg" width="48" height="48" alt="x_en28"> | Enstrom 280/480 | `EN28` `EN48` | 29 px |
-| <img src="icons/x_h269.svg" width="48" height="48" alt="x_h269"> | Schweizer 300 / Hughes 269 | `H269` `S300` | 29 px |
+| <img src="icons/x_h269.svg" width="48" height="48" alt="x_h269"> | Schweizer 300 / Hughes 269 | `BRB2` `H269` `S300` `S330` | 29 px |
 | <img src="icons/x_g2ca.svg" width="48" height="48" alt="x_g2ca"> | Guimbal Cabri G2 | `G2CA` | 27 px |
+
+## Balloons, airships, gliders, gyroplanes, drones
+
+| Icon | Aircraft | Type codes | Size |
+|:---:|---|---|---:|
+| <img src="icons/x_glider.svg" width="48" height="48" alt="x_glider"> | B1 glider (a sailplane) | *(by emitter category)* | 32 px |
+| <img src="icons/x_balloon.svg" width="48" height="48" alt="x_balloon"> | B2 lighter than air (a hot air balloon) | *(by emitter category)* | 30 px |
+| <img src="icons/x_balloon.svg" width="48" height="48" alt="x_balloon"> | Hot air balloon | `BALL` | 35 px |
+| <img src="icons/x_blimp.svg" width="48" height="48" alt="x_blimp"> | Airship / blimp | `SHIP` | 50 px |
+| <img src="icons/x_gyro.svg" width="48" height="48" alt="x_gyro"> | Gyroplane, open (MTOsport, Magni M16, ELA) | `AC10` `AG1` `AR1` `CLD2` `CMD1` `CMDE` `CMDT` `DEAG` `EL10` `ELA7` `GYRO` `HAW3` `HW4P` `J4B2` `JE2` `JRO` `MM14` `MM16` `MM19` `MM21` `MT` `RAF2` `SCII` `SPGY` `SPHA` | 28 px |
+| <img src="icons/x_gyro_cabin.svg" width="48" height="48" alt="x_gyro_cabin"> | Gyroplane, enclosed (Cavalon, Calidus, Magni M24) | `CDUS` `CLON` `MM22` `MM24` `TSTR` `XNON` | 28 px |
+| <img src="icons/x_quad.svg" width="48" height="48" alt="x_quad"> | Drone (quadcopter) | `DRON` | 22 px |
+| <img src="icons/x_ppc.svg" width="48" height="48" alt="x_ppc"> | Powered parachute / paramotor | `PARA` | 30 px |
+| <img src="icons/x_glider.svg" width="48" height="48" alt="x_glider"> | Sailplane (LS4/LS8, Discus, ASW 20/27, Standard Cirrus, Libelle) | `AS20` `AS27` `AS28` `ASK3` `ASW2` `DG1T` `DG30` `DG80` `DISC` `GLID` `L33` `LIBE` `LS4` `LS6` `LS8` `PW5` `SCIR` `VENT` | 33 px |
+| <img src="icons/x_glider2.svg" width="48" height="48" alt="x_glider2"> | Two-seat sailplane (ASK 21, Grob Twin Astir, Duo Discus, Janus, Arcus) | `ARCU` `AS13` `AS21` `ASK21` `DUOD` `G103` `JANU` | 34 px |
+| <img src="icons/x_glider_open.svg" width="48" height="48" alt="x_glider_open"> | Open class sailplane (Nimbus, ASW 22, ASH 25/31, Quintus) | `AS22` `AS25` `AS31` `ETA` `NIMB` `QUIN` | 38 px |
+| <img src="icons/x_blanik.svg" width="48" height="48" alt="x_blanik"> | LET Blanik (forward-swept two-seater) | `BLAN` `L13` `L13M` `L23` | 34 px |
+| <img src="icons/x_motorglider.svg" width="48" height="48" alt="x_motorglider"> | Motorglider (Scheibe Falke, Grob G109, Dimona, Stemme, Pipistrel Sinus) | `AS14` `AS16` `DIMO` `G109` `GLIM` `HK36` `PISI` `PIT4` `PIVI` `S15S` `S6` `SA37` `SF23` `SF24` `SF25` `SF28` `SF31` `SF32` `SF35` `SF36` `SG37` | 33 px |
 
 ## Families (shared shapes)
 
@@ -444,16 +517,16 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/g_single_high.svg" width="48" height="48" alt="g_single_high"> | A1 light (unknown type): a high-wing single | *(by emitter category)* | 30 px |
 | <img src="icons/g_single_high.svg" width="48" height="48" alt="g_single_high"> | Cessna 150-210 and other high-wing singles | `C162` `C175` | 30 px |
 | <img src="icons/g_single_low.svg" width="48" height="48" alt="g_single_low"> | Piper PA-28/32, Cirrus, Diamond, Bonanza, Mooney, RV | `BE19` `BE23` `BE24` `COL3` `COL4` `CRUZ` `F260` | 30 px |
-| <img src="icons/g_turboprop_single.svg" width="48" height="48" alt="g_turboprop_single"> | PC-12, TBM, PA-46, T-6, Super Tucano, Air Tractor | `E314` `PC21` `PC7` `PC9` `T34` `TEX2` | 34 px |
+| <img src="icons/g_turboprop_single.svg" width="48" height="48" alt="g_turboprop_single"> | PC-12, TBM, PA-46, T-6, Super Tucano, Air Tractor | `E314` `HURK` `PC21` `PC7` `PC9` `TEX2` `TUCA` | 34 px |
 | <img src="icons/g_twin_piston.svg" width="48" height="48" alt="g_twin_piston"> | Baron, Seneca, Seminole, Cessna 310-421, DA42 | `BE60` `PA27` `PA30` | 32 px |
-| <img src="icons/g_twin_turboprop.svg" width="48" height="48" alt="g_twin_turboprop"> | Beech 99, Metro, Jetstream, Conquest, MU-2, Cheyenne | `AC11` `AC90` `AC95` `BE99` `E121` `F406` `PA42` | 36 px |
+| <img src="icons/g_twin_turboprop.svg" width="48" height="48" alt="g_twin_turboprop"> | Beech 99, Metro, Jetstream, Conquest, MU-2, Cheyenne | `BE99` `E121` `F406` `PA42` | 36 px |
 | <img src="icons/g_twin_high.svg" width="48" height="48" alt="g_twin_high"> | Twin Otter, Islander, Do 228, Let 410, CASA 212, Skyvan, P68 | `AN28` `DO28` `M28` | 38 px |
 | <img src="icons/g_awacs.svg" width="48" height="48" alt="g_awacs"> | AWACS: E-3, A-50, E-767 | `E3CF` `E3TF` `E767` | 50 px |
 | <img src="icons/g_hawkeye.svg" width="48" height="48" alt="g_hawkeye"> | E-2 Hawkeye, C-2 | `C2` `E2` | 40 px |
 | <img src="icons/g_b52.svg" width="48" height="48" alt="g_b52"> | B-52 | `B52` | 56 px |
-| <img src="icons/g_b1.svg" width="48" height="48" alt="g_b1"> | B-1 | `B1` | 50 px |
+| <img src="icons/g_b1.svg" width="48" height="48" alt="g_b1"> | B-1, Tu-160 | `B1` `T160` | 50 px |
 | <img src="icons/g_b2.svg" width="48" height="48" alt="g_b2"> | B-2 | `B2` | 54 px |
-| <img src="icons/g_fighter_single.svg" width="48" height="48" alt="g_fighter_single"> | single-fin fighters: F-16, F-4, F-5, Tornado, A-4 | `AMX` `JF17` `SU25` | 34 px |
+| <img src="icons/g_fighter_single.svg" width="48" height="48" alt="g_fighter_single"> | single-fin fighters: F-16, F-4, F-5, Tornado, A-4 | `AMX` `JF17` | 34 px |
 | <img src="icons/g_fighter_twin.svg" width="48" height="48" alt="g_fighter_twin"> | twin-fin fighters: F-15, F/A-18, F-22, F-35, F-14, Su-27 family, MiG-29 | `J20` `MG31` `SU34` `SU57` | 38 px |
 | <img src="icons/g_fighter_delta.svg" width="48" height="48" alt="g_fighter_delta"> | delta fighters: Eurofighter, Rafale, Gripen, Mirage 2000, J-10 | `KFIR` | 36 px |
 | <img src="icons/g_jet_trainer.svg" width="48" height="48" alt="g_jet_trainer"> | jet trainers: T-38, Hawk, L-39, M-346, Alpha Jet, T-45, T-7 | `K8` `T50` | 32 px |
@@ -479,8 +552,6 @@ Missing a type, or a type with the wrong icon? The table is `scripts/gen_aircraf
 | <img src="icons/a6.svg" width="48" height="48" alt="a6"> | A6 high performance | *(by emitter category)* | 36 px |
 | <img src="icons/a7.svg" width="48" height="48" alt="a7"> | A7 rotorcraft (unknown type) | *(by emitter category)* | 38 px |
 | <img src="icons/b0.svg" width="48" height="48" alt="b0"> | B6 unmanned | *(by emitter category)* | 22 px |
-| <img src="icons/b1.svg" width="48" height="48" alt="b1"> | B1 glider | `AS21` `ASK21` `ASK3` `ASW2` `DG1T` `DIMO` `DISC` `DUOD` `GLID` `GLIM` `JANU` `LS8` `NIMB` `VENT` | 32 px |
-| <img src="icons/b2.svg" width="48" height="48" alt="b2"> | B2 lighter than air | `BALL` `SHIP` | 30 px |
 | <img src="icons/b3.svg" width="48" height="48" alt="b3"> | B3 parachutist | *(by emitter category)* | 20 px |
 | <img src="icons/b4.svg" width="48" height="48" alt="b4"> | B4 ultralight | `PIAT` `ULAC` | 28 px |
 | <img src="icons/c0.svg" width="48" height="48" alt="c0"> | C1-C7 surface vehicles; ground stations | `GND` `SERV` `TWR` | 18 px |

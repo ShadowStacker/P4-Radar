@@ -687,3 +687,434 @@ add('dh8a', 'Dash 8-100/200', 'DH8A DH8B', lambda: prop(25.9, 22.3, 2.7, wpos=0.
 add('cl415', 'Canadair CL-215/415', 'CL2T CL4T CL2P', lambda: prop(28.6, 19.8, 2.6, wpos=0.28, root=3.5, tip=3.5, nacelles=(3.8,), nac_len=4.0, prop_d=4.0, tip_tanks=1.5, tail=6.5, thalf=4.5))
 add('p06t', 'Tecnam P2006T', 'P06T', lambda: prop(11.4, 8.7, 1.2, wpos=0.30, root=1.4, tip=1.4, nacelles=(1.6,), nac_len=2.4, prop_d=1.8, tpos=0.97))
 add('sling', 'Sling 2/4/TSi', 'SLG2 SLG4 SLGT', lambda: low_single(9.2, 7.0, fw=1.1, root=1.4, tip=1.1))
+
+
+# --- lighter than air, gyroplanes, drones, powered parachutes ---------------------
+
+def balloon(d=18.0, gores=12):
+    """A hot air balloon from above: the envelope's gores around the crown."""
+    s = Shape(d, d)
+    R, cy = d / 2, d / 2
+    gap, crown = d * 0.03, d * 0.13
+    for i in range(gores):
+        a0, a1 = 2 * math.pi * i / gores, 2 * math.pi * (i + 1) / gores
+        outer, inner = [], []
+        for k in range(9):
+            a = a0 + (a1 - a0) * k / 8
+            outer.append((a, R))
+        r_in = crown + gap
+        for k in range(9):
+            a = a1 - (a1 - a0) * k / 8
+            inner.append((a, r_in))
+        pts = []
+        for a, r in outer + inner:
+            # pull each point off the gore's edges by half the gap
+            da = math.asin(min(0.9, gap / 2 / r))
+            a = min(max(a, a0 + da), a1 - da)
+            pts.append((r * math.sin(a), cy - r * math.cos(a)))
+        s.poly(pts)
+    s.ellipse(0, cy, crown, crown)
+    return s
+
+
+def blimp(L=60.0, w=14.0):
+    """An airship: a long envelope with tail fins and side engines (Zeppelin NT / Goodyear)."""
+    s = Shape(w + 18, L)
+    s.ellipse(0, L / 2, w / 2, L / 2)
+    s.poly([(w * 0.36, L * 0.72), (w / 2 + 8.0, L * 0.86), (w / 2 + 8.0, L * 0.96), (w * 0.15, L * 0.97)], mirror=True,
+           round_r=1.5)
+    s.nacelle(w / 2 + 2.4, L * 0.36, 4.0, 1.6)
+    s.poly([(w / 2 - 0.5, L * 0.39), (w / 2 + 2.4, L * 0.40), (w / 2 + 2.4, L * 0.42), (w / 2 - 0.5, L * 0.42)],
+           mirror=True)
+    s.prop(w / 2 + 2.4, L * 0.36, 3.2)
+    s.prop(0, L - 0.4, 3.2, mirror=False)
+    return s
+
+
+def gyro(rotor_d=8.4, L=5.1, pod_w=0.9, cabin=False):
+    """A gyroplane: a two-blade rotor over a small pod with a pusher propeller and a tail."""
+    D = max(rotor_d, L)
+    s = Shape(rotor_d, D)
+    y0 = D / 2 - L * 0.42
+    pod_end = y0 + L * (0.62 if cabin else 0.55)
+    s.fuselage(pod_w, start=y0, end=pod_end, nose=pod_w * (1.2 if cabin else 0.9), tail=L * 0.22,
+               tail_width=pod_w * 0.5)
+    s.fuselage(0.22, start=pod_end - 0.4, end=y0 + L, nose=0.1, tail=0.3, tail_width=0.2)
+    s.prop(0, pod_end + 0.1, 1.75, mirror=False)
+    s.wing(y0 + L - 0.65, 0.55, 0.9, 0, 0.45)
+    s.poly([(0.85, y0 + L - 1.0), (1.0, y0 + L - 1.0), (1.0, y0 + L), (0.85, y0 + L)], mirror=True, round_r=0.07)
+    s.rotor(0, D / 2, rotor_d / 2, 2, rotor_d * 0.04)
+    return s
+
+
+def quad():
+    """A small quadcopter drone: four propeller rings on an X frame."""
+    s = Shape(1.0, 1.0)
+    c, a, r = 0.5, 0.33, 0.16
+    for sx in (1, -1):  # the two arms
+        pts = []
+        for x, y in ((-a, -a), (a, a)):
+            pts.append((sx * x, c + y))
+        hw = 0.035
+        (x0, y0), (x1, y1) = pts
+        s.poly([(x0 - hw, y0 + hw * sx), (x0 + hw, y0 - hw * sx), (x1 + hw, y1 - hw * sx), (x1 - hw, y1 + hw * sx)])
+    for sx in (1, -1):
+        for sy in (1, -1):
+            s.ring(sx * a, c + sy * a, r, r * 0.62)
+            s.ellipse(sx * a, c + sy * a, 0.035, 0.035)
+    s.ellipse(0, c, 0.11, 0.15)
+    return s
+
+
+def ppc(span=10.5):
+    """A powered parachute or paramotor: an arched canopy of cells, the cart and its pusher propeller below."""
+    L = span * 0.62
+    s = Shape(span, L)
+    h, c0, y0 = span / 2, span * 0.24, L * 0.08
+    cells, gap = 7, span * 0.012
+    for i in range(cells):
+        xa, xb = -h + span * i / cells + gap / 2, -h + span * (i + 1) / cells - gap / 2
+        pts_le, pts_te = [], []
+        for k in range(5):
+            x = xa + (xb - xa) * k / 4
+            u = min(1.0, abs(x) / h)
+            back = (1 - math.sqrt(max(0.0, 1 - u * u))) * c0 * 1.3
+            c = c0 * max(0.3, math.sqrt(max(0.0, 1 - u ** 2.2)))
+            pts_le.append((x, y0 + back))
+            pts_te.append((x, y0 + back + c))
+        s.poly(pts_le + list(reversed(pts_te)), round_r=gap)
+    s.fuselage(0.9, start=L * 0.5, end=L * 0.82, nose=0.4, tail=0.5, tail_width=0.6)
+    s.prop(0, L * 0.84, 1.6, mirror=False)
+    return s
+
+
+add('balloon', 'Hot air balloon', 'BALL', lambda: balloon())
+add('blimp', 'Airship / blimp', 'SHIP', lambda: blimp())
+add('gyro', 'Gyroplane, open (MTOsport, Magni M16, ELA)',
+    'GYRO MT MM16 MM14 MM19 MM21 RAF2 SPHA EL10 ELA7 CMDE CMDT CMD1 JRO AG1 J4B2 AR1 SPGY DEAG CLD2 AC10 SCII HAW3 '
+    'HW4P JE2', lambda: gyro())
+add('gyro_cabin', 'Gyroplane, enclosed (Cavalon, Calidus, Magni M24)', 'CLON CDUS MM24 MM22 XNON TSTR',
+    lambda: gyro(8.6, 5.2, 1.45, cabin=True))
+add('quad', 'Drone (quadcopter)', 'DRON', lambda: quad())
+add('ppc', 'Powered parachute / paramotor', 'PARA', lambda: ppc())
+
+
+# --- gliders ---------------------------------------------------------------------
+
+def sailplane(span, L, *, fw=0.66, root=None, tip=None, wpos=0.30, sweep=0.0, thalf=None, troot=None, boom=0.24,
+              boost=1.6, prop_d=None, low_tail=False):
+    """A sailplane: slim pod and boom, long tapered wings (drawn a little wider than life), a T-tail."""
+    s = Shape(span, L)
+    s.fuselage(fw, nose=fw * 1.3, tail=L * 0.6, tail_width=boom)
+    root = (root or span * 0.062) * boost
+    tip = tip if tip is not None else root * 0.38
+    s.wing(wpos * L, root, span / 2, sweep, tip, round_tip=tip * 0.7)
+    thalf = thalf or span * 0.09
+    troot = troot or L * 0.1
+    s.wing(L - troot * (1.6 if low_tail else 1.05), troot, thalf, 6, troot * 0.6)
+    if prop_d:
+        s.prop(0, 0.1, prop_d, mirror=False)
+    return s
+
+
+add('glider', 'Sailplane (LS4/LS8, Discus, ASW 20/27, Standard Cirrus, Libelle)',
+    'GLID LS8 LS4 LS6 DISC ASW2 AS20 AS27 AS28 VENT DG1T DG30 DG80 ASK3 SCIR LIBE PW5 L33',
+    lambda: sailplane(15.0, 6.7))
+add('glider2', 'Two-seat sailplane (ASK 21, Grob Twin Astir, Duo Discus, Janus, Arcus)',
+    'AS21 ASK21 DUOD JANU G103 ARCU AS13', lambda: sailplane(17.0, 8.35, fw=0.78, sweep=-1.5, root=1.15))
+add('glider_open', 'Open class sailplane (Nimbus, ASW 22, ASH 25/31, Quintus)', 'NIMB AS22 AS25 AS31 QUIN ETA',
+    lambda: sailplane(25.0, 8.6, fw=0.7, root=1.1, boost=1.9))
+add('blanik', 'LET Blanik (forward-swept two-seater)', 'L13M L13 L23 BLAN',
+    lambda: sailplane(16.2, 8.4, fw=0.8, root=1.4, tip=0.75, sweep=-5, low_tail=True, boost=1.4))
+add('motorglider', 'Motorglider (Scheibe Falke, Grob G109, Dimona, Stemme, Pipistrel Sinus)',
+    'GLIM SF25 SF28 SF23 SF24 SF31 SF32 SF35 SF36 G109 DIMO HK36 S6 S15S PISI PIVI PIT4 AS14 AS16 SA37 SG37',
+    lambda: prop(15.3, 7.6, 1.15, wpos=0.30, root=1.35, tip=0.65, tpos=0.98, thalf=1.6, troot=0.85, tail=4.2,
+                 tail_w=0.22, prop_d=1.7))
+
+
+# --- fan favourites, warbirds and airshow aircraft ----------------------------------
+
+def twin_fuselage(span, L, fw, sep, *, wpos=0.30, root=None, tip=None, sweep=0, props=True, jets=(), pod_len=None,
+                  pod_w=None, thalf=None, troot=None, center_stab=True):
+    """Two fuselages side by side on one wing (P-82 Twin Mustang, White Knight Two, Stratolaunch)."""
+    s = Shape(span, L)
+    for x in (sep / 2, -sep / 2):
+        s.fuselage(fw, nose=fw * 1.2, tail=L * 0.3, tail_width=fw * 0.3, x=x)
+    root = root or span * 0.12
+    tip = tip if tip is not None else root * 0.5
+    s.wing(wpos * L, root, span / 2, sweep, tip)
+    troot = troot or L * 0.12
+    thalf = thalf or sep / 2 + fw * 2.2
+    if center_stab:
+        s.wing(L * 0.97 - troot, troot, thalf, 6, troot * 0.6)
+    else:
+        for x in (sep / 2,):
+            s.poly([(x - fw * 2.2, L * 0.97 - troot), (x + fw * 2.2, L * 0.97 - troot), (x + fw * 2.2, L * 0.97),
+                    (x - fw * 2.2, L * 0.97)], mirror=True, round_r=troot * 0.3)
+    if props:
+        s.prop(sep / 2, 0.1, span * 0.22)
+    pod_len = pod_len or L * 0.11
+    pod_w = pod_w or fw * 0.5
+    for x in jets:
+        le = wpos * L + (x - sep / 2) * tan(sweep)
+        s.jet_pod(x, le - pod_len * 0.45, pod_len, pod_w)
+    return s
+
+
+def triplane(span, L, fw, chord, spans=(1.0, 0.87, 0.8)):
+    """Fokker Dr.I: three stacked, staggered wings; from above the top one hides most of the others."""
+    s = Shape(span, L)
+    s.fuselage(fw, nose=fw * 0.8, tail=L * 0.4, tail_width=fw * 0.25)
+    wy = L * 0.14
+    for i, f in enumerate(spans):
+        s.wing(wy + chord * 0.55 * i, chord, span / 2 * f, 0, chord)
+    s.prop(0, 0.1, span * 0.3, mirror=False)
+    s.wing(L * 0.88, L * 0.12, span * 0.22, 6, L * 0.08)
+    return s
+
+
+def x59():
+    """NASA/Lockheed Martin X-59 QueSST: a needle nose, cranked delta wing, engine on top and a T-tail."""
+    span, L = 9.0, 29.5
+    s = Shape(span, L)
+    s.fuselage(1.5, nose=L * 0.36, tail=L * 0.1, tail_width=1.1)
+    s.ellipse(0, L * 0.74, 1.05, L * 0.17)  # the engine nacelle on its back
+    s.poly([(0.7, L * 0.43), (2.4, L * 0.64), (span / 2, L * 0.79), (span / 2, L * 0.86), (0.7, L * 0.88)],
+           mirror=True, round_r=0.25)
+    s.wing(L * 0.41, 0.9, 1.6, 30, 0.35)  # canards
+    s.wing(L * 0.90, 1.6, 2.4, 38, 0.55)  # T-tail
+    return s
+
+
+def ss2():
+    """Virgin Galactic SpaceShipTwo: a stubby delta wing with tail booms at its tips."""
+    span, L = 8.3, 18.3
+    s = Shape(span, L)
+    s.fuselage(2.3, nose=3.0, tail=L * 0.2, tail_width=1.2)
+    s.poly([(1.1, L * 0.45), (3.4, L * 0.66), (3.4, L * 0.78), (1.1, L * 0.80)], mirror=True, round_r=0.3)
+    s.ellipse(3.6, L * 0.78, 0.3, L * 0.2, mirror=True)
+    s.poly([(3.6, L * 0.88), (span / 2 + 0.0, L * 0.92), (span / 2, L * 0.98), (3.6, L * 0.99)], mirror=True,
+           round_r=0.2)
+    return s
+
+
+def tandem_wing(span, L, fw, *, front_span, front_y, front_chord, rear_y, rear_chord):
+    """Quickie Q2, Viking Dragonfly: two wings of near equal size, one at the nose and one behind."""
+    s = Shape(span, L)
+    s.fuselage(fw, nose=fw * 1.1, tail=L * 0.35, tail_width=fw * 0.3)
+    s.wing(front_y, front_chord, front_span / 2, 0, front_chord * 0.9)
+    s.wing(rear_y, rear_chord, span / 2, 0, rear_chord * 0.75)
+    s.prop(0, 0.1, span * 0.22, mirror=False)
+    s.wing(L * 0.9, L * 0.1, span * 0.05, 30, L * 0.06)
+    return s
+
+
+add('trimotor', 'Ford Tri-Motor / Stinson Tri-Motor', 'TRIM SM60 TRMA',
+    lambda: prop(23.7, 15.3, 1.7, wpos=0.25, root=3.7, tip=2.0, nacelles=(3.4,), nac_len=2.6, prop_d=2.8,
+                 nose_prop=True, tail=5.5, thalf=3.4, troot=2.0))
+add('x59', 'Lockheed Martin X-59 QueSST', 'X59', x59)
+add('ss2', 'SpaceShipTwo', 'SS2', ss2)
+add('whk2', 'White Knight Two (twin fuselage)', 'WHK2 WHKN',
+    lambda: twin_fuselage(43.0, 24.0, 2.0, 14.6, wpos=0.40, root=3.2, tip=1.4, props=False, jets=(9.5, 12.3),
+                          pod_len=3.2, pod_w=1.3, center_stab=True, troot=2.2))
+add('slch', 'Stratolaunch Roc (twin fuselage)', 'SLCH',
+    lambda: twin_fuselage(117.3, 73.0, 6.0, 35.0, wpos=0.36, root=10.0, tip=4.0, props=False,
+                          jets=(28.0, 36.0, 44.0), pod_len=7.0, pod_w=3.2, center_stab=False, troot=7.0))
+add('p82', 'P-82 Twin Mustang', 'P82',
+    lambda: twin_fuselage(15.6, 12.9, 1.0, 4.8, wpos=0.30, root=2.6, tip=1.0, props=True, troot=1.5))
+add('starship', 'Beechcraft Starship (canard pusher)', 'STAR',
+    lambda: canard_pusher(16.6, 14.05, 1.8, wing_y=8.4, root=3.2, tip=1.3, sweep=30, canard_y=1.6, canard_half=3.0,
+                          twin_engines=(1.9, 9.0, 3.4)))
+def _joby():
+    """Joby S4: six tilting propellers, four on the wing and two at the tips of the V-tail."""
+    s = prop(10.7, 7.3, 1.4, wpos=0.36, root=1.3, tip=1.0, nacelles=(2.3, 4.9), nac_len=1.5, nac_w=0.45, prop_d=2.9,
+             nose_prop=False, vtail=True, thalf=2.7, tpos=0.96, troot=0.9)
+    s.nacelle(2.3, 7.3 * 0.96 - 1.6, 1.2, 0.4)
+    s.prop(2.3, 7.3 * 0.96 - 1.6, 2.6)
+    return s
+
+
+add('joby', 'Joby S4 (electric tilt-prop)', 'JAS4', _joby)
+add('tb2', 'Bayraktar TB2', 'BTB2 AKIN',
+    lambda: prop(12.0, 6.5, 0.75, wpos=0.40, root=1.0, tip=0.55, pusher=True, vtail=True, tpos=0.97, thalf=1.8,
+                 troot=0.9))
+add('sgup', 'Super Guppy', 'SGUP CL4G',
+    lambda: prop(47.6, 43.8, 4.0, fat=1.9, wpos=0.40, root=6.0, tip=2.5, sweep=4, nacelles=(7.4, 14.6), nac_len=5.0,
+                 prop_d=4.6, tail=10.0, thalf=8.0, troot=4.0, nose=6.0))
+add('c97', 'Boeing C-97 / Stratocruiser', 'C97 B377',
+    lambda: prop(43.1, 33.6, 3.4, wpos=0.38, root=5.6, tip=2.4, sweep=4, nacelles=(6.9, 13.5), nac_len=5.0,
+                 prop_d=4.6, tail=9.0, thalf=7.0, troot=3.6))
+add('dr1', 'Fokker Dr.I triplane', 'DR1', lambda: triplane(7.2, 5.8, 0.9, 1.0))
+add('camel', 'WWI biplanes (Sopwith Camel/Pup, Nieuport, Fokker D.VII)', 'CAML SPUP NPOR D7',
+    lambda: biplane(8.5, 5.7, 0.95, chord=1.4, lower=0.98, stagger=0.4, prop_d=2.6))
+add('waco', 'Waco cabin biplane', 'WACF WACO WACC UPF7',
+    lambda: biplane(10.7, 8.1, 1.3, chord=1.5, lower=0.86, prop_d=2.6))
+add('g164', 'Grumman Ag-Cat (crop duster biplane)', 'G164',
+    lambda: biplane(10.95, 7.5, 1.2, chord=1.65, lower=1.0, stagger=0.3, prop_d=2.8))
+add('sportbip', 'Sport biplanes (Skybolt, Starduster, Christen Eagle, Great Lakes, Jungmann, Stampe)',
+    'BOLT SA30 SA10 SA75 EAGL CB1 DSA1 G2T1 BU31 BU33 SV4 BLKS ST3 PSTM COUG',
+    lambda: biplane(7.3, 5.9, 0.95, chord=1.25, lower=0.94, stagger=0.55))
+add('erco', 'Ercoupe (twin tail)', 'ERCO M10 M10R',
+    lambda: low_single(9.1, 6.3, fw=1.15, root=1.55, tip=1.2, thalf=1.6, troot=0.9, fins=True, tpos=0.97))
+add('dfly', 'Quickie Q2 / Dragonfly (tandem wing)', 'DFLY QIC2 QUIC SQ2T',
+    lambda: tandem_wing(6.1, 6.1, 0.95, front_span=5.1, front_y=0.7, front_chord=0.85, rear_y=3.6, rear_chord=0.7))
+add('dhc1', 'DHC-1 Chipmunk, Ryan PT-22, Fairchild PT-19', 'DHC1 PT22 FA62 YALE',
+    lambda: low_single(10.5, 7.75, fw=0.95, root=1.9, tip=1.0, tail=3.4, tsweep=8))
+add('t34', 'Beech T-34 Mentor', 'T34P T34T T34 HT34',
+    lambda: low_single(10.0, 7.9, fw=1.0, root=1.9, tip=1.1, tail=3.3, thalf=1.9))
+add('storch', 'Fieseler Storch', 'F156 STCH STOR',
+    lambda: high_single(14.25, 9.9, fw=1.0, root=2.2, tip=2.2, prop_d=2.6, tail=5.0, thalf=2.4))
+add('lysa', 'Westland Lysander', 'LYSA', lambda: high_single(15.2, 9.3, fw=1.25, root=2.4, tip=1.4, prop_d=3.2))
+add('tbmav', 'Grumman TBM Avenger', 'TBM',
+    lambda: prop(16.5, 12.5, 1.4, fat=1.2, wpos=0.28, root=3.2, tip=1.6, prop_d=4.0, tail=5.0, thalf=3.0, troot=1.6))
+add('hcat', 'Grumman Hellcat / Wildcat', 'HCAT WCAT',
+    lambda: prop(13.06, 10.24, 1.35, wpos=0.30, root=3.0, tip=1.6, prop_d=4.0, tail=4.5, thalf=2.6, troot=1.5))
+add('bcat', 'Grumman Bearcat', 'BCAT',
+    lambda: prop(10.9, 8.6, 1.35, wpos=0.30, root=2.6, tip=1.1, prop_d=3.8, tail=3.6, thalf=2.4, troot=1.3))
+add('sbd', 'Douglas SBD Dauntless', 'SBD',
+    lambda: prop(12.66, 10.09, 1.2, wpos=0.30, root=3.0, tip=1.1, prop_d=3.3, tail=4.5, thalf=2.4, troot=1.4))
+add('a26', 'Douglas A-26 Invader', 'B26 A26',
+    lambda: prop(21.3, 15.6, 1.3, wpos=0.33, root=3.0, tip=1.5, nacelles=(2.9,), nac_len=4.2, prop_d=3.8, tail=5.5,
+                 thalf=3.5, troot=1.8))
+add('b26m', 'Martin B-26 Marauder', 'B26M',
+    lambda: prop(21.65, 17.8, 1.7, wpos=0.33, root=3.0, tip=1.5, nacelles=(3.0,), nac_len=5.0, prop_d=4.0, tail=6.5,
+                 thalf=4.0, troot=2.0))
+add('p39', 'Bell P-39 Airacobra / P-63 Kingcobra', 'P39 P63',
+    lambda: prop(10.4, 9.2, 1.1, wpos=0.32, root=2.4, tip=1.1, prop_d=3.2, tail=4.2, thalf=2.0, troot=1.3))
+add('yak3', 'Yakovlev Yak-3/9/11', 'YAK3 YAK9 YK11 YK3',
+    lambda: prop(9.2, 8.5, 1.0, wpos=0.32, root=2.2, tip=1.0, prop_d=3.0, tail=3.8, thalf=1.6, troot=1.2))
+add('me262', 'Messerschmitt Me 262', 'ME62',
+    lambda: jet(12.65, 10.6, 1.4, sweep=18, wpos=0.40, root=3.0, tip=1.3, pods=(0.32,), pod_len=3.6, pod_w=0.95,
+                thalf=2.4, troot=1.4, tsweep=20, nose=2.0))
+add('t33', 'Lockheed T-33 / P-80, Grumman Panther', 'T33 P80 F9F',
+    lambda: fighter(11.85, 11.5, 1.3, wpos=0.40, root=2.9, tip=1.2, sweep=4, stab_half=2.4, stab_root=1.4,
+                    tip_tanks=1.8, inlets=True))
+add('a37', 'Cessna T-37 / A-37 Dragonfly', 'A37 T37',
+    lambda: fighter(10.9, 8.6, 1.8, wpos=0.40, root=2.0, tip=1.3, sweep=0, stab_half=2.1, stab_root=1.2,
+                    tip_tanks=1.5, nose=1.5))
+add('jpro', 'Jet Provost / Strikemaster', 'JPRO STRK',
+    lambda: fighter(11.25, 10.27, 1.6, wpos=0.40, root=2.4, tip=1.2, sweep=2, stab_half=2.2, stab_root=1.3,
+                    tip_tanks=1.4, nose=1.4, inlets=True))
+
+
+def _fouga():
+    s = fighter(12.15, 10.06, 1.1, wpos=0.38, root=2.1, tip=1.1, sweep=8, stab=False, tip_tanks=1.6, nose=1.6)
+    s.wing(10.06 * 0.80, 1.6, 2.6, 34, 0.6)  # the V-tail
+    return s
+
+
+add('fouga', 'Fouga Magister (V-tail)', 'FOUG', _fouga)
+add('ov10', 'OV-10 Bronco (twin boom)', 'V10',
+    lambda: twin_boom(12.2, 13.4, boom_x=1.9, boom_len=9.6, boom_w=0.8, pod_w=1.2, pod_len=8.6, wpos=0.30, root=1.6,
+                      tip=1.6, props='front', prop_d=2.6))
+add('mohawk', 'Grumman OV-1 Mohawk', 'V1',
+    lambda: prop(14.6, 12.5, 1.4, wpos=0.30, root=2.3, tip=1.4, nacelles=(2.1,), nac_len=3.5, prop_d=3.0, tail=4.5,
+                 thalf=2.6, troot=1.5, fins=True))
+add('s2', 'Grumman S-2 Tracker / C-1 Trader', 'S2P S2T G96',
+    lambda: prop(22.1, 13.3, 1.8, wpos=0.28, root=3.2, tip=1.6, nacelles=(2.6,), nac_len=4.0, prop_d=3.6, tail=4.5,
+                 thalf=3.9, troot=1.8))
+add('su25', 'Sukhoi Su-25 Frogfoot', 'SU25',
+    lambda: fighter(14.4, 15.5, 1.3, wpos=0.42, root=3.8, tip=1.2, sweep=20, stab_half=2.9, stab_root=1.6,
+                    inlets=True))
+add('f111', 'F-111 / Su-24 (swing wing)', 'F111 SU24 EF11',
+    lambda: fighter(19.2, 22.4, 2.2, wpos=0.40, root=3.5, tip=1.2, sweep=16, stab_half=4.4, stab_root=2.8,
+                    inlets=True, lex=1.2))
+add('a6', 'Grumman A-6 Intruder / EA-6B Prowler', 'A6 EA6',
+    lambda: fighter(16.15, 16.7, 2.4, wpos=0.36, root=3.9, tip=1.4, sweep=25, stab_half=3.3, stab_root=2.0, nose=2.8))
+add('f8', 'Vought F-8 Crusader', 'F8',
+    lambda: fighter(10.9, 16.5, 1.5, wpos=0.40, root=4.5, tip=1.2, sweep=42, stab_half=2.7, stab_root=2.2, nose=2.5))
+add('tu95', 'Tupolev Tu-95 / Tu-142 Bear', 'TU95 T142',
+    lambda: prop(50.1, 46.2, 2.9, wpos=0.36, root=8.0, tip=2.5, sweep=35, nacelles=(6.5, 13.5), nac_len=6.0,
+                 prop_d=5.6, tail=12.0, thalf=7.0, troot=4.5, ttip=1.8, tsweep=40))
+add('c141', 'Lockheed C-141 Starlifter', 'C141',
+    lambda: jet(48.7, 51.3, 4.3, sweep=25, wpos=0.38, pods=(0.32, 0.6), tpos=0.97, thalf=8.0, tsweep=30))
+add('c390', 'Embraer C-390 Millennium', 'E390 C390',
+    lambda: jet(35.05, 35.2, 3.8, sweep=25, wpos=0.40, pods=(0.32,), tpos=0.97, thalf=6.5))
+add('dhc4', 'DHC-4 Caribou / DHC-5 Buffalo, C-123', 'DHC4 DHC5 C123',
+    lambda: prop(29.15, 22.1, 2.4, wpos=0.30, root=3.4, tip=2.0, nacelles=(4.2,), nac_len=4.5, prop_d=4.0, tail=8.0,
+                 thalf=5.0, troot=2.6))
+add('c119', 'Fairchild C-119 Flying Boxcar (twin boom)', 'C119',
+    lambda: twin_boom(33.3, 26.4, boom_x=4.3, boom_len=17.0, boom_w=1.5, pod_w=3.0, pod_len=17.5, wpos=0.33, root=4.0,
+                      tip=2.0, props='front', prop_d=4.5))
+add('an72', 'Antonov An-72/74 (engines over the wing)', 'AN72 A743',
+    lambda: jet(31.9, 28.1, 2.8, sweep=17, pods=(0.21,), pod_len=5.4, pod_w=1.9, over_wing=True, wpos=0.38,
+                tpos=0.97, thalf=5.0))
+add('be200', 'Beriev Be-200 (jet amphibian)', 'BER2',
+    lambda: jet(32.8, 32.0, 2.8, sweep=23, pods=(0.16,), pod_len=5.0, pod_w=1.8, over_wing=True, wpos=0.38,
+                tip_tanks=1.6, tpos=0.97))
+add('t134', 'Tupolev Tu-134', 'T134',
+    lambda: jet(29.0, 37.1, 2.9, sweep=35, pods=(), rear=2, wpos=0.40, tpos=0.95))
+add('dc8', 'Douglas DC-8', 'DC81 DC82 DC83 DC85 DC86 DC87',
+    lambda: jet(43.4, 57.1, 3.73, sweep=30, pods=(0.32, 0.6), wpos=0.38))
+add('ww24', 'IAI Westwind', 'WW24 WW23',
+    lambda: bizjet(13.65, 15.9, 1.6, sweep=4, tip=1.0, tip_tanks=1.9))
+add('sbr1', 'Sabreliner', 'SBR1 SBR2', lambda: bizjet(13.6, 14.3, 1.7, sweep=28, tip=1.0))
+add('ac50', 'Aero Commander / Turbo Commander (high-wing twin)', 'AC50 AC56 AC68 AC6L AC80 AC90 AC95',
+    lambda: prop(14.95, 10.75, 1.4, wpos=0.30, root=2.3, tip=1.2, nacelles=(2.3,), nac_len=3.2, prop_d=2.4, tail=4.0,
+                 thalf=3.0, troot=1.4))
+
+
+# --- more type codes for icons above (light sport, classics, codes the table missed) --
+
+EXTRA_TYPES = {
+    'kitfox': 'FOX VIX CH75 COY2 EFOX CRER JAB4 SVNH AP22 SKRA AVID G3 TAIL FK9 SSTL HIGH RBEL RS21 RS20 BEAR SLH4 '
+              'P208 BRAV ALBU DAKH CHIN',
+    'rv12': 'FDCT WT9 NG5 BR23 EV97 SONX WAIX TWEN GOLF ASTO TL20 TL30 A210 PNR3 EVSS EUPA KR2 SRAI BREZ VR7 PULS '
+            'MCR1 SD4 AURA SNAP',
+    'rv7': 'RV3 HROC T18 MUS2',
+    'dr40': 'D11 DR10 DR22 HR20',
+    'j3': 'PA11 J2 J4 J5 E2CB TAYB TAYD TF19 TF21 TA15 L8 AR11 AR65 AR6T S1 CUB2 CAMP PARL',
+    'pa18': 'PA15 PA16 PA17 P18T',
+    'c180': 'S108 S10 FA24 RELI AR15 L5 O1',
+    'c152': 'C120 C140',
+    'c172': 'VO10',
+    'm7': 'M4 M8 M9 M7T COUR',
+    'pa24': 'NAVI BL17 B14A B14B B14C AC11 M200 MC45 T250 DW1 BL19 PACE SP7',
+    'be36': 'B36T',
+    'pa46': 'M600',
+    'lnc4': 'LNP4 LEG2 LNCE EVOP LESP SNGY TGRS',
+    'sr22': 'C240 PIPA',
+    'pa38': 'BE77',
+    'be58': 'BE50',
+    'c414': 'BE65',
+    'c337': 'P337 O2',
+    'pa28': 'P28S',
+    'tb20': 'RALL TAMP',
+    'g115': 'BDOG Z42 AS02',
+    'yk52': 'CJ6 Y18T',
+    'su26': 'YK50 YK55',
+    'e300': 'EXNG E400 E500 E230 EDGE EDGT MXS GB1 LAKR ST30 RODS',
+    'cp23': 'CP21',
+    'at8t': 'SS2T SS2P A660 AT3P M18',
+    'pa25': 'C188 A9',
+    'icona5': 'A5 SREY',
+    'la4': 'RC3 GP3 GP4 TA16',
+    'g21': 'U16 G73',
+    'h500': 'MD52',
+    'r22': 'EXEC A600',
+    'b47g': 'UH12',
+    'h269': 'BRB2 S330',
+    'ec35': 'B105',
+    'ah1': 'SUCO HUCO',
+    'ec25': 'PUMA',
+    'gripen': 'SB39 SGCD SGEF',
+    'draken': 'SB35',
+    'viggen': 'SB37',
+    'mir2': 'MIRA',
+    'f18': 'F18H',
+    'f35': 'VF35',
+    'js31': 'E110',
+    'dc9': 'BA11',
+    'b752': 'T204',
+    'dc3': 'DC3S DC2 M404 CVLP',
+    'be18': 'L10 L12 L14 L18 B18T',
+    't6': 'EZHV TUCR',
+    'stearman': 'N3N ST6',
+    'lgez': 'VVIG DEFI',
+    'kodi': 'K100 K900 K200',
+}
+_by_key = {c[0]: i for i, c in enumerate(CATALOG)}
+for _k, _t in EXTRA_TYPES.items():
+    _i = _by_key[_k]
+    _key, _desc, _types, _fn = CATALOG[_i]
+    CATALOG[_i] = (_key, _desc, _types.replace('ICON SRAY', '') + ' ' + _t, _fn)

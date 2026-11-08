@@ -22,8 +22,8 @@ enum class Icon : uint16_t {
   HighPerf,  // A6 high performance
   Rotor,  // A7 rotorcraft (unknown type)
   Drone,  // B6 unmanned
-  Glider,  // B1 glider
-  Airship,  // B2 lighter than air
+  Glider,  // B1 glider (a sailplane)
+  Airship,  // B2 lighter than air (a hot air balloon)
   Parachute,  // B3 parachutist
   Ultralight,  // B4 ultralight
   Ground,  // C1-C7 surface vehicles; ground stations
@@ -39,7 +39,7 @@ enum class Icon : uint16_t {
   Awacs,  // AWACS: E-3, A-50, E-767
   Hawkeye,  // E-2 Hawkeye, C-2
   B52,  // B-52
-  B1,  // B-1
+  B1,  // B-1, Tu-160
   B2,  // B-2
   FighterSingle,  // single-fin fighters: F-16, F-4, F-5, Tornado, A-4
   FighterTwin,  // twin-fin fighters: F-15, F/A-18, F-22, F-35, F-14, Su-27 family, MiG-29
@@ -401,6 +401,71 @@ enum class Icon : uint16_t {
   X_CL415,  // Canadair CL-215/415
   X_P06T,  // Tecnam P2006T
   X_SLING,  // Sling 2/4/TSi
+  X_BALLOON,  // Hot air balloon
+  X_BLIMP,  // Airship / blimp
+  X_GYRO,  // Gyroplane, open (MTOsport, Magni M16, ELA)
+  X_GYRO_CABIN,  // Gyroplane, enclosed (Cavalon, Calidus, Magni M24)
+  X_QUAD,  // Drone (quadcopter)
+  X_PPC,  // Powered parachute / paramotor
+  X_GLIDER,  // Sailplane (LS4/LS8, Discus, ASW 20/27, Standard Cirrus, Libelle)
+  X_GLIDER2,  // Two-seat sailplane (ASK 21, Grob Twin Astir, Duo Discus, Janus, Arcus)
+  X_GLIDER_OPEN,  // Open class sailplane (Nimbus, ASW 22, ASH 25/31, Quintus)
+  X_BLANIK,  // LET Blanik (forward-swept two-seater)
+  X_MOTORGLIDER,  // Motorglider (Scheibe Falke, Grob G109, Dimona, Stemme, Pipistrel Sinus)
+  X_TRIMOTOR,  // Ford Tri-Motor / Stinson Tri-Motor
+  X_X59,  // Lockheed Martin X-59 QueSST
+  X_SS2,  // SpaceShipTwo
+  X_WHK2,  // White Knight Two (twin fuselage)
+  X_SLCH,  // Stratolaunch Roc (twin fuselage)
+  X_P82,  // P-82 Twin Mustang
+  X_STARSHIP,  // Beechcraft Starship (canard pusher)
+  X_JOBY,  // Joby S4 (electric tilt-prop)
+  X_TB2,  // Bayraktar TB2
+  X_SGUP,  // Super Guppy
+  X_C97,  // Boeing C-97 / Stratocruiser
+  X_DR1,  // Fokker Dr.I triplane
+  X_CAMEL,  // WWI biplanes (Sopwith Camel/Pup, Nieuport, Fokker D.VII)
+  X_WACO,  // Waco cabin biplane
+  X_G164,  // Grumman Ag-Cat (crop duster biplane)
+  X_SPORTBIP,  // Sport biplanes (Skybolt, Starduster, Christen Eagle, Great Lakes, Jungmann, Stampe)
+  X_ERCO,  // Ercoupe (twin tail)
+  X_DFLY,  // Quickie Q2 / Dragonfly (tandem wing)
+  X_DHC1,  // DHC-1 Chipmunk, Ryan PT-22, Fairchild PT-19
+  X_T34,  // Beech T-34 Mentor
+  X_STORCH,  // Fieseler Storch
+  X_LYSA,  // Westland Lysander
+  X_TBMAV,  // Grumman TBM Avenger
+  X_HCAT,  // Grumman Hellcat / Wildcat
+  X_BCAT,  // Grumman Bearcat
+  X_SBD,  // Douglas SBD Dauntless
+  X_A26,  // Douglas A-26 Invader
+  X_B26M,  // Martin B-26 Marauder
+  X_P39,  // Bell P-39 Airacobra / P-63 Kingcobra
+  X_YAK3,  // Yakovlev Yak-3/9/11
+  X_ME262,  // Messerschmitt Me 262
+  X_T33,  // Lockheed T-33 / P-80, Grumman Panther
+  X_A37,  // Cessna T-37 / A-37 Dragonfly
+  X_JPRO,  // Jet Provost / Strikemaster
+  X_FOUGA,  // Fouga Magister (V-tail)
+  X_OV10,  // OV-10 Bronco (twin boom)
+  X_MOHAWK,  // Grumman OV-1 Mohawk
+  X_S2,  // Grumman S-2 Tracker / C-1 Trader
+  X_SU25,  // Sukhoi Su-25 Frogfoot
+  X_F111,  // F-111 / Su-24 (swing wing)
+  X_A6,  // Grumman A-6 Intruder / EA-6B Prowler
+  X_F8,  // Vought F-8 Crusader
+  X_TU95,  // Tupolev Tu-95 / Tu-142 Bear
+  X_C141,  // Lockheed C-141 Starlifter
+  X_C390,  // Embraer C-390 Millennium
+  X_DHC4,  // DHC-4 Caribou / DHC-5 Buffalo, C-123
+  X_C119,  // Fairchild C-119 Flying Boxcar (twin boom)
+  X_AN72,  // Antonov An-72/74 (engines over the wing)
+  X_BE200,  // Beriev Be-200 (jet amphibian)
+  X_T134,  // Tupolev Tu-134
+  X_DC8,  // Douglas DC-8
+  X_WW24,  // IAI Westwind
+  X_SBR1,  // Sabreliner
+  X_AC50,  // Aero Commander / Turbo Commander (high-wing twin)
   kCount
 };
 
