@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "core/clock.h"
@@ -10,7 +11,7 @@ enum class Units : uint8_t { Km = 0, Mi = 1, Nm = 2 };
 enum class LabelMode : uint8_t { Off = 0, Callsign = 1, Full = 2 };
 enum class ColorMode : uint8_t { Classic = 0, Altitude = 1 };
 enum class Theme : uint8_t { Phosphor = 0, Amber = 1, Ocean = 2, Night = 3, Custom = 4 };
-enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2 };
+enum class DataSource : uint8_t { AdsbFi = 0, AirplanesLive = 1, AdsbLol = 2, Local = 3 };  // Local: your own receiver
 
 /** A remembered Wi-Fi network besides the current one (Settings::wifi_ssid). */
 struct SavedWifi {
@@ -237,7 +238,17 @@ struct Settings {
 
   // v1.33.0
   Place places_more[kMaxBookmarks - kMaxPlaces];  // bookmarks 5-8
+
+  // v1.45.0 - appended WITHOUT a version bump: they start exactly where the
+  // version 20 layout ended (static_assert below), so firmware before v1.45.0
+  // reads a new blob fine and ignores them (a rollback keeps the settings),
+  // and an older blob, being shorter, leaves their defaults.
+  char local_url[96] = "";                // your receiver (readsb, tar1090, dump1090, SkyAware), e.g. "192.168.1.50"
+  bool local_fallback = true;             // when it doesn't answer, use the online feeds
 };
+static_assert(offsetof(Settings, local_url) ==
+                  offsetof(Settings, places_more) + sizeof(Settings::places_more),
+              "new fields must start where the previous layout ended (no padding in between)");
 
 /** Bookmark `i` (0 .. kMaxBookmarks-1), wherever its slot is stored. */
 inline Place& bookmark(Settings& s, int i) { return i < kMaxPlaces ? s.places[i] : s.places_more[i - kMaxPlaces]; }

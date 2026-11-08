@@ -768,6 +768,20 @@ int main(int argc, char** argv) {
     ui::openSettings(pg.page);
     run(600);
     shot((p + pg.name).c_str());
+    if (pg.page == ui::Page::Traffic) {
+      // Your own receiver chosen: its address and fallback rows.
+      core::Settings& st = app::settings();
+      const core::DataSource was = st.source;
+      st.source = core::DataSource::Local;
+      std::snprintf(st.local_url, sizeof(st.local_url), "%s", "192.168.1.50");
+      ui::closeSettings();
+      run(300);
+      ui::openSettings(pg.page);
+      run(600);
+      shot((p + "12_settings_traffic_receiver").c_str());
+      st.source = was;
+      st.local_url[0] = '\0';
+    }
     if (pg.page == ui::Page::About) {
       // The memory graphs further down.
       if (lv_obj_t* l = findLabel(lv_screen_active(), "Icon cache")) lv_obj_scroll_to_view_recursive(l, LV_ANIM_OFF);

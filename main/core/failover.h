@@ -15,7 +15,8 @@ class SourceFailover {
  public:
   static constexpr int kFailuresToSwitch = 3;
   static constexpr uint32_t kRetryPreferredMs = 10 * 60 * 1000;
-  static constexpr int kSourceCount = 3;
+  static constexpr uint32_t kRetryLocalMs = 2 * 60 * 1000;  // your receiver: back soon after a restart
+  static constexpr int kSourceCount = 3;                     // the online feeds, used in turn
 
   enum class Change : uint8_t {
     None,
@@ -23,8 +24,11 @@ class SourceFailover {
     BackToPreferred,
   };
 
-  /** The source picked in settings; a new choice is used right away. */
-  void setPreferred(DataSource p);
+  /**
+   * The source picked in settings; a new choice is used right away. With
+   * your own receiver picked and `fallback` off, it is never left.
+   */
+  void setPreferred(DataSource p, bool fallback = true);
   /** Source for the next fetch. */
   DataSource next(uint32_t now_ms);
   /** Result of that fetch. Change::Switched is reported for one round of switching, then quietly. */
@@ -36,6 +40,7 @@ class SourceFailover {
  private:
   DataSource preferred_ = DataSource::AdsbFi;
   DataSource active_ = DataSource::AdsbFi;
+  bool fallback_ = true;
   bool initialized_ = false;
   bool probing_ = false;  // this fetch goes to the preferred source to see if it's back
   int failures_ = 0;

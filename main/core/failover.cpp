@@ -2,7 +2,8 @@
 
 namespace core {
 
-void SourceFailover::setPreferred(DataSource p) {
+void SourceFailover::setPreferred(DataSource p, bool fallback) {
+  fallback_ = fallback;
   if (initialized_ && p == preferred_) return;
   initialized_ = true;
   preferred_ = active_ = p;
@@ -32,8 +33,11 @@ SourceFailover::Change SourceFailover::report(bool ok, uint32_t now_ms) {
   }
   if (++failures_ < kFailuresToSwitch) return Change::None;
   failures_ = 0;
-  active_ = static_cast<DataSource>((static_cast<int>(active_) + 1) % kSourceCount);
-  retry_at_ms_ = now_ms + kRetryPreferredMs;
+  if (active_ == DataSource::Local && !fallback_) return Change::None;  // your receiver or nothing
+  // From your receiver to the first online feed; between online feeds in turn.
+  active_ = active_ == DataSource::Local ? DataSource::AdsbFi
+                                         : static_cast<DataSource>((static_cast<int>(active_) + 1) % kSourceCount);
+  retry_at_ms_ = now_ms + (preferred_ == DataSource::Local ? kRetryLocalMs : kRetryPreferredMs);
   // Without internet every source fails: say so for one round, then go quiet.
   return ++switches_since_ok_ < kSourceCount ? Change::Switched : Change::None;
 }

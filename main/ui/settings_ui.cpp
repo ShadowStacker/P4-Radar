@@ -1512,17 +1512,40 @@ void pageFilters() {
 void pageTraffic() {
   auto& st = app::settings();
   section("DATA SOURCE");
-  static const char* const kSources[] = {"adsb.fi", "airplanes.live", "adsb.lol", ""};
+  static const char* const kSources[] = {"adsb.fi", "airplanes.live", "\n", "adsb.lol", "My receiver", ""};
   choiceRow("ADS-B feed", kSources, static_cast<int>(st.source), [](int v) {
+    const bool was_local = app::settings().source == core::DataSource::Local;
     app::settings().source = static_cast<core::DataSource>(v);
     app::requestRefresh();
+    if (was_local != (v == static_cast<int>(core::DataSource::Local))) showPage(Page::Traffic);  // its rows
   });
+  const bool local = st.source == core::DataSource::Local;
+  if (local) {
+    const std::string addr = st.local_url[0] ? fmtStr("Receiver: %s", st.local_url) : std::string("Receiver: not set");
+    actionRow(LV_SYMBOL_EDIT, addr.c_str(), [] {
+      textInput("Receiver address, e.g. 192.168.1.50", app::settings().local_url, InputKind::Text,
+                [](const std::string& text) {
+                  std::snprintf(app::settings().local_url, sizeof(app::settings().local_url), "%s", text.c_str());
+                  changed();
+                  app::requestRefresh();
+                  showPage(Page::Traffic);
+                });
+    }, pal().accent);
+    switchRow("Use online feeds if it doesn't answer", &st.local_fallback);
+  }
   sliderRow("Update every", 2, 30, st.poll_interval_s,
             [](int v) { app::settings().poll_interval_s = static_cast<uint8_t>(v); },
             [](int v) { return fmtStr("%d s", v); });
-  label(s.list,
-        "Free community feeds. Please keep the interval\nat 5 s or more for everyday use.",
-        font(FontSize::S), pal().text_dim);
+  lv_obj_t* note = label(s.list,
+                         local ? "Your own ADS-B receiver on this network: readsb, tar1090, dump1090(-fa), "
+                                 "SkyAware, FlightAware or Flightradar24 Pi. Type its address; the radar finds "
+                                 "aircraft.json on it. 2 s updates are fine - nothing is rate limited."
+                               : "Free community feeds. Please keep the interval at 5 s or more for everyday use. "
+                                 "Have your own receiver? Choose \"My receiver\".",
+                         font(FontSize::S), pal().text_dim);
+  lv_obj_set_width(note, lv_pct(90));
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_left(note, sc(16), 0);
   actionRow(LV_SYMBOL_LIST, "Filters...", [] { showPage(Page::Filters); }, pal().accent);
 }
 

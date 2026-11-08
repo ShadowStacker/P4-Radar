@@ -1992,6 +1992,57 @@ void testNightWindow() {
   CHECK(t.night_from_min == 21 * 60 + 15 && t.night_to_min == 6 * 60 + 5 && problems.size() == 1);
 }
 
+void testLocalReceiver() {
+  using core::DataSource;
+  using C = core::SourceFailover::Change;
+  namespace ad = core::adsb;
+  // Where aircraft.json is looked for.
+  auto urls = ad::localUrls("192.168.1.50");
+  CHECK(urls.size() == 5 && urls[0] == "http://192.168.1.50/tar1090/data/aircraft.json" &&
+        urls[1] == "http://192.168.1.50/data/aircraft.json" &&
+        urls[2] == "http://192.168.1.50/skyaware/data/aircraft.json");
+  urls = ad::localUrls(" pi.local:8080/ ");
+  CHECK(urls.size() == 5 && urls[1] == "http://pi.local:8080/data/aircraft.json");
+  urls = ad::localUrls("http://pi.local/tar1090/");
+  CHECK(urls.size() == 2 && urls[0] == "http://pi.local/tar1090/data/aircraft.json");
+  urls = ad::localUrls("https://feeder.example/run/readsb/aircraft.json");
+  CHECK(urls.size() == 1 && urls[0] == "https://feeder.example/run/readsb/aircraft.json");
+  CHECK(ad::localUrls("").empty() && ad::localUrls("   ").empty() && ad::localUrls("http:///x").empty());
+  CHECK(std::string(ad::sourceName(DataSource::Local)) == "your receiver");
+  // A receiver hears 300 km around; only the area shown is kept.
+  std::vector<core::Aircraft> v(3);
+  std::snprintf(v[0].hex, sizeof(v[0].hex), "a00001");
+  v[0].lat = 34.0; v[0].lon = -118.0;
+  std::snprintf(v[1].hex, sizeof(v[1].hex), "a00002");
+  v[1].lat = 34.5; v[1].lon = -118.0;  // ~55 km north
+  std::snprintf(v[2].hex, sizeof(v[2].hex), "a00003");
+  v[2].lat = 36.0; v[2].lon = -118.0;  // ~220 km north
+  ad::keepWithin(&v, {34.0, -118.0}, 100);
+  CHECK(v.size() == 2 && std::strcmp(v[1].hex, "a00002") == 0);
+  // Failover: the receiver off for three updates -> the online feeds, and back after two minutes.
+  core::SourceFailover f;
+  f.setPreferred(DataSource::Local, true);
+  uint32_t t = 1000;
+  for (int i = 0; i < 2; ++i) { f.next(t); CHECK(f.report(false, t) == C::None); }
+  f.next(t);
+  CHECK(f.report(false, t) == C::Switched && f.active() == DataSource::AdsbFi);
+  CHECK(f.next(t + 1000) == DataSource::AdsbFi);
+  f.report(true, t + 1000);
+  t += core::SourceFailover::kRetryLocalMs;
+  CHECK(f.next(t) == DataSource::Local && f.report(true, t) == C::BackToPreferred);
+  // Without the fallback it stays on the receiver however long it's off.
+  core::SourceFailover g;
+  g.setPreferred(DataSource::Local, false);
+  for (int i = 0; i < 20; ++i) { CHECK(g.next(t) == DataSource::Local); g.report(false, t); }
+  CHECK(g.active() == DataSource::Local);
+  // settings.txt knows the new fields.
+  core::Settings st;
+  std::vector<std::string> problems;
+  core::settings_text::parse("source = local\nlocal_url = 192.168.1.50:8080\nlocal_fallback = off\n", &st, &problems);
+  CHECK(st.source == DataSource::Local && std::strcmp(st.local_url, "192.168.1.50:8080") == 0 && !st.local_fallback &&
+        problems.empty());
+}
+
 void testFailover() {
   using core::DataSource;
   using C = core::SourceFailover::Change;
@@ -2491,6 +2542,7 @@ int main() {
   testRoute();
   testSettingsText();
   testUpdate();
+  testLocalReceiver();
   testFailover();
   testNightWindow();
   testDayLog();

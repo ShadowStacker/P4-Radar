@@ -48,7 +48,9 @@ size_t validPrefix(uint16_t version) {
     case 18: return offsetof(core::Settings, places);
     case 19: return offsetof(core::Settings, places_more);
     case 20: return sizeof(core::Settings);
-    default: return 0;
+    // Saved by newer firmware (after a rollback): fields are only ever
+    // appended, so all of this firmware's fields are in it.
+    default: return version > core::Settings::kVersion ? sizeof(core::Settings) : 0;
   }
 }
 

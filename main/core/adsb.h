@@ -17,6 +17,18 @@ std::string buildUrl(DataSource src, double lat, double lon, double radius_km);
 
 const char* sourceName(DataSource src);
 
+/**
+ * The URLs to try for your own receiver, from what was typed in settings
+ * ("192.168.1.50", "pi.local:8080", "http://host/tar1090/"...). With a path
+ * to a .json file, just that; otherwise the places readsb/tar1090,
+ * dump1090(-fa) and SkyAware serve aircraft.json, most common first.
+ * Empty if nothing usable was typed.
+ */
+std::vector<std::string> localUrls(const char* setting);
+
+/** Keeps only the aircraft within radius_km of center (a receiver reports everything it hears). */
+void keepWithin(std::vector<Aircraft>* list, const LatLon& center, double radius_km);
+
 struct ParseOptions {
   bool include_ground = false;
   bool military_only = false;

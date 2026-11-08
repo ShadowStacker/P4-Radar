@@ -47,7 +47,7 @@ const char* const kUnits[] = {"km", "mi", "nm"};
 const char* const kThemes[] = {"phosphor", "amber", "ocean", "night", "custom"};
 const char* const kLabels[] = {"off", "callsign", "full"};
 const char* const kColorModes[] = {"theme", "altitude"};
-const char* const kSources[] = {"adsb.fi", "airplanes.live", "adsb.lol"};
+const char* const kSources[] = {"adsb.fi", "airplanes.live", "adsb.lol", "local"};
 const char* const kLabelSizes[] = {"small", "normal", "large"};
 const char* const kCodeStyles[] = {"icao", "iata"};
 const char* const kMaps[] = {"off", "streets", "topo", "faa", "satellite", "streetmap"};
@@ -194,8 +194,10 @@ const Field kFields[] = {
     STR(type_filter, "Only these types, e.g. \"B738, A32*\" (empty = all)"),
 
     SECTION("Data"),
-    ENUM(source, kSources, "adsb.fi, airplanes.live or adsb.lol"),
+    ENUM(source, kSources, "adsb.fi, airplanes.live, adsb.lol or local (your own receiver, below)"),
     U8(poll_interval_s, 2, 30, "Seconds between updates"),
+    STR(local_url, "Your receiver (readsb, tar1090, dump1090, SkyAware): its address, e.g. 192.168.1.50 or http://pi.local:8080"),
+    BOOL(local_fallback, "When your receiver doesn't answer, use the online feeds"),
 
     SECTION("Daily log"),
     F32(log_radius_km, 1, 400, "Count aircraft within this distance of home, in km"),

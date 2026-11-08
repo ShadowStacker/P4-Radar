@@ -1,5 +1,6 @@
 #include "core/adsb.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -22,6 +23,7 @@ const char* sourceName(DataSource src) {
   switch (src) {
     case DataSource::AirplanesLive: return "airplanes.live";
     case DataSource::AdsbLol: return "adsb.lol";
+    case DataSource::Local: return "your receiver";
     case DataSource::AdsbFi:
     default: return "adsb.fi";
   }
@@ -595,6 +597,35 @@ size_t dropRadarDuplicates(std::vector<Aircraft>* list) {
   }
   list->resize(w);
   return n;
+}
+
+std::vector<std::string> localUrls(const char* setting) {
+  std::string s;
+  for (const char* p = setting; p != nullptr && *p != '\0'; ++p) {
+    if (*p != ' ' && *p != '\t' && *p != '\r' && *p != '\n') s.push_back(*p);
+  }
+  if (s.empty()) return {};
+  if (s.find("://") == std::string::npos) s = "http://" + s;
+  const size_t host_at = s.find("://") + 3;
+  const size_t slash = s.find('/', host_at);
+  if (slash == host_at) return {};  // no host
+  const std::string base = slash == std::string::npos ? s : s.substr(0, slash);
+  std::string path = slash == std::string::npos ? "" : s.substr(slash);
+  if (path.size() >= 5 && path.compare(path.size() - 5, 5, ".json") == 0) return {s};
+  while (!path.empty() && path.back() == '/') path.pop_back();
+  if (!path.empty()) {
+    // A folder (e.g. ".../tar1090"): its data/aircraft.json.
+    return {base + path + "/data/aircraft.json", base + path + "/aircraft.json"};
+  }
+  return {base + "/tar1090/data/aircraft.json", base + "/data/aircraft.json",
+          base + "/skyaware/data/aircraft.json", base + "/dump1090-fa/data/aircraft.json",
+          base + "/dump1090/data/aircraft.json"};
+}
+
+void keepWithin(std::vector<Aircraft>* list, const LatLon& center, double radius_km) {
+  list->erase(std::remove_if(list->begin(), list->end(),
+                             [&](const Aircraft& a) { return distanceKm(center, {a.lat, a.lon}) > radius_km; }),
+              list->end());
 }
 
 }  // namespace core::adsb

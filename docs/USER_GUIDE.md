@@ -486,7 +486,9 @@ at startup.
 
 | Option | What it does | Default |
 |---|---|---|
-| ADS-B feed | Where aircraft data comes from: **adsb.fi**, **airplanes.live** or **adsb.lol**. All three are free community networks with similar coverage. If the chosen one fails three times in a row, the radar switches to the next one (*adsb.fi isn't answering - using airplanes.live*) and tries the chosen one again every 10 minutes. About → Feed shows which one is in use. | adsb.fi |
+| ADS-B feed | Where aircraft data comes from: **adsb.fi**, **airplanes.live** or **adsb.lol**, or **My receiver** (your own, below). The three online ones are free community networks with similar coverage. If the chosen one fails three times in a row, the radar switches to the next one (*adsb.fi isn't answering - using airplanes.live*) and tries the chosen one again every 10 minutes. About → Feed shows which one is in use. | adsb.fi |
+| Receiver | With **My receiver**: the address of your own ADS-B receiver on the same network, e.g. `192.168.1.50` or `pi.local:8080`. Anything that serves readsb's `aircraft.json` works: readsb, tar1090, dump1090(-fa), SkyAware, the FlightAware and Flightradar24 Pi images, adsb.im. The radar looks for it in the usual places (`/tar1090/data/`, `/data/`, `/skyaware/data/`, `/dump1090-fa/data/`); a full URL ending in `.json` is used as is. Updates come straight from your receiver, with nothing rate limited and no internet needed for the traffic itself. Only aircraft in the area shown are kept. | (empty) |
+| Use online feeds if it doesn't answer | With **My receiver**: after three failed updates, use the online feeds, and try your receiver again every 2 minutes. Off: always your receiver. | on |
 | Update every | How often to fetch new positions, 2–30 s. Aircraft move smoothly in between either way. Please stay at 5 s or more for everyday use; these are free services. | 5 s |
 | Filters... | Shortcut to the Filters page | |
 

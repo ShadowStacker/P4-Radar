@@ -702,7 +702,8 @@ void checkAlarms(uint32_t now_ms) {
 
 /** Returns whether the response held usable traffic. */
 bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* parsed,
-                core::DataSource source = core::DataSource::AdsbFi) {
+                core::DataSource source = core::DataSource::AdsbFi, const core::LatLon* area_center = nullptr,
+                double area_km = 0) {
   // Parse everything, then apply the display filters here so favorites can
   // bypass them (a saved aircraft is never hidden, and still raises alerts).
   core::adsb::ParseOptions opt;
@@ -712,6 +713,8 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
   const uint64_t parse_t0 = plat::micros();
   const bool ok = code == 200 && core::adsb::parse(body.data(), body.size(), opt, parsed);
   const uint32_t parse_us = static_cast<uint32_t>(plat::micros() - parse_t0);
+  // Your own receiver reports everything it hears: only the area asked for.
+  if (ok && area_center != nullptr) core::adsb::keepWithin(parsed, *area_center, area_km);
   // Ground radar (TIS-B) often repeats an aircraft that also reports itself:
   // without this it showed twice, once under a "~" address.
   if (ok) core::adsb::dropRadarDuplicates(parsed);
@@ -746,6 +749,8 @@ bool ingestImpl(int code, const std::string& body, std::vector<core::Aircraft>* 
       std::snprintf(s_feed.error, sizeof(s_feed.error), "Bad data from %s", core::adsb::sourceName(source));
     } else if (code == 429) {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "Rate limited - slow down polling");
+    } else if (code < 0 && source == core::DataSource::Local) {
+      std::snprintf(s_feed.error, sizeof(s_feed.error), "Your receiver isn't answering");
     } else if (code < 0) {
       std::snprintf(s_feed.error, sizeof(s_feed.error), "No connection");
     } else {
@@ -1110,6 +1115,8 @@ void netWatchAct(uint32_t now) {
   }
 }
 
+void reportFeed(core::DataSource source, bool ok);
+
 void networkLoop() {
   std::string body;
   std::vector<core::Aircraft> parsed;
@@ -1172,14 +1179,50 @@ void networkLoop() {
       radius_km = s_query_radius_km;
     }
     // Fetch a bit past the screen edge so aircraft slide in instead of popping.
-    s_failover.setPreferred(s_settings.source);
+    s_failover.setPreferred(s_settings.source, s_settings.local_fallback);
     const core::DataSource source = s_failover.next(now);
-    const std::string url = core::adsb::buildUrl(source, center.lat, center.lon, radius_km * 1.25 + 5.0);
+    const double area_km = radius_km * 1.25 + 5.0;
+    const bool local = source == core::DataSource::Local;
+    std::string url;
+    if (local) {
+      // Your receiver: the address from settings; without a path, the usual
+      // places for aircraft.json are tried in turn until one answers.
+      static std::string s_local_setting;
+      static size_t s_local_try = 0;
+      if (s_local_setting != s_settings.local_url) {
+        s_local_setting = s_settings.local_url;
+        s_local_try = 0;
+      }
+      const std::vector<std::string> urls = core::adsb::localUrls(s_settings.local_url);
+      if (!urls.empty()) url = urls[s_local_try % urls.size()];
+      const int code = url.empty() ? -1 : plat::httpGetKeepAlive(url.c_str(), &body, 4000);
+      const bool ok = ingestImpl(code, body, &parsed, source, &center, area_km);
+      if (ok) {
+        watchNetwork(code);  // (a receiver that's off says nothing about the internet)
+        static std::string s_logged;
+        if (s_logged != url) {
+          s_logged = url;
+          std::printf("feed: your receiver answers at %s\n", url.c_str());
+        }
+      } else if (urls.size() > 1) {
+        ++s_local_try;  // not there (or not aircraft.json): the next place
+      }
+      reportFeed(source, ok);
+      continue;
+    }
+    const std::string url_online = core::adsb::buildUrl(source, center.lat, center.lon, area_km);
 
     // Kept open between updates: no new TLS handshake every few seconds.
-    const int code = plat::httpGetKeepAlive(url.c_str(), &body, 10000);
+    const int code = plat::httpGetKeepAlive(url_online.c_str(), &body, 10000);
     const bool ok = ingestImpl(code, body, &parsed, source);
     watchNetwork(code);
+    reportFeed(source, ok);
+  }
+}
+
+/** Network task: the failover's verdict on a fetch, and its notice if it switched sources. */
+void reportFeed(core::DataSource source, bool ok) {
+  {
     const core::SourceFailover::Change change = s_failover.report(ok, plat::millis());
     if (change != core::SourceFailover::Change::None) {
       const std::string text =

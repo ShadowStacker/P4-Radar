@@ -10,6 +10,27 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.45.0] - 2026-11-08
+
+### Added
+- **Your own ADS-B receiver as the data source.** Settings > Traffic & data >
+  ADS-B feed > **My receiver**, then type its address (e.g. `192.168.1.50`).
+  Anything that serves readsb's `aircraft.json` works: readsb, tar1090,
+  dump1090(-fa), SkyAware, and the FlightAware and Flightradar24 Pi images.
+  The radar finds the file in the usual places. Traffic comes straight from
+  your receiver, with nothing rate limited and no internet needed for it, and
+  only the area on screen is kept. If the receiver stops answering, the radar
+  uses the online feeds and checks your receiver again every 2 minutes (or,
+  with that switched off, waits for it). Route, photo and flight history
+  lookups still use the internet. In settings.txt: `source = local`,
+  `local_url`, `local_fallback`.
+
+### Fixed
+- **Going back to an older version could reset the settings** (all but
+  Wi-Fi) when the newer one had added settings. From this version on, an
+  older version keeps the settings it knows. The receiver settings are stored
+  so that going back from v1.45.0 to an earlier version keeps everything too.
+
 ## [v1.44.0] - 2026-11-08
 
 ### Changed
