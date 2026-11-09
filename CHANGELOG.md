@@ -10,6 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.48.1] - 2026-11-09
+
+### Fixed
+- **Updates gave up at the first hiccup on GitHub's side.** When GitHub's
+  download servers are overloaded they answer "504" (gateway timeout), and the
+  radar stopped straight away with "Download failed (ESP_FAIL)". It now tries
+  four times, waiting a few seconds longer each time, and if GitHub still isn't
+  answering it says so ("GitHub's server is busy (HTTP 504) - try again later")
+  instead of a code.
+
 ## [v1.48.0] - 2026-11-09
 
 ### Added

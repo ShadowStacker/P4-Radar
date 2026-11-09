@@ -9,6 +9,8 @@
 #include "esp_https_ota.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "core/fwcheck.h"
 #include "platform/platform.h"
 #include "sdkconfig.h"
@@ -17,6 +19,26 @@ namespace plat {
 
 namespace {
 const char* TAG = "ota";
+
+// The HTTP status of the last response (the download link, then GitHub's
+// redirect target), so a failed start can say what the server answered.
+int s_last_status = 0;
+
+esp_err_t onHttpEvent(esp_http_client_event_t* evt) {
+  if (evt->event_id == HTTP_EVENT_ON_HEADER) s_last_status = esp_http_client_get_status_code(evt->client);
+  return ESP_OK;
+}
+
+/** Why the download couldn't start, in words (fits UpdateStatus::error). */
+std::string beginError(esp_err_t err, int status) {
+  if (status >= 500) {
+    return "GitHub's server is busy (HTTP " + std::to_string(status) + ") - try again later";
+  }
+  if (status == 404) return "Update file not found on GitHub (HTTP 404)";
+  if (status >= 400) return "GitHub refused the download (HTTP " + std::to_string(status) + ")";
+  if (status == 0) return std::string("Couldn't reach GitHub (") + esp_err_to_name(err) + ")";
+  return std::string("Download failed (") + esp_err_to_name(err) + ")";
+}
 }
 
 namespace {
@@ -55,15 +77,29 @@ bool installFirmware(const char* url, const std::function<void(size_t, size_t)>&
   http.buffer_size = 8192;
   http.buffer_size_tx = 4096;
   http.user_agent = "PlaneRadarP4";
+  http.event_handler = onHttpEvent;
   esp_https_ota_config_t cfg = {};
   cfg.http_config = &http;
 
+  // GitHub's download servers sometimes time out (504) or drop the
+  // connection for a while; a few tries a little apart usually get through.
+  // A "no" (4xx) won't change on a retry.
+  static constexpr int kTries = 4;
+  static constexpr int kWaitMs[kTries - 1] = {3000, 8000, 15000};
   esp_https_ota_handle_t ota = nullptr;
-  esp_err_t err = esp_https_ota_begin(&cfg, &ota);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "begin %s: %s", url, esp_err_to_name(err));
-    *error = std::string("Download failed (") + esp_err_to_name(err) + ")";
-    return false;
+  esp_err_t err = ESP_FAIL;
+  for (int attempt = 0; attempt < kTries; ++attempt) {
+    s_last_status = 0;
+    err = esp_https_ota_begin(&cfg, &ota);
+    if (err == ESP_OK) break;
+    ESP_LOGW(TAG, "begin %s: %s (HTTP %d), try %d of %d", url, esp_err_to_name(err), s_last_status, attempt + 1, kTries);
+    const bool refused = s_last_status >= 400 && s_last_status < 500;
+    if (refused || attempt == kTries - 1) {
+      *error = beginError(err, s_last_status);
+      return false;
+    }
+    progress(0, 0);
+    vTaskDelay(pdMS_TO_TICKS(kWaitMs[attempt]));
   }
   esp_app_desc_t desc;
   if (esp_https_ota_get_img_desc(ota, &desc) != ESP_OK ||
