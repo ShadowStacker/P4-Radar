@@ -10,6 +10,16 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.48.0] - 2026-11-09
+
+### Added
+- **Squadron Leader Biffo on the boot screen.** The star of the
+  [promo video](https://www.youtube.com/watch?v=DcPJHB8ZspE) now keeps you
+  company while the radar starts, in a brass frame above the title. His
+  portrait adds 18 KB to the firmware and is freed from memory as soon as the
+  radar appears.
+- The README has the video, and a "Meet the crew" section for Biffo and Nigel.
+
 ## [v1.47.1] - 2026-11-09
 
 ### Changed

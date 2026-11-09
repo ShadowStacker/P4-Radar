@@ -16,6 +16,7 @@
 #include "nvs_flash.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
+#include "ui/boot_screen.h"
 #include "ui/display_rotation.h"
 #include "ui/ui.h"
 
@@ -70,7 +71,10 @@ extern "C" void app_main(void) {
   if (plat::esp::lvglLock()) {
     lv_obj_t* boot = lv_screen_active();
     ui::init(disp);
-    if (boot != lv_screen_active()) lv_obj_delete(boot);
+    if (boot != lv_screen_active()) {
+      lv_obj_delete(boot);
+      ui::boot::release();  // Biffo's portrait, back to PSRAM
+    }
     plat::esp::lvglUnlock();
   }
   ESP_LOGI("main", "heap after UI: internal %u KB free (min %u KB, largest %u KB), PSRAM %u KB free",

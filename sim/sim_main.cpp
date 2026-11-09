@@ -45,6 +45,7 @@
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
+#include "ui/boot_screen.h"
 #include "ui/ui.h"
 #include "ui/whats_new.h"
 
@@ -702,7 +703,17 @@ int main(int argc, char** argv) {
   sim::g_trace_server = [](const std::string& hex) { return g_traffic->traceJson(hex); };
   sim::g_route_server = [](const std::string& hex) { return g_traffic->routeJson(hex); };
 
+  // The boot screen, as the device shows it while the Wi-Fi module starts.
+  lv_obj_t* boot = lv_obj_create(nullptr);
+  lv_screen_load(boot);
+  const bool portrait = ui::boot::build(boot, plat::firmwareVersion());
+  ui::boot::setStatus("Starting Wi-Fi module...");
+  run(100);
+  shot((p + "00_boot_screen").c_str());
+  std::printf("boot portrait check: %s\n", portrait ? "OK" : "FAILED");
   ui::init(g_disp);
+  lv_obj_delete(boot);
+  ui::boot::release();
   run(600);
   shot((p + "01_first_boot_wifi").c_str());
 

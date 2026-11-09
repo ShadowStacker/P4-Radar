@@ -23,6 +23,7 @@
 #include "core/rotation.h"
 #include "platform/esp/esp_platform.h"
 #include "platform/platform.h"
+#include "ui/boot_screen.h"
 
 // --- Panel creation, tuned ------------------------------------------------------
 //
@@ -244,29 +245,13 @@ lv_display_t* displayStart(int quarter_turns) {
 }
 
 void bootScreen(const char* status) {
-  static lv_obj_t* s_label = nullptr;
+  static bool s_built = false;
   if (!lvglLock()) return;
-  if (s_label == nullptr) {
-    lv_obj_t* scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x020D06), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_t* title = lv_label_create(scr);
-    lv_label_set_text(title, "PLANE RADAR");
-    lv_obj_set_style_text_color(title, lv_color_hex(0x40FF80), 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_40, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
-    s_label = lv_label_create(scr);
-    lv_obj_set_style_text_color(s_label, lv_color_hex(0x8EA3AE), 0);
-    lv_obj_set_style_text_font(s_label, &lv_font_montserrat_22, 0);
-    lv_obj_align(s_label, LV_ALIGN_CENTER, 0, 30);
-    // The version at the bottom (inside the round panel's edge).
-    lv_obj_t* version = lv_label_create(scr);
-    lv_label_set_text_fmt(version, "v%s", esp_app_get_description()->version);
-    lv_obj_set_style_text_color(version, lv_color_hex(0x55707C), 0);
-    lv_obj_set_style_text_font(version, &lv_font_montserrat_22, 0);
-    lv_obj_align(version, LV_ALIGN_BOTTOM_MID, 0, -lv_display_get_vertical_resolution(nullptr) / 9);
+  if (!s_built) {
+    ui::boot::build(lv_screen_active(), esp_app_get_description()->version);
+    s_built = true;
   }
-  lv_label_set_text(s_label, status);
+  ui::boot::setStatus(status);
   const bool first = bsp_display_brightness_get() == 0;
   if (first) lv_refr_now(nullptr);  // draw it now, not on the next LVGL tick
   lvglUnlock();

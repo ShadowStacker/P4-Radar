@@ -136,7 +136,13 @@ shows `Illegal instruction` or `Image requires chip rev`).
 
 ## First start
 
+While the radar starts (a few seconds), **Squadron Leader Biffo** keeps you
+company on the boot screen, with what's starting underneath him and the
+firmware version at the bottom. If it stops on *Wi-Fi module not responding*,
+see [Troubleshooting](#troubleshooting).
+
 <p align="center">
+  <img src="images/00_boot_screen.png" width="250" alt="The boot screen, with Squadron Leader Biffo">
   <img src="images/01_first_boot_wifi.png" width="250" alt="Wi-Fi setup">
   <img src="images/02_wifi_password.png" width="250" alt="Typing the password">
   <img src="images/11_settings_location.png" width="250" alt="Setting home">

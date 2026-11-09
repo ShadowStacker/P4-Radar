@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <b><a href="https://www.youtube.com/watch?v=DcPJHB8ZspE">▶️ Video</a></b> ·
   <b><a href="#-get-started-in-5-minutes">Get started</a></b> ·
   <b><a href="docs/USER_GUIDE.md">User guide</a></b> ·
   <b><a href="#-a-tour">Tour</a></b> ·
@@ -19,7 +20,17 @@
   <b><a href="https://github.com/ShadowStacker/P4-Radar/releases">Downloads</a></b>
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/youtube.jpg" width="640" alt="Watch the video: Squadron Leader Biffo presents Plane Radar P4"></a>
+  <br>
+  <b>▶️ <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE">Watch Squadron Leader Biffo's two-minute tour</a></b>
+  <br>
+  <sub>Tea, a magnificent moustache, every feature, and poor Nigel.</sub>
+</p>
+
 ---
+
+<img src="docs/images/biffo/biffo_thumbs_up.png" width="190" align="right" alt="Squadron Leader Biffo, thumbs up">
 
 **Plane Radar P4** turns a Waveshare ESP32-P4 round touch display into a live
 air-traffic radar for your desk, wall or window sill. It shows every aircraft
@@ -85,9 +96,10 @@ version is out. Step-by-step help is in
 [Flashing the firmware](docs/USER_GUIDE.md#flashing-the-firmware).
 
 <p align="center">
-  <img src="docs/images/01_first_boot_wifi.png" width="250" alt="Wi-Fi setup">
-  <img src="docs/images/02_wifi_password.png" width="250" alt="On-screen keyboard">
-  <img src="docs/images/17_pick_home.png" width="250" alt="Picking home on the map">
+  <img src="docs/images/00_boot_screen.png" width="200" alt="The boot screen, with Squadron Leader Biffo">
+  <img src="docs/images/01_first_boot_wifi.png" width="200" alt="Wi-Fi setup">
+  <img src="docs/images/02_wifi_password.png" width="200" alt="On-screen keyboard">
+  <img src="docs/images/17_pick_home.png" width="200" alt="Picking home on the map">
 </p>
 
 ---
@@ -353,6 +365,33 @@ The software renderer draws 800×800 at up to 30 fps.
   of at most 4 MB, and tinted to the aircraft's colour as they're drawn.
 
 </details>
+
+---
+
+## 🎖️ Meet the crew
+
+<table>
+<tr>
+<td width="50%" align="center" valign="bottom"><img src="docs/images/biffo/biffo_salute.png" width="300" alt="Squadron Leader Biffo, saluting"><br><b>Squadron Leader "Biffo"</b><br><sub>Desk Defence Squadron. D.F.C. (applied for). He greets you on the boot screen every time the radar starts. Yes, the moustache is real. No, it is not a feature.</sub></td>
+<td width="50%" align="center" valign="bottom"><img src="docs/images/biffo/nigel.png" width="210" alt="Nigel, holding his box of personal effects"><br><b>Nigel</b><br><sub>Plotted every aircraft by hand, with a pencil, from 1940 until this radar came along. Has been reassigned. Would like his pencil back.</sub></td>
+</tr>
+</table>
+
+Scenes from [the video](https://www.youtube.com/watch?v=DcPJHB8ZspE):
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_title.jpg" width="32%" alt="Squadron Leader Biffo returns"></a>
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_flashback.jpg" width="32%" alt="Back in my day: radar masts, valves and Nigel with his pencil"></a>
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_moustache.jpg" width="32%" alt="Fourteen inches, tip to tip"></a>
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_nigel_reassigned.jpg" width="32%" alt="Nigel, reassigned"></a>
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_fanfare.jpg" width="32%" alt="The favourite fanfare, with brass band"></a>
+  <a href="https://www.youtube.com/watch?v=DcPJHB8ZspE"><img src="docs/images/biffo/still_pencil.jpg" width="32%" alt="Sir? Can I have my pencil back?"></a>
+</p>
+
+Everything in the film is made from scratch for this project: Biffo and Nigel
+are drawn in code, the voices are [Piper](https://github.com/rhasspy/piper)
+text-to-speech, the march, chimes and engine are synthesised, and the alerts
+you hear are the radar's own sounds.
 
 ---
 
