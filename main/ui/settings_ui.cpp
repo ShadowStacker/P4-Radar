@@ -491,7 +491,7 @@ const data::Airport* findAirport(const std::string& query) {
   const data::Airport* k_match = nullptr;
   for (size_t i = 0; i < data::kAirportCount; ++i) {
     const data::Airport& a = data::kAirports[i];
-    if (q == a.ident || q == a.iata) return &a;
+    if (q == a.ident || (a.iata[0] != '\0' && q == data::iataCode(a).s)) return &a;
     if (k_match == nullptr && kq == a.ident) k_match = &a;
   }
   return k_match;
@@ -573,7 +573,7 @@ void pageLocation() {
         toast(LV_SYMBOL_WARNING "  Airport not found");
         return;
       }
-      setHome(a->lat_e7 * 1e-7, a->lon_e7 * 1e-7, a->name);
+      setHome(a->lat_e7 * 1e-7, a->lon_e7 * 1e-7, data::airportName(static_cast<size_t>(a - data::kAirports)).c_str());
     });
   }, pal().text);
 

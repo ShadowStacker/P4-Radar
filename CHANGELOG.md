@@ -10,6 +10,21 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.49.0] - 2026-11-09
+
+### Changed
+- **The airport database is half the size, freeing about 1.8 MB for new
+  features.** The 48,000 airports and 34,000 runways took 3.6 MB, more than
+  half the firmware, mostly empty space in fixed-size records. They are now
+  packed: 20 bytes per airport, runway ends stored relative to their airport
+  (to the metre), and the names compressed, unpacked only when you pick an
+  airport as home. Nothing looks different: every airport, code and name is
+  the same.
+
+### Fixed
+- Six runways with a wrongly typed end in the source data (one ended 163
+  degrees away) are left out instead of drawing a stray line across the map.
+
 ## [v1.48.1] - 2026-11-09
 
 ### Fixed

@@ -1,6 +1,7 @@
 #include "ui/radar_view.h"
 
 #include <algorithm>
+#include <string>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -37,12 +38,13 @@ constexpr float kSliceDegSmooth = 1.0f;
  * but uses the IATA code for local identifiers like S39 (Prineville -> PRZ)
  * that travellers don't recognize; IATA style prefers IATA everywhere.
  */
-const char* airportCode(const data::Airport& ap, uint8_t style) {
+std::string airportCode(const data::Airport& ap, uint8_t style) {
   if (ap.iata[0] == '\0') return ap.ident;
-  if (style == 1) return ap.iata;
+  const data::IataCode iata = data::iataCode(ap);
+  if (style == 1) return iata.s;
   bool icao = std::strlen(ap.ident) == 4;
   for (const char* c = ap.ident; *c && icao; ++c) icao = *c >= 'A' && *c <= 'Z';
-  return icao ? ap.ident : ap.iata;
+  return icao ? ap.ident : iata.s;
 }
 
 /** Night theme stays monochrome red to preserve night vision. */
@@ -839,8 +841,8 @@ void RadarView::drawBase(lv_obj_t* target, int band, bool with_trails) {
     for (const data::Runway* rw = rw_begin; rw != data::kRunways + data::kRunwayCount && rw->airport_idx < idx_hi;
          ++rw) {
       if (!inBand(data::kAirports[rw->airport_idx])) continue;
-      const core::PointF a = vp_.project({rw->le_lat_e7 * 1e-7, rw->le_lon_e7 * 1e-7});
-      const core::PointF b = vp_.project({rw->he_lat_e7 * 1e-7, rw->he_lon_e7 * 1e-7});
+      const core::PointF a = vp_.project({data::runwayLatE7(*rw, false) * 1e-7, data::runwayLonE7(*rw, false) * 1e-7});
+      const core::PointF b = vp_.project({data::runwayLatE7(*rw, true) * 1e-7, data::runwayLonE7(*rw, true) * 1e-7});
       // Unpaved and approximately placed strips are drawn thinner and fainter.
       const bool solid = (rw->flags & data::kRunwayPaved) && !(rw->flags & data::kRunwayApprox);
       drawLine(&layer, a.x, a.y, b.x, b.y, p.runway, static_cast<int32_t>(solid ? rw_w : rw_thin),
@@ -865,7 +867,7 @@ void RadarView::drawBase(lv_obj_t* target, int band, bool with_trails) {
           }
           if (crowded) continue;
           placed.push_back(a);
-          drawTextCentered(&layer, airportCode(*ap, st.airport_codes), a.x, a.y + sc(22), f, p.runway_label, pass == data::kSmall ? 170 : 230);
+          drawTextCentered(&layer, airportCode(*ap, st.airport_codes).c_str(), a.x, a.y + sc(22), f, p.runway_label, pass == data::kSmall ? 170 : 230);
         }
       }
     }

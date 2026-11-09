@@ -16,6 +16,7 @@
 
 #include <zlib.h>
 
+#include "data/airports.h"
 #include "core/adsb.h"
 #include "core/inflate.h"
 #include "data/aircraft_icons.h"
@@ -2566,6 +2567,60 @@ void testHalfTurn() {
   }
 }
 
+// The packed airport table (scripts/build_airports.py): codes, positions,
+// compressed names and runway ends stored relative to their airport.
+void testAirportData() {
+  CHECK(data::kAirportCount == 48105);
+  for (size_t i = 1; i < data::kAirportCount; ++i) CHECK(data::kAirports[i - 1].lat_e7 <= data::kAirports[i].lat_e7);
+  for (size_t i = 1; i < data::kRunwayCount; ++i) CHECK(data::kRunways[i - 1].airport_idx <= data::kRunways[i].airport_idx);
+  auto find = [](const char* ident) -> size_t {
+    for (size_t i = 0; i < data::kAirportCount; ++i) {
+      if (std::strcmp(data::kAirports[i].ident, ident) == 0) return i;
+    }
+    return data::kAirportCount;
+  };
+  struct Want {
+    const char* ident;
+    const char* iata;
+    const char* name;
+    int32_t lat_e7, lon_e7;
+    int cls;
+  };
+  for (const Want& w : {Want{"KLAX", "LAX", "Los Angeles International Airpor", 339425010, -1184079970, 0},
+                        Want{"KRDM", "RDM", "Roberts Field", 442541010, -1211500020, 1},
+                        Want{"S39", "PRZ", "Prineville Airport", 442869987, -1209039993, 2},
+                        Want{"EGLL", "LHR", "London Heathrow Airport", 514707480, -4599090, 0}}) {
+    const size_t i = find(w.ident);
+    CHECK(i < data::kAirportCount);
+    if (i >= data::kAirportCount) continue;
+    const data::Airport& a = data::kAirports[i];
+    CHECK(std::strcmp(data::iataCode(a).s, w.iata) == 0);
+    CHECK(data::airportName(i) == w.name);
+    CHECK(a.lat_e7 == w.lat_e7 && a.lon_e7 == w.lon_e7 && a.cls == w.cls);
+    // Its runways start and end within a few km of it.
+    int n = 0;
+    for (size_t r = 0; r < data::kRunwayCount; ++r) {
+      if (data::kRunways[r].airport_idx != i) continue;
+      ++n;
+      for (bool high : {false, true}) {
+        CHECK(std::abs(data::runwayLatE7(data::kRunways[r], high) - a.lat_e7) < 500000);
+        CHECK(std::abs(data::runwayLonE7(data::kRunways[r], high) - a.lon_e7) < 700000);
+      }
+    }
+    CHECK(n >= 1);
+  }
+  // Every name unpacks (first and last of every block, and the very last one).
+  for (size_t i = 0; i < data::kAirportCount; i += data::kNameBlockSize - 1) CHECK(!data::airportName(i).empty());
+  CHECK(!data::airportName(data::kAirportCount - 1).empty());
+  CHECK(data::airportName(data::kAirportCount).empty());
+  // An airport without an IATA code reads as "".
+  size_t no_iata = 0;
+  for (size_t i = 0; i < data::kAirportCount && no_iata == 0; ++i) {
+    if (data::kAirports[i].iata[0] == '\0') no_iata = i;
+  }
+  CHECK(data::iataCode(data::kAirports[no_iata]).s[0] == '\0');
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -2616,6 +2671,7 @@ int main() {
   testDirtyTiles();
   testReleaseNotes();
   testHalfTurn();
+  testAirportData();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }
