@@ -43,7 +43,7 @@ are all it takes. It's also much more than a radar:
 <table>
 <tr>
 <td width="33%" valign="top"><h3>✈️ See everything</h3><b>470 aircraft icons</b> covering about 2,900 type codes, from a Cub to an A380, gliders, gyroplanes and balloons. Trails, one-minute speed vectors, 48,000 airports with runways, and smooth motion between updates.</td>
-<td width="33%" valign="top"><h3>🗺️ On a real map</h3>Dark streets, <b>topo</b>, <b>FAA sectional charts</b>, <b>satellite</b> or a street map with names, tinted to the theme. Tiles are saved on an SD card, so a map you've seen also works offline.</td>
+<td width="33%" valign="top"><h3>🗺️ On a real map</h3>Dark streets, <b>topo</b>, <b>FAA sectional charts</b>, <b>satellite</b> or a street map with names, tinted to the theme. Or just crisp <b>coastlines, borders and US airspace</b> (Class B, C, D) on the radar itself. Saved on an SD card, so what you've seen also works offline.</td>
 <td width="33%" valign="top"><h3>🔔 Never miss one</h3><b>Favorites</b>, a <b>watchlist</b> (military, helicopters, fast jets, any type or callsign), proximity and emergency alerts, and <i>first time here</i>. Each has its own sound, and you can use your own WAV files.</td>
 </tr>
 <tr>
@@ -133,6 +133,19 @@ across the map.
 Choose a map from the picture button on the radar. It loads the area you're
 looking at, the closest tiles first, and keeps them on the SD card for
 next time.
+
+### Borders, coastlines and airspace
+
+Coastlines, country borders, state lines and **US Class B, C and D airspace**
+(in the charts' colours) are drawn straight onto the radar: sharp at any zoom,
+with or without a background map. A simplified world is built in; the detailed
+lines for the area you're looking at download in seconds and are kept on the SD
+card. [More](docs/USER_GUIDE.md#borders-coastlines-and-airspace)
+
+<p align="center">
+  <img src="docs/images/89_overlay_los_angeles.png" width="300" alt="Los Angeles: coastline and Class B, C and D airspace">
+  <img src="docs/images/89_overlay_pacific_northwest.png" width="300" alt="The Pacific Northwest: coastline, borders and state lines">
+</p>
 
 ### Themes and looks
 
@@ -413,6 +426,10 @@ you hear are the radar's own sounds.
     and [OpenTopoMap](https://opentopomap.org) (OpenStreetMap data, SRTM);
   - Esri World Imagery;
   - the FAA's VFR Sectional chart tiles. **Not for navigation.**
+- **Borders, coastlines and state lines:** [Natural Earth](https://www.naturalearthdata.com)
+  (public domain). **Airspace:** the FAA's
+  [Class Airspace](https://adds-faa.opendata.arcgis.com) data (public domain).
+  **Not for navigation.**
 - **Place search:** [Nominatim](https://nominatim.org) (OpenStreetMap).
 - **Airports and runways:** [OurAirports](https://ourairports.com/data/) (public
   domain).

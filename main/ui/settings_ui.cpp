@@ -661,6 +661,10 @@ void pageMap() {
   switchRow("Range rings", &st.show_rings);
   switchRow("Runways", &st.show_runways);
   switchRow("Airport codes", &st.show_airport_labels);
+  switchRow("Country borders", &st.show_borders);
+  switchRow("State and province lines", &st.show_states);
+  switchRow("Coastlines", &st.show_coast);
+  switchRow("Airspace (Class B, C, D; US)", &st.show_airspace);
   static const char* const kMaps[] = {"Off", "Dark streets", "Topo", "\n", "FAA", "Satellite", "Street map", ""};
   choiceRow("Background map", kMaps, st.map_style >= core::tiles::kStyleCount ? 0 : st.map_style,
             [](int v) { app::settings().map_style = static_cast<uint8_t>(v); });

@@ -16,6 +16,8 @@
 
 #include <zlib.h>
 
+#include "core/geo_shapes.h"
+#include "data/geo_world.h"
 #include "data/airports.h"
 #include "core/adsb.h"
 #include "core/inflate.h"
@@ -2621,6 +2623,103 @@ void testAirportData() {
   CHECK(data::iataCode(data::kAirports[no_iata]).s[0] == '\0');
 }
 
+// The map overlay's cells (scripts/build_geo.py, core/geo_shapes).
+void testGeoShapes() {
+  using namespace core::geo;
+  CHECK(cellOf(34.05, -118.25) == 24 * kCols + 12);  // Los Angeles
+  CHECK(cellOf(-90, -180) == 0);
+  CHECK(cellOf(90, 180) == (kRows - 1) * kCols);  // clamped / wrapped
+  CHECK(cellOf(10, 181) == cellOf(10, -179));
+  {
+    const std::vector<int> c = cellsCovering(31, 36, -121, -116);  // 2 rows x 2 cols
+    CHECK(c.size() == 4);
+    const std::vector<int> wrap = cellsCovering(0, 4, 178, 182);  // across the date line
+    CHECK(wrap.size() == 2 && wrap[0] == 18 * kCols + 71 && wrap[1] == 18 * kCols);
+    CHECK(cellsCovering(-1, 1, -200, 200).size() == 2u * kCols);
+  }
+  // A hand-made cell: one coastline from the cell's corner, one Class C ring.
+  {
+    std::string b = "PRG5";
+    auto varint = [&](uint64_t v) {
+      while (v >= 0x80) { b.push_back(static_cast<char>((v & 0x7F) | 0x80)); v >>= 7; }
+      b.push_back(static_cast<char>(v));
+    };
+    auto zz = [&](int64_t v) { varint(static_cast<uint64_t>((v << 1) ^ (v >> 63))); };
+    b.push_back(2);  // coast
+    varint(2);
+    zz(100); zz(200);   // corner + (0.001, 0.002) deg
+    zz(-50); zz(0);
+    b.push_back(3);  // airspace
+    b.push_back(1);  // class C
+    varint(0); varint(48);
+    varint(3);
+    zz(1000); zz(1000); zz(10); zz(0); zz(0); zz(10);
+    const int cell = cellOf(34.05, -118.25);  // south-west corner: 30 N, 120 W
+    Shapes s;
+    CHECK(parse(cell, reinterpret_cast<const uint8_t*>(b.data()), b.size(), &s));
+    CHECK(s.lines.size() == 2);
+    if (s.lines.size() == 2) {
+      CHECK(s.lines[0].kind == Kind::Coast && s.lines[0].count == 2);
+      CHECK(s.pts[0] == 300000000 + 20000 && s.pts[1] == -1200000000 + 10000);
+      CHECK(s.pts[3] == -1200000000 + 5000);
+      CHECK(s.lines[1].kind == Kind::Airspace && s.lines[1].cls == AirspaceClass::C);
+      CHECK(s.lines[1].floor_100ft == 0 && s.lines[1].ceil_100ft == 48 && s.lines[1].count == 3);
+      CHECK(s.lines[1].lat_min == 300000000 + 100000 && s.lines[1].lat_max == 300000000 + 101000);
+    }
+    // Damaged: cut short, or the wrong magic.
+    for (size_t n = 4; n < b.size(); ++n) {
+      Shapes t;
+      const bool ok = parse(cell, reinterpret_cast<const uint8_t*>(b.data()), n, &t);
+      // Valid cuts: the magic alone (an empty cell), or right after the first line.
+      CHECK(!ok || (n == 4 && t.lines.empty()) || (n == 12 && t.lines.size() == 1));
+    }
+    std::string bad = b;
+    bad[3] = '9';
+    Shapes t;
+    CHECK(!parse(cell, reinterpret_cast<const uint8_t*>(bad.data()), bad.size(), &t) && t.lines.empty());
+  }
+  // The real data: Los Angeles has a detailed file with coast and LAX's Class B,
+  // and a coarse built-in version with the coast (and no airspace).
+  {
+    const int cell = cellOf(33.94, -118.40);
+    CHECK((data::kGeoDetailCells[cell >> 3] >> (cell & 7)) & 1);
+    CHECK(!((data::kGeoDetailCells[cellOf(-50, -130) >> 3] >> (cellOf(-50, -130) & 7)) & 1));  // empty ocean
+    FILE* f = std::fopen((std::string(SIM_REPO_ROOT) + "/geo/v1/" + std::to_string(cell) + ".bin").c_str(), "rb");
+    CHECK(f != nullptr);
+    std::string file;
+    if (f) {
+      char buf[4096];
+      size_t n;
+      while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) file.append(buf, n);
+      std::fclose(f);
+    }
+    Shapes d;
+    CHECK(decode(cell, reinterpret_cast<const uint8_t*>(file.data()), file.size(), &d));
+    int coast = 0, class_b = 0;
+    bool lax = false;
+    for (const Line& ln : d.lines) {
+      coast += ln.kind == Kind::Coast;
+      if (ln.kind == Kind::Airspace && ln.cls == AirspaceClass::B) {
+        ++class_b;
+        // LAX's Class B surface area surrounds the airport (33.94 N, 118.41 W).
+        lax |= ln.floor_100ft == 0 && ln.lat_min < 339400000 && ln.lat_max > 339400000 &&
+               ln.lon_min < -1184100000 && ln.lon_max > -1184100000;
+      }
+    }
+    CHECK(coast > 0 && class_b > 5 && lax);
+    Shapes w;
+    const uint32_t a = data::kGeoWorldOffset[cell], z = data::kGeoWorldOffset[cell + 1];
+    CHECK(z > a && decode(cell, data::kGeoWorld + a, z - a, &w));
+    int w_coast = 0, w_air = 0;
+    for (const Line& ln : w.lines) {
+      w_coast += ln.kind == Kind::Coast;
+      w_air += ln.kind == Kind::Airspace;
+    }
+    CHECK(w_coast > 0 && w_air == 0);
+    CHECK(w.pts.size() < d.pts.size());
+  }
+}
+
 int main() {
   testGeo();
   testViewport();
@@ -2672,6 +2771,7 @@ int main() {
   testReleaseNotes();
   testHalfTurn();
   testAirportData();
+  testGeoShapes();
   std::printf("%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }

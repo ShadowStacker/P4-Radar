@@ -235,6 +235,18 @@ int httpGet(const char* url, std::string* body, int, const char* const*) {
     *body += res.body;
     return res.status;
   }
+  // The map overlay's detailed cells: from this repository's geo/ folder
+  // (SIM_NO_GEO: as if GitHub didn't answer).
+  if (const char* g = std::strstr(url, "/P4-Radar/main/geo/")) {
+    if (std::getenv("SIM_NO_GEO")) return 504;
+    FILE* f = std::fopen((std::string(SIM_REPO_ROOT) + "/geo/" + (g + 19)).c_str(), "rb");
+    if (f == nullptr) return 404;
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) body->append(buf, n);
+    std::fclose(f);
+    return 200;
+  }
   const bool carto = std::strstr(url, "basemaps.cartocdn.com/") != nullptr;
   const bool topo = std::strstr(url, "tile.opentopomap.org/") != nullptr;
   const bool osm = std::strstr(url, "tile.openstreetmap.org/") != nullptr;

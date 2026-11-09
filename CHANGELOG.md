@@ -10,6 +10,22 @@ for your board size **and** your ESP32-P4 chip revision. See
 From v1.12.0 on, upgrading keeps your Wi-Fi, home location, settings and
 favorites. **Before v1.12.0 every update erased them** (see v1.12.0).
 
+## [v1.50.0] - 2026-11-09
+
+### Added
+- **Borders, coastlines and airspace on the radar.** Coastlines, country
+  borders, state and province lines, and US Class B, C and D airspace (blue,
+  magenta and faint blue, as on the charts) are drawn straight onto the radar:
+  sharp at any zoom, with or without a background map. Switch each on or off
+  under Map & airports. Airspace shows up to a 200 km view (Class D 100 km).
+  - A simplified world is built in (about 0.3 MB of the space freed in
+    v1.49.0), so there's always something, even offline.
+  - The detailed lines for the area on screen download from this project's
+    GitHub repository (a few KB per 5 x 5 degree square), replace the simple
+    ones within seconds, and are kept on the SD card under `geo/`.
+  - From Natural Earth and the FAA (both public domain). Not for navigation.
+- The serial log's perf line counts the overlay's line segments.
+
 ## [v1.49.0] - 2026-11-09
 
 ### Changed

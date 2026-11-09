@@ -79,6 +79,8 @@ class RadarView {
     uint32_t trail_segs = 0;    // trail segments drawn into the background (summed over builds)
     uint64_t trail_us = 0;      // of static_us: building and drawing those
     uint32_t base_reuses = 0;   // background bands that copied the cached base instead of drawing it
+    uint32_t geo_segs = 0;      // map overlay segments (borders, coast, airspace), summed over builds
+    uint32_t geo_builds = 0;
   };
   Stats& stats() { return stats_; }
   /** The same, never reset (for the on-screen stats, which take differences). */
@@ -197,6 +199,20 @@ class RadarView {
   };
   std::vector<TrailSeg> trail_segs_;
   std::vector<TrailSeg> static_segs_;  // the background's trails, built once per background render
+
+  // Map overlay (borders, states, coastlines, airspace): the cells asked for,
+  // and their lines on screen, projected once per background render (the
+  // background is drawn in bands; each band draws the ones crossing it).
+  struct GeoSeg {
+    int16_t x1, y1, x2, y2;
+    uint8_t style;
+  };
+  std::vector<GeoSeg> geo_segs_;
+  std::vector<int> geo_cells_;
+  uint32_t geo_gen_ = 0;
+  std::vector<int> geoCells() const;
+  void geoSegments(std::vector<GeoSeg>* out) const;
+  void drawGeo(lv_layer_t* layer, int band) const;
   bool busy_ = false;  // panning, zooming or animating: no trails on the overlay either
 
   // Sweep

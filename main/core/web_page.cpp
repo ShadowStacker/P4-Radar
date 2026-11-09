@@ -102,7 +102,7 @@ async function start(){
 }
 function render(){({settings:viewSettings,watch:viewWatch,favorites:viewFavorites,wifi:viewWifi,log:viewLog,shots:viewShots,backup:viewBackup,update:viewUpdate})[tab]()}
 const LABELS={home_lat:'Home latitude',home_lon:'Home longitude',home_radius_km:'Home zoom radius (km)',home_set:'Home location set',
-  show_trails:'Trails',extended_trail:'Flight history on tap',show_speed_vectors:'Speed vectors',show_rings:'Range rings',show_runways:'Runways',
+  show_trails:'Trails',extended_trail:'Flight history on tap',show_speed_vectors:'Speed vectors',show_rings:'Range rings',show_runways:'Runways',show_borders:'Country borders',show_states:'State and province lines',show_coast:'Coastlines',show_airspace:'Airspace (US)',
   show_airport_labels:'Airport codes',airport_codes:'Airport code style',show_route_info:'Airline and route on tap',autohide_buttons:'Auto-hide buttons',
   dim_after_min:'Dim after (minutes)',dim_brightness:'Dimmed brightness (%)',night_dim:'Night mode',night_sleep:'Sleep at night',night_by_sun:'Night is sunset to sunrise',
   night_from_min:'Night starts',night_to_min:'Night ends',night_brightness:'Night brightness (%)',show_stats:'On-screen stats',brightness:'Brightness (%)',

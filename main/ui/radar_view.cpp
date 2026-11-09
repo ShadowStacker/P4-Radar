@@ -10,6 +10,8 @@
 #include "app/app.h"
 #include "app/maps.h"
 #include "core/clock.h"
+#include "app/geo_tiles.h"
+#include "core/geo_shapes.h"
 #include "data/airports.h"
 #include "platform/platform.h"
 #include "ui/image_buf.h"
@@ -391,6 +393,20 @@ void RadarView::frame() {
     light_map_ = map_.active() && core::tiles::isLight(look.variant) && !look.tint;
   }
 
+  // Map overlay: ask for the cells on screen; redraw when a detailed one arrives.
+  if (st.show_borders || st.show_states || st.show_coast || st.show_airspace) {
+    std::vector<int> cells = geoCells();
+    if (cells != geo_cells_) {
+      geo_cells_ = std::move(cells);
+      app::geo::want(geo_cells_);
+    }
+    const uint32_t gen = app::geo::generation();
+    if (gen != geo_gen_) {
+      geo_gen_ = gen;
+      static_dirty_ = true;
+    }
+  }
+
   // Lazy follow: re-center only when the aircraft drifts away from the middle,
   // so the static layer does not have to re-render every frame.
   if (follow_ && !busy) {
@@ -487,13 +503,14 @@ void RadarView::frame() {
   if (now - s_log_ms >= 30000) {
     if (s_log_ms != 0 && stats_.frames > 0) {
       const Stats& x = stats_;
-      std::printf("perf: %.1f fps, frame %.1f ms, static %.1f ms x%u (trails %u segs, %.1f ms), overlay %.1f ms, "
-                  "%u aircraft, %u labels, %.0f km\n",
+      std::printf("perf: %.1f fps, frame %.1f ms, static %.1f ms x%u (trails %u segs, %.1f ms; map overlay %u segs), "
+                  "overlay %.1f ms, %u aircraft, %u labels, %.0f km\n",
                   x.frames / ((now - s_log_ms) / 1000.0f), x.frame_us / 1000.0f / x.frames,
                   x.static_renders ? x.static_us / 1000.0f / x.static_renders : 0.0f,
                   static_cast<unsigned>(x.static_renders),
                   static_cast<unsigned>(x.static_renders ? x.trail_segs / x.static_renders : 0),
-                  x.static_renders ? x.trail_us / 1000.0f / x.static_renders : 0.0f, x.overlay_us / 1000.0f / x.frames,
+                  x.static_renders ? x.trail_us / 1000.0f / x.static_renders : 0.0f,
+                  static_cast<unsigned>(x.geo_builds ? x.geo_segs / x.geo_builds : 0), x.overlay_us / 1000.0f / x.frames,
                   static_cast<unsigned>(x.blips / x.frames), static_cast<unsigned>(x.labels / x.frames), vp_.radiusKm());
     }
     s_log_ms = now;
@@ -515,6 +532,119 @@ void RadarView::syncTrace() {
   if (app::traceInfo().version != trace_version_) {
     trace_version_ = app::traceCopy(&trace_);
     static_dirty_ = true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Map overlay
+
+namespace {
+
+enum GeoStyle : uint8_t { kGeoState, kGeoBorder, kGeoCoast, kGeoClassD, kGeoClassC, kGeoClassB, kGeoStyles };
+
+struct GeoLook {
+  lv_color_t color;
+  int32_t width;  // at 800 px
+  lv_opa_t opa;
+};
+
+GeoLook geoLook(uint8_t style, const Palette& p, bool night) {
+  switch (style) {
+    case kGeoState: return {p.grid_text, 1, 140};
+    case kGeoBorder: return {p.grid_text, 3, 150};
+    case kGeoCoast: return {p.grid_text, 2, 220};
+    // Airspace in the colours of the charts: B blue, C magenta, D dashed blue
+    // there (fainter here). Night stays red.
+    case kGeoClassB: return {night ? p.accent : lv_color_hex(0x4C8DFF), 2, 220};
+    case kGeoClassC: return {night ? p.accent : lv_color_hex(0xD45AD8), 2, 210};
+    default: return {night ? p.grid_text : lv_color_hex(0x4C8DFF), 2, 140};
+  }
+}
+
+}  // namespace
+
+std::vector<int> RadarView::geoCells() const {
+  // A bit past the circle (and its corners), so lines don't stop at its edge.
+  const double lat_span = vp_.radiusKm() * 1.45 / core::kKmPerDegLat;
+  const double lat = vp_.center().lat, lon = vp_.center().lon;
+  const double lon_span = std::min(180.0, lat_span / std::max(0.05, std::cos(core::degToRad(lat))));
+  std::vector<int> cells = core::geo::cellsCovering(std::max(-90.0, lat - lat_span), std::min(90.0, lat + lat_span),
+                                                    lon - lon_span, lon + lon_span);
+  // The middle one first: it's fetched first.
+  const int mid = core::geo::cellOf(lat, lon);
+  for (size_t i = 0; i < cells.size(); ++i) {
+    if (cells[i] == mid) std::swap(cells[i], cells[0]);
+  }
+  return cells;
+}
+
+void RadarView::geoSegments(std::vector<GeoSeg>* out) const {
+  const auto& st = app::settings();
+  if (!(st.show_borders || st.show_states || st.show_coast || st.show_airspace)) return;
+  const float cx = vp_.cx(), cy = vp_.cy(), R = vp_.radiusPx() + sc(10);
+  const double lat_span = vp_.radiusKm() * 1.45 / core::kKmPerDegLat;
+  const double clat = vp_.center().lat, clon = vp_.center().lon;
+  const double lon_span = std::min(180.0, lat_span / std::max(0.05, std::cos(core::degToRad(clat))));
+  const int32_t la0 = static_cast<int32_t>((clat - lat_span) * 1e7), la1 = static_cast<int32_t>((clat + lat_span) * 1e7);
+  const float min_step = static_cast<float>(std::max<int32_t>(2, sc(3)));  // shorter steps add nothing on screen
+  constexpr size_t kMaxSegs = 30000;
+  // Airspace is clutter from far away: Class B and C within 200 km, D within 100.
+  const double rkm = vp_.radiusKm();
+  const bool air_bc = st.show_airspace && rkm <= 200.0, air_d = st.show_airspace && rkm <= 100.0;
+
+  for (int cell : geoCells()) {
+    const auto shapes = app::geo::shapes(cell);
+    if (!shapes) continue;
+    for (const core::geo::Line& ln : shapes->lines) {
+      uint8_t style;
+      switch (ln.kind) {
+        case core::geo::Kind::Border: if (!st.show_borders) continue; style = kGeoBorder; break;
+        case core::geo::Kind::State: if (!st.show_states) continue; style = kGeoState; break;
+        case core::geo::Kind::Coast: if (!st.show_coast) continue; style = kGeoCoast; break;
+        default:
+          if (ln.cls == core::geo::AirspaceClass::D ? !air_d : !air_bc) continue;
+          style = ln.cls == core::geo::AirspaceClass::B ? kGeoClassB
+                  : ln.cls == core::geo::AirspaceClass::C ? kGeoClassC : kGeoClassD;
+      }
+      if (ln.lat_max < la0 || ln.lat_min > la1) continue;
+      const double w0 = core::wrapLon(ln.lon_min * 1e-7 - clon), w1 = core::wrapLon(ln.lon_max * 1e-7 - clon);
+      if (w0 <= w1 && (w1 < -lon_span || w0 > lon_span)) continue;
+      const int32_t* pt = shapes->pts.data() + 2 * static_cast<size_t>(ln.first);
+      core::PointF prev{0, 0};
+      for (uint32_t i = 0; i < ln.count; ++i) {
+        const core::PointF q = vp_.project({pt[2 * i] * 1e-7, pt[2 * i + 1] * 1e-7});
+        if (i > 0) {
+          if (i != ln.count - 1 && distPx(prev.x, prev.y, q.x, q.y) < min_step) continue;
+          const bool off = std::max(prev.x, q.x) < cx - R || std::min(prev.x, q.x) > cx + R ||
+                           std::max(prev.y, q.y) < cy - R || std::min(prev.y, q.y) > cy + R;
+          if (!off && out->size() < kMaxSegs) {
+            auto clip16 = [](float v) { return static_cast<int16_t>(std::clamp(v, -16000.0f, 16000.0f)); };
+            out->push_back({clip16(prev.x), clip16(prev.y), clip16(q.x), clip16(q.y), style});
+          }
+        }
+        prev = q;
+      }
+    }
+  }
+  // Lines first, airspace on top (B over C over D).
+  std::stable_sort(out->begin(), out->end(), [](const GeoSeg& a, const GeoSeg& b) { return a.style < b.style; });
+}
+
+void RadarView::drawGeo(lv_layer_t* layer, int band) const {
+  if (geo_segs_.empty()) return;
+  const Palette& p = pal();
+  const bool night = app::settings().theme == core::Theme::Night;
+  const int32_t H = screenH();
+  const int32_t y1 = band < 0 ? 0 : H * band / kStaticBands, y2 = band < 0 ? H : H * (band + 1) / kStaticBands;
+  GeoLook looks[kGeoStyles];
+  for (uint8_t s = 0; s < kGeoStyles; ++s) {
+    looks[s] = geoLook(s, p, night);
+    looks[s].width = std::max<int32_t>(1, sc(looks[s].width));
+  }
+  for (const GeoSeg& g : geo_segs_) {
+    const GeoLook& lk = looks[g.style];
+    if (std::max(g.y1, g.y2) < y1 - lk.width || std::min(g.y1, g.y2) > y2 + lk.width) continue;
+    drawLine(layer, g.x1, g.y1, g.x2, g.y2, lk.color, lk.width, lk.opa);
   }
 }
 
@@ -749,6 +879,15 @@ void RadarView::drawBase(lv_obj_t* target, int band, bool with_trails) {
   if (!map_.draw(&layer, vp_)) {
     for (int i = 0; i < 4; ++i) drawCircle(&layer, cx, cy, R * (0.98f - i * 0.22f), p.bg_center, 45);
   }
+
+  // --- Map overlay: borders, states, coastlines, airspace ------------------
+  if (band <= 0) {
+    geo_segs_.clear();
+    geoSegments(&geo_segs_);
+    stats_.geo_segs += static_cast<uint32_t>(geo_segs_.size());
+    stats_.geo_builds++;
+  }
+  drawGeo(&layer, band);
 
   const core::PointF home = vp_.project({st.home_lat, st.home_lon});
   const float home_dist = distPx(home.x, home.y, cx, cy);

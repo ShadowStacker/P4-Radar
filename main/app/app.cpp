@@ -25,6 +25,7 @@
 #include "core/backup.h"
 #include "core/failover.h"
 #include "core/filter.h"
+#include "app/geo_tiles.h"
 #include "app/maps.h"
 #include "app/web.h"
 #include "app/wifi_internal.h"
@@ -1151,12 +1152,12 @@ void networkLoop() {
     if (replayActive()) {
       // Replaying: no live traffic (the map still fills in).
       const bool online = plat::wifiStatus().state == plat::WifiState::Connected;
-      if (!serviceReplay() && (menu || !maps::service(online))) plat::sleepMs(50);
+      if (!serviceReplay() && (menu || !(geo::service(online) || maps::service(online)))) plat::sleepMs(50);
       continue;
     }
     if (plat::wifiStatus().state != plat::WifiState::Connected) {
       watchOffline();  // the Wi-Fi driver is reconnecting; restart if that never works
-      if (menu || !maps::service(false)) plat::sleepMs(100);
+      if (menu || !(geo::service(false) || maps::service(false))) plat::sleepMs(100);
       continue;
     }
     if (serviceUpdate()) continue;  // asked for on the About page
@@ -1168,7 +1169,8 @@ void networkLoop() {
     if (!due) {
       // Map tiles fill the gaps between traffic updates (different servers,
       // so the ADS-B rate limit doesn't apply).
-      if (menu || !maps::service(true)) plat::sleepMs(100);
+      // The map overlay's cells first: few and small.
+      if (menu || !(geo::service(true) || maps::service(true))) plat::sleepMs(100);
       continue;
     }
     first = false;

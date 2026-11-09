@@ -69,8 +69,13 @@ target_compile_options(plane_radar_sim PRIVATE -Wall -Wextra -Wno-unused-paramet
 
 # Host unit tests for the pure core logic.
 file(GLOB CORE_SOURCES ${ROOT}/main/core/*.cpp ${ROOT}/main/third_party/tjpgd/*.c ${ROOT}/main/data/aircraft_icons_data.cpp
-     ${ROOT}/main/data/airports_data.cpp ${ROOT}/main/data/airports.cpp)
+     ${ROOT}/main/data/airports_data.cpp ${ROOT}/main/data/airports.cpp
+     ${ROOT}/main/data/geo_world_data.cpp)
 add_executable(core_tests ${ROOT}/tests/core_tests.cpp ${CORE_SOURCES})
 target_include_directories(core_tests PRIVATE ${ROOT}/main ${ROOT}/tests)
 target_link_libraries(core_tests PRIVATE cjson ZLIB::ZLIB m pthread)
 target_compile_options(core_tests PRIVATE -Wall -Wextra)
+
+# The map overlay's detailed cells are served from the repository (geo/v1).
+target_compile_definitions(plane_radar_sim PRIVATE SIM_REPO_ROOT="${ROOT}")
+target_compile_definitions(core_tests PRIVATE SIM_REPO_ROOT="${ROOT}")

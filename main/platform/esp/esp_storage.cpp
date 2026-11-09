@@ -51,7 +51,9 @@ size_t validPrefix(uint16_t version) {
     // (older ones are shorter: their size stops the copy first). Not the
     // padding after them: that's where version 21's fields begin.
     case 20: return offsetof(core::Settings, local_fallback) + sizeof(core::Settings::local_fallback);
-    case 21: return sizeof(core::Settings);
+    // Not the padding after mqtt_topic: that's where version 22's fields begin.
+    case 21: return offsetof(core::Settings, show_borders);
+    case 22: return sizeof(core::Settings);
     // Saved by newer firmware (after a rollback): fields are only ever
     // appended, so all of this firmware's fields are in it.
     default: return version > core::Settings::kVersion ? sizeof(core::Settings) : 0;

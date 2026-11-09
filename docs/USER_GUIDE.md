@@ -27,6 +27,7 @@ when something goes wrong. For what changed in each version, see the
 [Flight history](#flight-history) ·
 [Long-press: home and bookmarks](#long-press-home-and-bookmarks) ·
 [Background maps](#background-maps) ·
+[Borders, coastlines and airspace](#borders-coastlines-and-airspace) ·
 [Clock face and alarms](#clock-face-and-alarms) ·
 [Sleep](#sleep) ·
 [Screenshots](#screenshots) ·
@@ -440,6 +441,38 @@ The map services are free community services meant for light personal use,
 which is how the radar uses them: it only downloads what you look at, and saves
 it. That's why there's no "download a whole region" button.
 
+## Borders, coastlines and airspace
+
+<p align="center">
+  <img src="images/89_overlay_los_angeles.png" width="300" alt="Los Angeles: coastline and Class B, C and D airspace">
+  <img src="images/89_overlay_pacific_northwest.png" width="300" alt="The Pacific Northwest: coastline, borders and state lines">
+</p>
+
+Lines drawn straight onto the radar, at any zoom, in the theme's colours. They
+need no background map, and work offline:
+
+| Layer | What it shows |
+|---|---|
+| **Coastlines** | Sea coasts and the shores of the biggest lakes. |
+| **Country borders** | Borders on land. |
+| **State and province lines** | US states, Canadian provinces, and their equivalents elsewhere. |
+| **Airspace** | US Class B (blue), C (magenta) and D (faint blue), the colours of the charts. Class B and C show up to a 200 km view radius, Class D up to 100 km, where they're readable. US only, from the FAA. **Not for navigation.** |
+
+Switch each on or off under **Map & airports**.
+
+**Where the lines come from.** The firmware carries a simplified world (good
+to about a kilometre), so something is always there. For the area you're
+looking at, the radar downloads the detailed version from this project on
+GitHub: one small file (a few KB to 30 KB) per 5 x 5 degree square, with the
+coastline good to about 100 m and the airspace to about 50 m. Detailed squares
+replace the simplified ones as they arrive (usually within seconds). With an
+SD card they're saved under `geo/` on it, so they're downloaded only once and
+work offline afterwards; without one they're downloaded again after a restart.
+
+Borders, coastlines and state lines are from [Natural Earth](https://www.naturalearthdata.com)
+(public domain); airspace from the [FAA](https://adds-faa.opendata.arcgis.com)
+(public domain). How the files are built: `scripts/build_geo.py`.
+
 ## Clock face and alarms
 
 <p align="center">
@@ -720,6 +753,10 @@ slot.
 | **Range rings** | Distance rings and the crosshair around home. | On |
 | **Runways** | Airport runways. | On |
 | **Airport codes** | Airport labels. | On |
+| **Country borders** | Borders on land ([Borders, coastlines and airspace](#borders-coastlines-and-airspace)). | On |
+| **State and province lines** | US states, Canadian provinces and the like. | On |
+| **Coastlines** | Sea coasts and big lakes' shores. | On |
+| **Airspace (Class B, C, D; US)** | Controlled airspace around US airports, in the charts' colours. | On |
 | **Background map** | **Off**, **Dark streets**, **Topo**, **FAA** (sectional charts), **Satellite** or **Street map**. See [Background maps](#background-maps). | Off |
 | **CARTO key** | The free API key the Dark streets map needs, shown as *set* or *not set*. Tap to enter it. A `carto_key.txt` on the SD card works too. | not set |
 | **Place names (dark streets with a CARTO key)** | Town and road names on the Dark streets map. | On |
@@ -1568,6 +1605,7 @@ Everything goes out from the radar; nothing on the internet can reach it.
 | `nominatim.openstreetmap.org` | When you search for a place |
 | `pool.ntp.org` | The time, at startup and now and then |
 | `api.github.com`, GitHub downloads | Update checks (hourly, can be switched off) and installs |
+| `raw.githubusercontent.com` | Detailed borders, coastlines and airspace for the area on screen (once per area with an SD card) |
 | Your MQTT broker | With Home Assistant on |
 
 On your own network, the radar serves the [phone page](#phone-settings-page)
@@ -1651,6 +1689,14 @@ extended_trail = on
 show_speed_vectors = on
 show_rings = on
 show_runways = on
+# Country borders
+show_borders = on
+# State and province lines
+show_states = on
+# Coastlines
+show_coast = on
+# Class B, C and D airspace (US only)
+show_airspace = on
 show_airport_labels = on
 # icao or iata
 airport_codes = icao

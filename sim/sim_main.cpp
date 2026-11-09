@@ -45,6 +45,7 @@
 #include "ui/radar_view.h"
 #include "ui/sprites.h"
 #include "ui/theme.h"
+#include "app/geo_tiles.h"
 #include "ui/boot_screen.h"
 #include "ui/ui.h"
 #include "ui/whats_new.h"
@@ -163,7 +164,7 @@ void run(uint32_t ms, uint32_t step = 16) {
     if (!app::serviceUpdate() && !app::serviceFavoriteLookup() && !app::servicePlaceSearch() && !app::serviceRoute()) {
       app::serviceTrace();
     }
-    if (!card) app::maps::service(true);
+    if (!card && !app::geo::service(true)) app::maps::service(true);
     const auto t0 = std::chrono::steady_clock::now();
     lv_timer_handler();
     g_render_ms_total += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -1088,6 +1089,41 @@ int main(int argc, char** argv) {
   ui::RadarView::get().markStaticDirty();
   run(800);
   shot((p + "33_central_oregon_30km").c_str());
+
+  // The map overlay: coastlines, borders, state lines and airspace (detailed
+  // cells served from the repository's geo/ folder, as GitHub would).
+  {
+    auto& st = app::settings();
+    const double lat0 = st.home_lat, lon0 = st.home_lon, r0 = st.home_radius_km;
+    struct View {
+      const char* name;
+      double lat, lon, km;
+    };
+    for (const View& v : {View{"89_overlay_los_angeles", 33.93, -118.20, 70},
+                          View{"89_overlay_pacific_northwest", 45.3, -121.2, 420}}) {
+      st.home_lat = v.lat;
+      st.home_lon = v.lon;
+      st.home_radius_km = v.km;
+      ui::RadarView::get().goHome(false);
+      ui::RadarView::get().markStaticDirty();
+      run(4000);
+      shot((p + v.name).c_str());
+      // What the overlay costs: its segments and the background's build time.
+      ui::RadarView::get().stats() = {};
+      ui::RadarView::get().markStaticDirty();
+      run(200);
+      const auto& x = ui::RadarView::get().stats();
+      std::printf("%s: map overlay %u segments, background %.1f ms per build\n", v.name,
+                  static_cast<unsigned>(x.geo_builds ? x.geo_segs / x.geo_builds : 0),
+                  x.static_renders ? x.static_us / 1000.0 / x.static_renders : 0.0);
+    }
+    st.home_lat = lat0;
+    st.home_lon = lon0;
+    st.home_radius_km = r0;
+    ui::RadarView::get().goHome(false);
+    ui::RadarView::get().markStaticDirty();
+    run(800);
+  }
   app::settings().home_radius_km = 12;
   ui::RadarView::get().goHome(false);
   run(800);

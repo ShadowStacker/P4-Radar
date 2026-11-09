@@ -60,7 +60,8 @@ struct Settings {
   //  20: up to places_more (v1.33.0); local_url and local_fallback (v1.45.0)
   //      were added without a bump (see there)
   //  21: up to mqtt_topic (v1.46.0)
-  static constexpr uint16_t kVersion = 21;
+  //  22: up to show_airspace (v1.50.0)
+  static constexpr uint16_t kVersion = 22;
 
   // Wi-Fi: the network to use first (stored separately too; see the platform
   // settings store). Other saved networks are in wifi_saved.
@@ -256,10 +257,20 @@ struct Settings {
   char mqtt_user[32] = "";
   char mqtt_pass[64] = "";
   char mqtt_topic[32] = "plane_radar";    // topics start with this
+
+  // v1.50.0 (version 22): the map overlay (scripts/build_geo.py)
+  bool show_borders = true;               // country borders
+  bool show_states = true;                // state and province lines
+  bool show_coast = true;                 // coastlines (and big lakes' shores)
+  bool show_airspace = true;              // Class B, C and D airspace (US)
 };
 static_assert(offsetof(Settings, local_url) ==
                   offsetof(Settings, places_more) + sizeof(Settings::places_more),
               "new fields must start where the previous layout ended (no padding in between)");
+
+static_assert(offsetof(Settings, show_borders) ==
+                  offsetof(Settings, mqtt_topic) + sizeof(Settings::mqtt_topic),
+              "version 22's fields must start where version 21's ended");
 
 /** Bookmark `i` (0 .. kMaxBookmarks-1), wherever its slot is stored. */
 inline Place& bookmark(Settings& s, int i) { return i < kMaxPlaces ? s.places[i] : s.places_more[i - kMaxPlaces]; }
